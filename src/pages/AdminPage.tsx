@@ -9,6 +9,12 @@ function numberOrNull(v: string) {
   const n = Number(x);
   return Number.isFinite(n) ? n : null;
 }
+function arrayFromCSV(csv: string) {
+  return csv
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
 
 type IngredientRow = {
   id: string;
@@ -31,7 +37,6 @@ type IngredientRow = {
   } | null;
 };
 
-/** ---------- New Ingredient + Nutrition Form ---------- */
 function Field({
   label,
   value,
@@ -59,6 +64,7 @@ function Field({
   );
 }
 
+/** ---------- New Ingredient + Nutrition Form ---------- */
 function NewIngredientForm({ onSaved }: { onSaved: () => void }) {
   // ingredient meta
   const [name, setName] = useState("");
@@ -100,12 +106,7 @@ function NewIngredientForm({ onSaved }: { onSaved: () => void }) {
         unit_default: unitDefault,
         grams_per_unit: unitNeedsGrams ? numberOrNull(gramsPerUnit) : null,
         density_g_per_ml: unitNeedsDensity ? numberOrNull(density) : null,
-        allergen_tags: allergens
-          ? allergens
-              .split(",")
-              .map((t) => t.trim())
-              .filter(Boolean)
-          : [],
+        allergen_tags: allergens ? arrayFromCSV(allergens) : [],
         is_active: true,
       })
       .select("*")
@@ -195,24 +196,27 @@ function NewIngredientForm({ onSaved }: { onSaved: () => void }) {
           </p>
         </div>
 
-        {unitNeedsGrams && (
-          <Field
-            label="Grams per Unit (for scoop/piece)"
-            value={gramsPerUnit}
-            setValue={setGramsPerUnit}
-            placeholder="e.g. 30"
-            type="number"
-          />
-        )}
-
-        {unitNeedsDensity && (
-          <Field
-            label="Density g/ml (for ml)"
-            value={density}
-            setValue={setDensity}
-            placeholder="e.g. 1.02"
-            type="number"
-          />
+        {(unitNeedsGrams || unitNeedsDensity) && (
+          <>
+            {unitNeedsGrams && (
+              <Field
+                label="Grams per Unit (for scoop/piece)"
+                value={gramsPerUnit}
+                setValue={setGramsPerUnit}
+                placeholder="e.g. 30"
+                type="number"
+              />
+            )}
+            {unitNeedsDensity && (
+              <Field
+                label="Density g/ml (for ml)"
+                value={density}
+                setValue={setDensity}
+                placeholder="e.g. 1.02"
+                type="number"
+              />
+            )}
+          </>
         )}
 
         <Field
@@ -250,7 +254,7 @@ function NewIngredientForm({ onSaved }: { onSaved: () => void }) {
   );
 }
 
-/** ---------- Add missing nutrition for an existing ingredient ---------- */
+/** ---------- Inline nutrition adder (if missing) ---------- */
 function AddNutritionInline({
   ingredientId,
   onSaved,
@@ -310,10 +314,278 @@ function AddNutritionInline({
   );
 }
 
+/** ---------- Edit Modal ---------- */
+function EditIngredientModal({
+  row,
+  onClose,
+  onSaved,
+}: {
+  row: IngredientRow;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const [name, setName] = useState(row.name);
+  const [category, setCategory] = useState(row.category);
+  const [unitDefault, setUnitDefault] = useState<
+    "g" | "ml" | "scoop" | "piece"
+  >(row.unit_default);
+  const [gramsPerUnit, setGramsPerUnit] = useState(
+    row.grams_per_unit?.toString() ?? ""
+  );
+  const [density, setDensity] = useState(
+    row.density_g_per_ml?.toString() ?? ""
+  );
+  const [allergens, setAllergens] = useState(
+    (row.allergen_tags || []).join(",")
+  );
+  const [isActive, setIsActive] = useState(row.is_active);
+
+  const [kcal, setKcal] = useState(
+    row.ingredient_nutrition?.per_100g_energy_kcal?.toString() ?? ""
+  );
+  const [p, setP] = useState(
+    row.ingredient_nutrition?.per_100g_protein_g?.toString() ?? ""
+  );
+  const [f, setF] = useState(
+    row.ingredient_nutrition?.per_100g_fat_g?.toString() ?? ""
+  );
+  const [c, setC] = useState(
+    row.ingredient_nutrition?.per_100g_carbs_g?.toString() ?? ""
+  );
+  const [sug, setSug] = useState(
+    row.ingredient_nutrition?.per_100g_sugars_g?.toString() ?? ""
+  );
+  const [fib, setFib] = useState(
+    row.ingredient_nutrition?.per_100g_fiber_g?.toString() ?? ""
+  );
+  const [na, setNa] = useState(
+    row.ingredient_nutrition?.per_100g_sodium_mg?.toString() ?? ""
+  );
+
+  const [saving, setSaving] = useState(false);
+
+  const unitNeedsGrams = unitDefault === "scoop" || unitDefault === "piece";
+  const unitNeedsDensity = unitDefault === "ml";
+
+  async function save() {
+    setSaving(true);
+    // 1) Update ingredient
+    const { error: e1 } = await supabase
+      .from("ingredients")
+      .update({
+        name: name.trim(),
+        category,
+        unit_default: unitDefault,
+        grams_per_unit: unitNeedsGrams ? numberOrNull(gramsPerUnit) : null,
+        density_g_per_ml: unitNeedsDensity ? numberOrNull(density) : null,
+        allergen_tags: allergens ? arrayFromCSV(allergens) : [],
+        is_active: isActive,
+      })
+      .eq("id", row.id);
+
+    if (e1) {
+      setSaving(false);
+      alert(e1.message);
+      return;
+    }
+
+    // 2) Upsert nutrition (insert if missing, otherwise update)
+    const payload = {
+      ingredient_id: row.id,
+      per_100g_energy_kcal: Number(kcal || 0),
+      per_100g_protein_g: Number(p || 0),
+      per_100g_fat_g: Number(f || 0),
+      per_100g_carbs_g: Number(c || 0),
+      per_100g_sugars_g: Number(sug || 0),
+      per_100g_fiber_g: Number(fib || 0),
+      per_100g_sodium_mg: Number(na || 0),
+    };
+
+    // Try update first
+    const { error: eUp } = await supabase
+      .from("ingredient_nutrition")
+      .update(payload)
+      .eq("ingredient_id", row.id);
+
+    if (eUp) {
+      setSaving(false);
+      alert(eUp.message);
+      return;
+    }
+
+    // If no row was updated (nutrition missing), insert
+    const { data: check } = await supabase
+      .from("ingredient_nutrition")
+      .select("ingredient_id")
+      .eq("ingredient_id", row.id);
+
+    if (!check || check.length === 0) {
+      const { error: eIns } = await supabase
+        .from("ingredient_nutrition")
+        .insert(payload);
+      if (eIns) {
+        setSaving(false);
+        alert(eIns.message);
+        return;
+      }
+    }
+
+    setSaving(false);
+    onSaved();
+    onClose();
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/30 flex items-center justify-center p-4">
+      <div className="bg-white w-full max-w-3xl rounded-xl border shadow-lg">
+        <div className="p-4 border-b flex items-center justify-between">
+          <div className="font-semibold">Edit Ingredient</div>
+          <button
+            onClick={onClose}
+            className="text-sm text-gray-600 hover:text-black"
+          >
+            Close
+          </button>
+        </div>
+
+        <div className="p-4 space-y-4">
+          <div className="grid md:grid-cols-2 gap-3">
+            <Field label="Name" value={name} setValue={setName} />
+            <div>
+              <div className="text-sm">Category</div>
+              <select
+                className="border px-2 py-1 rounded w-full"
+                value={category}
+                onChange={(e) => setCategory(e.target.value)}
+              >
+                <option>base</option>
+                <option>protein</option>
+                <option>fruit</option>
+                <option>sweetener</option>
+                <option>addin</option>
+                <option>topping</option>
+              </select>
+            </div>
+
+            <div>
+              <div className="text-sm">Default Unit</div>
+              <select
+                className="border px-2 py-1 rounded w-full"
+                value={unitDefault}
+                onChange={(e) =>
+                  setUnitDefault(
+                    e.target.value as "g" | "ml" | "scoop" | "piece"
+                  )
+                }
+              >
+                <option value="g">g</option>
+                <option value="ml">ml</option>
+                <option value="scoop">scoop</option>
+                <option value="piece">piece</option>
+              </select>
+              <div className="mt-1 text-xs text-gray-500">
+                If unit is <b>ml</b>, set density (g/ml). If <b>scoop/piece</b>,
+                set grams per unit.
+              </div>
+            </div>
+
+            {(unitNeedsGrams || unitNeedsDensity) && (
+              <>
+                {unitNeedsGrams && (
+                  <Field
+                    label="Grams per Unit (for scoop/piece)"
+                    value={gramsPerUnit}
+                    setValue={setGramsPerUnit}
+                    placeholder="e.g. 30"
+                    type="number"
+                  />
+                )}
+                {unitNeedsDensity && (
+                  <Field
+                    label="Density g/ml (for ml)"
+                    value={density}
+                    setValue={setDensity}
+                    placeholder="e.g. 1.02"
+                    type="number"
+                  />
+                )}
+              </>
+            )}
+
+            <div className="flex items-center gap-2">
+              <input
+                id="active"
+                type="checkbox"
+                checked={isActive}
+                onChange={(e) => setIsActive(e.target.checked)}
+              />
+              <label htmlFor="active" className="text-sm">
+                Active
+              </label>
+            </div>
+
+            <Field
+              label="Allergens (comma-separated)"
+              value={allergens}
+              setValue={setAllergens}
+              placeholder="milk,nuts,soy"
+            />
+          </div>
+
+          <div className="font-medium">Per 100g (from dietician)</div>
+          <div className="grid md:grid-cols-4 gap-3">
+            <Field
+              label="Energy kcal"
+              value={kcal}
+              setValue={setKcal}
+              type="number"
+            />
+            <Field label="Protein g" value={p} setValue={setP} type="number" />
+            <Field label="Fat g" value={f} setValue={setF} type="number" />
+            <Field label="Carbs g" value={c} setValue={setC} type="number" />
+            <Field
+              label="Sugars g"
+              value={sug}
+              setValue={setSug}
+              type="number"
+            />
+            <Field
+              label="Fiber g"
+              value={fib}
+              setValue={setFib}
+              type="number"
+            />
+            <Field
+              label="Sodium mg"
+              value={na}
+              setValue={setNa}
+              type="number"
+            />
+          </div>
+
+          <div className="flex justify-end gap-2">
+            <button onClick={onClose} className="px-3 py-2 border rounded">
+              Cancel
+            </button>
+            <button
+              onClick={save}
+              disabled={saving}
+              className="px-3 py-2 bg-black text-white rounded disabled:opacity-60"
+            >
+              {saving ? "Saving…" : "Save changes"}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /** ---------- Main Page ---------- */
 export default function AdminPage() {
   const [ings, setIngs] = useState<IngredientRow[]>([]);
   const [loading, setLoading] = useState(false);
+  const [editing, setEditing] = useState<IngredientRow | null>(null);
 
   const active = useMemo(() => ings.filter((i) => i.is_active), [ings]);
   const inactive = useMemo(() => ings.filter((i) => !i.is_active), [ings]);
@@ -370,12 +642,20 @@ export default function AdminPage() {
               <div key={i.id} className="border rounded p-2 bg-white">
                 <div className="flex items-center justify-between">
                   <div className="font-medium">{i.name}</div>
-                  <button
-                    onClick={() => toggleActive(i.id, false)}
-                    className="text-xs text-rose-600 hover:underline"
-                  >
-                    Deactivate
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setEditing(i)}
+                      className="text-xs text-blue-600 hover:underline"
+                    >
+                      Edit
+                    </button>
+                    <button
+                      onClick={() => toggleActive(i.id, false)}
+                      className="text-xs text-rose-600 hover:underline"
+                    >
+                      Deactivate
+                    </button>
+                  </div>
                 </div>
                 <div className="text-xs text-gray-600">
                   {i.category} • unit {i.unit_default}
@@ -432,12 +712,20 @@ export default function AdminPage() {
               >
                 <div className="flex items-center justify-between">
                   <div className="font-medium">{i.name}</div>
-                  <button
-                    onClick={() => toggleActive(i.id, true)}
-                    className="text-xs text-emerald-700 hover:underline"
-                  >
-                    Activate
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setEditing(i)}
+                      className="text-xs text-blue-600 hover:underline"
+                    >
+                      Edit
+                    </button>
+                    <button
+                      onClick={() => toggleActive(i.id, true)}
+                      className="text-xs text-emerald-700 hover:underline"
+                    >
+                      Activate
+                    </button>
+                  </div>
                 </div>
                 <div className="text-xs text-gray-600">
                   {i.category} • unit {i.unit_default}
@@ -447,6 +735,14 @@ export default function AdminPage() {
           </div>
         )}
       </section>
+
+      {editing && (
+        <EditIngredientModal
+          row={editing}
+          onClose={() => setEditing(null)}
+          onSaved={load}
+        />
+      )}
     </div>
   );
 }
