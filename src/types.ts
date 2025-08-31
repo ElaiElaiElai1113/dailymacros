@@ -15,14 +15,22 @@ export type Ingredient = {
 };
 export type IngredientNutrition = {
   ingredient_id: string;
+
+  // Always present in the v100 view
   per_100g_energy_kcal: number;
   per_100g_protein_g: number;
   per_100g_fat_g: number;
   per_100g_carbs_g: number;
-  per_100g_sugars_g: number;
-  per_100g_fiber_g: number;
-  per_100g_sodium_mg: number;
+
+  // Not provided by the v100 view (optional in our type, default to 0 in code)
+  per_100g_sugars_g?: number;
+  per_100g_fiber_g?: number;
+  per_100g_sodium_mg?: number;
+
+  // Extra field exposed by the view (can be useful for debugging)
+  factor_per100?: number | null;
 };
+
 export type Drink = {
   id: string;
   name: string;

@@ -8,6 +8,15 @@ import ExplainMath from "@/components/ExplainMath";
 import { totalsFor } from "@/utils/nutrition";
 import { useCart } from "@/context/CartContext";
 
+type V100Row = {
+  ingredient_id: string;
+  per_100g_energy_kcal: number | null;
+  per_100g_protein_g: number | null;
+  per_100g_fat_g: number | null;
+  per_100g_carbs_g: number | null;
+  factor_per100?: number | null;
+};
+
 export default function BuildYourOwnPage() {
   const [ingDict, setIngDict] = useState<Record<string, Ingredient>>({});
   const [nutrDict, setNutrDict] = useState<Record<string, IngredientNutrition>>(
@@ -19,17 +28,41 @@ export default function BuildYourOwnPage() {
   // Load ingredients + nutrition once
   useEffect(() => {
     (async () => {
-      const [{ data: ii = [] }, { data: nn = [] }] = await Promise.all([
-        supabase.from("ingredients").select("*").eq("is_active", true),
-        supabase.from("ingredient_nutrition").select("*"),
-      ]);
-      setIngDict(
-        Object.fromEntries((ii as Ingredient[]).map((x) => [x.id, x]))
-      );
+      const [{ data: ii, error: e1 }, { data: nn, error: e2 }] =
+        await Promise.all([
+          supabase.from("ingredients").select("*").eq("is_active", true),
+          supabase.from("ingredient_nutrition_v100").select("*"),
+        ]);
+
+      if (e1) {
+        console.error(e1);
+      }
+      if (e2) {
+        console.error(e2);
+      }
+
+      const ingredients = (ii ?? []) as Ingredient[];
+      const v100Rows = (nn ?? []) as V100Row[];
+
+      // Build ingredient dict
+      setIngDict(Object.fromEntries(ingredients.map((x) => [x.id, x])));
+
+      // Normalize view rows to our IngredientNutrition type (fill missing fields with 0)
+      const nutrRows: IngredientNutrition[] = v100Rows.map((r) => ({
+        ingredient_id: r.ingredient_id,
+        per_100g_energy_kcal: r.per_100g_energy_kcal ?? 0,
+        per_100g_protein_g: r.per_100g_protein_g ?? 0,
+        per_100g_fat_g: r.per_100g_fat_g ?? 0,
+        per_100g_carbs_g: r.per_100g_carbs_g ?? 0,
+        // v100 view doesn’t provide these yet—default to 0
+        per_100g_sugars_g: 0,
+        per_100g_fiber_g: 0,
+        per_100g_sodium_mg: 0,
+        factor_per100: r.factor_per100 ?? null,
+      }));
+
       setNutrDict(
-        Object.fromEntries(
-          (nn as IngredientNutrition[]).map((x) => [x.ingredient_id, x])
-        )
+        Object.fromEntries(nutrRows.map((x) => [x.ingredient_id, x]))
       );
     })();
   }, []);
