@@ -12,7 +12,6 @@ export function gramsFrom(
     return amount * ing.density_g_per_ml;
   if ((unit === "scoop" || unit === "piece") && ing.grams_per_unit)
     return amount * ing.grams_per_unit;
-  // Fallback: assume it's already grams
   return amount;
 }
 
@@ -29,7 +28,6 @@ export function totalsFor(
     sugars = 0,
     fiber = 0,
     sodium = 0;
-
   const allergens = new Set<string>();
 
   for (const li of lines) {
@@ -44,9 +42,9 @@ export function totalsFor(
     protein += factor * n.per_100g_protein_g;
     fat += factor * n.per_100g_fat_g;
     carbs += factor * n.per_100g_carbs_g;
-    sugars += factor * n.per_100g_sugars_g;
-    fiber += factor * n.per_100g_fiber_g;
-    sodium += factor * n.per_100g_sodium_mg;
+    sugars += factor * (n.per_100g_sugars_g ?? 0);
+    fiber += factor * (n.per_100g_fiber_g ?? 0);
+    sodium += factor * (n.per_100g_sodium_mg ?? 0);
 
     (ing.allergen_tags || []).forEach((a: string) => allergens.add(a));
   }
@@ -108,9 +106,9 @@ export function breakdownFor(
         protein_g: +(factor * n.per_100g_protein_g).toFixed(2),
         fat_g: +(factor * n.per_100g_fat_g).toFixed(2),
         carbs_g: +(factor * n.per_100g_carbs_g).toFixed(2),
-        sugars_g: +(factor * n.per_100g_sugars_g).toFixed(2),
-        fiber_g: +(factor * n.per_100g_fiber_g).toFixed(2),
-        sodium_mg: Math.round(factor * n.per_100g_sodium_mg),
+        sugars_g: +(factor * (n.per_100g_sugars_g ?? 0)).toFixed(2),
+        fiber_g: +(factor * (n.per_100g_fiber_g ?? 0)).toFixed(2),
+        sodium_mg: Math.round(factor * (n.per_100g_sodium_mg ?? 0)),
       },
     });
   }
