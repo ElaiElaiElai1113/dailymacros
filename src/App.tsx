@@ -6,6 +6,7 @@ import CheckoutPage from "./pages/CheckoutPage";
 import OrdersPage from "./pages/OrdersPage";
 import StaffDashboard from "./pages/StaffDashboard";
 import AdminPage from "./pages/AdminPage";
+import LandingPage from "./pages/LandingPage";
 
 export default function App() {
   return (
@@ -59,7 +60,8 @@ export default function App() {
       </nav>
       <main className="flex-1 max-w-6xl mx-auto w-full p-4">
         <Routes>
-          <Route path="/" element={<MenuPage />} />
+          <Route path="/" element={<LandingPage />} />
+          <Route path="/menu" element={<MenuPage />} />
           <Route path="/build" element={<BuildYourOwnPage />} />
           <Route path="/cart" element={<CartPage />} />
           <Route path="/checkout" element={<CheckoutPage />} />
