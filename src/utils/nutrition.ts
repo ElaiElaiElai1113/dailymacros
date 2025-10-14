@@ -1,18 +1,63 @@
 // src/utils/nutrition.ts
 import type { Ingredient, IngredientNutrition, LineIngredient } from "@/types";
 
+function numOr(v: unknown, fallback: number): number {
+  return typeof v === "number" && Number.isFinite(v) ? v : fallback;
+}
 /** Convert the entered amount + unit to grams using density/grams_per_unit when provided */
 export function gramsFrom(
   amount: number,
   unit: string,
   ing: Ingredient
 ): number {
-  if (unit === "g") return amount;
-  if (unit === "ml" && ing.density_g_per_ml)
-    return amount * ing.density_g_per_ml;
-  if ((unit === "scoop" || unit === "piece") && ing.grams_per_unit)
-    return amount * ing.grams_per_unit;
-  return amount;
+  const a = Number(amount) || 0;
+  if (a <= 0) return 0;
+
+  switch (unit) {
+    case "g":
+      return a;
+
+    case "ml": {
+      // if null/undefined, fall back to 1.03 (milk/yogurt-ish)
+      const density = numOr((ing as any).density_g_per_ml, 1.03);
+      return a * density;
+    }
+
+    case "tbsp": {
+      // prefer specific per-tbsp override, else generic grams_per_unit, else 12 g
+      const g = numOr(
+        (ing as any).grams_per_tbsp,
+        numOr((ing as any).grams_per_unit, 12)
+      );
+      return a * g;
+    }
+
+    case "tsp": {
+      const g = numOr(
+        (ing as any).grams_per_tsp,
+        numOr((ing as any).grams_per_unit, 4)
+      );
+      return a * g;
+    }
+
+    case "cup": {
+      const g = numOr(
+        (ing as any).grams_per_cup,
+        numOr((ing as any).grams_per_unit, 80)
+      );
+      return a * g;
+    }
+
+    case "scoop":
+    case "piece": {
+      const g = numOr((ing as any).grams_per_unit, 30);
+      return a * g;
+    }
+
+    default:
+      // unknown unit: assume value is already grams
+      return a;
+  }
 }
 
 /** Sum nutrition across all selected line ingredients (client-side live preview) */
