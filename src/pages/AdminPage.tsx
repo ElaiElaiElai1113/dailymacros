@@ -1,8 +1,8 @@
-// src/pages/AdminPage.tsx
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
+import type { IngredientPricing } from "@/types";
 
-/** ---------- helpers ---------- */
+/* ---------- helpers ---------- */
 function numberOrNull(v: string) {
   const x = v.trim();
   if (!x) return null;
@@ -31,7 +31,7 @@ type IngredientRow = {
   } | null;
 };
 
-/** ---------- New Ingredient + Nutrition Form ---------- */
+/* ---------- UI tiny components ---------- */
 function Field({
   label,
   value,
@@ -59,8 +59,8 @@ function Field({
   );
 }
 
+/* ---------- New Ingredient + Nutrition ---------- */
 function NewIngredientForm({ onSaved }: { onSaved: () => void }) {
-  // ingredient meta
   const [name, setName] = useState("");
   const [category, setCategory] = useState("protein");
   const [unitDefault, setUnitDefault] = useState<
@@ -70,7 +70,6 @@ function NewIngredientForm({ onSaved }: { onSaved: () => void }) {
   const [density, setDensity] = useState("");
   const [allergens, setAllergens] = useState("");
 
-  // per-100g nutrition
   const [kcal, setKcal] = useState("");
   const [p, setP] = useState("");
   const [f, setF] = useState("");
@@ -91,7 +90,6 @@ function NewIngredientForm({ onSaved }: { onSaved: () => void }) {
     }
     setSaving(true);
 
-    // 1) Insert ingredient
     const { data: ing, error: e1 } = await supabase
       .from("ingredients")
       .insert({
@@ -117,7 +115,6 @@ function NewIngredientForm({ onSaved }: { onSaved: () => void }) {
       return;
     }
 
-    // 2) Insert per-100g stats
     const { error: e2 } = await supabase.from("ingredient_nutrition").insert({
       ingredient_id: ing.id,
       per_100g_energy_kcal: Number(kcal || 0),
@@ -130,10 +127,7 @@ function NewIngredientForm({ onSaved }: { onSaved: () => void }) {
     });
 
     setSaving(false);
-    if (e2) {
-      alert(e2.message);
-      return;
-    }
+    if (e2) return alert(e2.message);
 
     // reset
     setName("");
@@ -250,7 +244,7 @@ function NewIngredientForm({ onSaved }: { onSaved: () => void }) {
   );
 }
 
-/** ---------- Add missing nutrition for an existing ingredient ---------- */
+/* ---------- Add nutrition (inline) ---------- */
 function AddNutritionInline({
   ingredientId,
   onSaved,
@@ -280,10 +274,7 @@ function AddNutritionInline({
       per_100g_sodium_mg: Number(na || 0),
     });
     setSaving(false);
-    if (error) {
-      alert(error.message);
-      return;
-    }
+    if (error) return alert(error.message);
     onSaved();
   }
 
@@ -310,7 +301,267 @@ function AddNutritionInline({
   );
 }
 
-/** ---------- Main Page ---------- */
+/* ---------- Pricing editor ---------- */
+function PriceRow({
+  label,
+  mode,
+  current,
+  onSave,
+}: {
+  label: string;
+  mode: IngredientPricing["pricing_mode"];
+  current: IngredientPricing | undefined;
+  onSave: (payload: Partial<IngredientPricing>) => Promise<void>;
+}) {
+  const [priceCents, setPriceCents] = useState(
+    current?.price_cents?.toString() || ""
+  );
+  const [centsPer, setCentsPer] = useState(
+    current?.cents_per?.toString() || ""
+  );
+  const [unitLabel, setUnitLabel] = useState(current?.unit_label || "");
+
+  useEffect(() => {
+    setPriceCents(current?.price_cents?.toString() || "");
+    setCentsPer(current?.cents_per?.toString() || "");
+    setUnitLabel(current?.unit_label || "");
+  }, [current]);
+
+  async function save() {
+    await onSave({
+      pricing_mode: mode,
+      price_cents: Number(priceCents || 0),
+      cents_per: centsPer === "" ? null : Number(centsPer),
+      unit_label: unitLabel || null,
+    });
+  }
+
+  return (
+    <div className="grid grid-cols-5 items-end gap-2 text-sm">
+      <div className="col-span-1 font-medium">{label}</div>
+      <div>
+        <div className="text-[11px] text-gray-500">price_cents</div>
+        <input
+          className="border rounded px-2 py-1 w-full"
+          value={priceCents}
+          onChange={(e) => setPriceCents(e.target.value)}
+        />
+      </div>
+      <div>
+        <div className="text-[11px] text-gray-500">cents_per</div>
+        <input
+          className="border rounded px-2 py-1 w-full"
+          value={centsPer}
+          onChange={(e) => setCentsPer(e.target.value)}
+        />
+      </div>
+      <div>
+        <div className="text-[11px] text-gray-500">unit_label</div>
+        <input
+          className="border rounded px-2 py-1 w-full"
+          value={unitLabel}
+          onChange={(e) => setUnitLabel(e.target.value)}
+          placeholder="(for per_unit e.g. scoop)"
+        />
+      </div>
+      <div>
+        <button
+          onClick={save}
+          className="rounded border px-3 py-1 hover:bg-gray-50"
+        >
+          Save
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function PricingEditor({ ingredientId }: { ingredientId: string }) {
+  const [rows, setRows] = useState<IngredientPricing[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  async function load() {
+    setLoading(true);
+    const { data } = await supabase
+      .from("ingredient_pricing_effective")
+      .select("*")
+      .eq("ingredient_id", ingredientId);
+    setRows((data || []) as IngredientPricing[]);
+    setLoading(false);
+  }
+  useEffect(() => {
+    load();
+  }, [ingredientId]);
+
+  async function upsert(payload: Partial<IngredientPricing>) {
+    const { error } = await supabase.from("ingredient_pricing").upsert(
+      {
+        ingredient_id: ingredientId,
+        pricing_mode: payload.pricing_mode!,
+        price_cents: payload.price_cents ?? 0,
+        cents_per: payload.cents_per ?? null,
+        unit_label: payload.unit_label ?? null,
+        is_active: true,
+      },
+      { onConflict: "ingredient_id,pricing_mode,unit_label_norm" }
+    );
+    if (error) return alert(error.message);
+    load();
+  }
+
+  const byMode = (m: IngredientPricing["pricing_mode"]) =>
+    rows.find((r) => r.pricing_mode === m);
+
+  return (
+    <div className="mt-3 space-y-2 rounded border p-2 bg-gray-50">
+      <div className="text-xs font-semibold text-gray-700 mb-1">Pricing</div>
+      {loading ? (
+        <div className="text-xs text-gray-500">Loading pricing…</div>
+      ) : (
+        <div className="space-y-2">
+          <PriceRow
+            label="Flat add-on"
+            mode="flat"
+            current={byMode("flat")}
+            onSave={upsert}
+          />
+          <PriceRow
+            label="Per gram (g)"
+            mode="per_gram"
+            current={byMode("per_gram")}
+            onSave={upsert}
+          />
+          <PriceRow
+            label="Per ml (ml)"
+            mode="per_ml"
+            current={byMode("per_ml")}
+            onSave={upsert}
+          />
+          <PriceRow
+            label="Per unit"
+            mode="per_unit"
+            current={byMode("per_unit")}
+            onSave={upsert}
+          />
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ---------- Drinks editor ---------- */
+type DrinkRow = {
+  id: string;
+  name: string;
+  price_cents: number;
+  is_active: boolean;
+};
+
+function DrinksAdmin() {
+  const [rows, setRows] = useState<DrinkRow[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  async function load() {
+    setLoading(true);
+    const { data } = await supabase
+      .from("drinks")
+      .select("id,name,price_cents,is_active")
+      .order("name");
+    setRows((data || []) as DrinkRow[]);
+    setLoading(false);
+  }
+  useEffect(() => {
+    load();
+  }, []);
+
+  async function saveDrink(d: DrinkRow) {
+    const { error } = await supabase
+      .from("drinks")
+      .update({
+        name: d.name,
+        price_cents: d.price_cents,
+        is_active: d.is_active,
+      })
+      .eq("id", d.id);
+    if (error) alert(error.message);
+    else load();
+  }
+
+  return (
+    <section className="space-y-2 mt-8">
+      <div className="flex items-center gap-2">
+        <h2 className="font-semibold">Drinks (base)</h2>
+        {loading && <span className="text-xs text-gray-500">Loading…</span>}
+      </div>
+      {rows.length === 0 ? (
+        <div className="text-sm text-gray-500">No drinks yet.</div>
+      ) : (
+        <div className="grid md:grid-cols-2 gap-2">
+          {rows.map((d, idx) => (
+            <div
+              key={d.id}
+              className="rounded border p-2 bg-white grid grid-cols-6 gap-2 items-center"
+            >
+              <input
+                className="border rounded px-2 py-1 col-span-3"
+                value={d.name}
+                onChange={(e) =>
+                  setRows((prev) =>
+                    prev.map((x, i) =>
+                      i === idx ? { ...x, name: e.target.value } : x
+                    )
+                  )
+                }
+              />
+              <input
+                className="border rounded px-2 py-1 col-span-2"
+                value={(d.price_cents / 100).toFixed(2)}
+                onChange={(e) =>
+                  setRows((prev) =>
+                    prev.map((x, i) =>
+                      i === idx
+                        ? {
+                            ...x,
+                            price_cents: Math.round(
+                              Number(e.target.value || 0) * 100
+                            ),
+                          }
+                        : x
+                    )
+                  )
+                }
+              />
+              <label className="text-xs flex items-center gap-1">
+                <input
+                  type="checkbox"
+                  checked={d.is_active}
+                  onChange={(e) =>
+                    setRows((prev) =>
+                      prev.map((x, i) =>
+                        i === idx ? { ...x, is_active: e.target.checked } : x
+                      )
+                    )
+                  }
+                />{" "}
+                active
+              </label>
+              <div className="col-span-6 flex justify-end">
+                <button
+                  onClick={() => saveDrink(d)}
+                  className="rounded border px-3 py-1 hover:bg-gray-50"
+                >
+                  Save
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
+/* ---------- Main Admin page ---------- */
 export default function AdminPage() {
   const [ings, setIngs] = useState<IngredientRow[]>([]);
   const [loading, setLoading] = useState(false);
@@ -325,10 +576,7 @@ export default function AdminPage() {
       .select("*, ingredient_nutrition(*)")
       .order("name");
     setLoading(false);
-    if (error) {
-      alert(error.message);
-      return;
-    }
+    if (error) return alert(error.message);
     setIngs((data || []) as any);
   }
 
@@ -341,10 +589,7 @@ export default function AdminPage() {
       .from("ingredients")
       .update({ is_active: next })
       .eq("id", id);
-    if (error) {
-      alert(error.message);
-      return;
-    }
+    if (error) return alert(error.message);
     load();
   }
 
@@ -361,7 +606,6 @@ export default function AdminPage() {
           <h2 className="font-semibold">Active Ingredients</h2>
           {loading && <span className="text-xs text-gray-500">Loading…</span>}
         </div>
-
         {active.length === 0 ? (
           <div className="text-sm text-gray-500">No active ingredients.</div>
         ) : (
@@ -412,11 +656,17 @@ export default function AdminPage() {
                 ) : (
                   <AddNutritionInline ingredientId={i.id} onSaved={load} />
                 )}
+
+                {/* Pricing editor */}
+                <PricingEditor ingredientId={i.id} />
               </div>
             ))}
           </div>
         )}
       </section>
+
+      {/* Drinks admin */}
+      <DrinksAdmin />
 
       {/* Inactive list */}
       <section className="space-y-2">

@@ -6,16 +6,17 @@ import type {
   Drink,
   Ingredient,
   IngredientNutrition,
+  IngredientPricing,
   LineIngredient,
 } from "@/types";
 import IngredientSelector from "@/components/IngredientSelector";
 import NutritionBar from "@/components/NutritionBar";
 import ExplainMath from "@/components/ExplainMath";
 import { totalsFor } from "@/utils/nutrition";
+import { groupPricing, priceForExtrasCents } from "@/utils/pricing";
 import { useCart } from "@/context/CartContext";
 import logoUrl from "@/assets/dailymacroslogo.png";
 
-/* ---------------------- Brand colors ---------------------- */
 const COLORS = {
   redOrange: "#D26E3D",
   yellow: "#EECB65",
@@ -23,38 +24,6 @@ const COLORS = {
   bg: "#FFFDF8",
 };
 
-/* ---------------------- Add-on price table (₱ per unit) ---------------------- */
-const ADDON_PRICES: Record<string, number> = {
-  "Nutrabio - Plant Protein VANILLA WAFER 18 Servings": 38,
-  "vanilla protein powder": 71,
-  honey: 23,
-  stevia: 5,
-  "cocoa powder": 6,
-  "dark chocolate chips": 0,
-  "peanut butter": 2,
-  "chia seeds": 0,
-  "greek yogurt plain": 0,
-  oats: 0,
-};
-
-/** fallback price for unlisted items (₱ per add-on) */
-const DEFAULT_ADDON_PRICE = 10;
-
-/* ---------------------- Helper to compute add-ons cost ---------------------- */
-function computeAddonsPriceCents(extras: CartLine[]): number {
-  if (!extras.length) return 0;
-  let total = 0;
-  for (const e of extras) {
-    const price =
-      ADDON_PRICES[e.name ?? ""] ??
-      ADDON_PRICES[e.name?.toLowerCase() ?? ""] ??
-      DEFAULT_ADDON_PRICE;
-    total += price;
-  }
-  return Math.round(total * 100);
-}
-
-/* ---------------------- Main Page ---------------------- */
 export default function BuildYourOwnPage() {
   const { addItem } = useCart();
 
@@ -62,29 +31,40 @@ export default function BuildYourOwnPage() {
   const [nutrDict, setNutrDict] = useState<Record<string, IngredientNutrition>>(
     {}
   );
+  const [pricingDict, setPricingDict] = useState<
+    Record<string, IngredientPricing[]>
+  >({});
+
   const [baseDrinks, setBaseDrinks] = useState<Drink[]>([]);
   const [selectedBaseId, setSelectedBaseId] = useState<string | null>(null);
+
   const [baseLines, setBaseLines] = useState<CartLine[]>([]);
   const [extraLines, setExtraLines] = useState<CartLine[]>([]);
+
   const [loading, setLoading] = useState(true);
   const [loadingBase, setLoadingBase] = useState(false);
 
-  /* ----------- Load ingredients, nutrition, and base drinks ----------- */
+  // Load ingredients, nutrition, pricing, base drinks
   useEffect(() => {
     (async () => {
       setLoading(true);
-      const [{ data: ii }, { data: nn }, { data: dd }] = await Promise.all([
-        supabase.from("ingredients").select("*").eq("is_active", true),
-        supabase.from("ingredient_nutrition_v100").select("*"),
-        supabase
-          .from("drinks")
-          .select("id,name,description,price_cents,base_size_ml")
-          .eq("is_active", true)
-          .order("name"),
-      ]);
+      const [{ data: ii }, { data: nn }, { data: dd }, { data: pp }] =
+        await Promise.all([
+          supabase.from("ingredients").select("*").eq("is_active", true),
+          supabase.from("ingredient_nutrition_v100").select("*"),
+          supabase
+            .from("drinks")
+            .select("id,name,description,price_cents,base_size_ml,is_active")
+            .eq("is_active", true)
+            .order("name"),
+          supabase.from("ingredient_pricing_effective").select("*"),
+        ]);
+
       const ingredients = (ii ?? []) as Ingredient[];
       const v100 = (nn ?? []) as any[];
       const drinks = (dd ?? []) as Drink[];
+      const pricing = (pp ?? []) as IngredientPricing[];
+
       setIngDict(Object.fromEntries(ingredients.map((x) => [x.id, x])));
       setNutrDict(
         Object.fromEntries(
@@ -96,16 +76,18 @@ export default function BuildYourOwnPage() {
               per_100g_protein_g: r.per_100g_protein_g ?? 0,
               per_100g_fat_g: r.per_100g_fat_g ?? 0,
               per_100g_carbs_g: r.per_100g_carbs_g ?? 0,
-            },
+            } as IngredientNutrition,
           ])
         )
       );
+      setPricingDict(groupPricing(pricing));
       setBaseDrinks(drinks);
+
       setLoading(false);
     })();
   }, []);
 
-  /* ----------- Load base recipe when selected ----------- */
+  // Load recipe lines of selected base drink
   useEffect(() => {
     if (!selectedBaseId) {
       setBaseLines([]);
@@ -131,12 +113,16 @@ export default function BuildYourOwnPage() {
     })();
   }, [selectedBaseId, ingDict]);
 
-  /* ----------- Add-ons handlers ----------- */
+  // Add-ons handlers
   function handleAddAddon(
     ingredient: Ingredient,
     amount: number,
     unit: string
   ) {
+    if (!selectedBaseId) {
+      alert("Pick a base drink first.");
+      return;
+    }
     setExtraLines((p) => [
       ...p,
       {
@@ -152,7 +138,7 @@ export default function BuildYourOwnPage() {
     setExtraLines((p) => p.filter((_, x) => x !== i));
   }
 
-  /* ----------- Totals and macros ----------- */
+  // Totals / macros
   const combinedLines = useMemo(
     () => [...baseLines, ...extraLines],
     [baseLines, extraLines]
@@ -162,22 +148,25 @@ export default function BuildYourOwnPage() {
     [combinedLines, ingDict, nutrDict]
   );
 
-  /* ----------- Add to cart ----------- */
+  // Price calc
   const selectedBase = baseDrinks.find((b) => b.id === selectedBaseId) || null;
+  const addons_price_cents = useMemo(
+    () => priceForExtrasCents(extraLines, ingDict, pricingDict),
+    [extraLines, ingDict, pricingDict]
+  );
+  const total_price_cents =
+    (selectedBase?.price_cents || 0) + addons_price_cents;
 
+  // Add to cart
   function addToCart() {
     if (!selectedBase) return;
-    const base_price_cents = selectedBase.price_cents;
-    const addons_price_cents = computeAddonsPriceCents(extraLines);
-    const total_price_cents = base_price_cents + addons_price_cents;
-
     const cartItem: CartItem = {
       item_name: "Custom — " + selectedBase.name,
       drink_id: selectedBase.id,
-      base_drink_name: selectedBase.name,
-      base_price_cents,
-      addons_price_cents,
       unit_price_cents: total_price_cents,
+      base_price_cents: selectedBase.price_cents,
+      addons_price_cents,
+      base_drink_name: selectedBase.name,
       lines: [...baseLines, ...extraLines],
     };
     addItem(cartItem);
@@ -185,13 +174,11 @@ export default function BuildYourOwnPage() {
     alert("✅ Added to cart!");
   }
 
-  /* ----------- Missing nutrition check ----------- */
   const hasMissingNutrition = useMemo(
     () => combinedLines.some((l) => !nutrDict[l.ingredient_id]),
     [combinedLines, nutrDict]
   );
 
-  /* ---------------- UI ---------------- */
   return (
     <div
       className="min-h-screen"
@@ -227,7 +214,7 @@ export default function BuildYourOwnPage() {
         </div>
 
         <div className="grid grid-cols-12 gap-6">
-          {/* Left section */}
+          {/* Left */}
           <div className="col-span-12 md:col-span-7 lg:col-span-8 space-y-6">
             {/* Step 1: Base */}
             <section className="rounded-2xl border bg-white p-4 shadow-sm">
@@ -247,6 +234,7 @@ export default function BuildYourOwnPage() {
                           ? "ring-2 ring-[#D26E3D]"
                           : "hover:shadow-sm"
                       }`}
+                      title={`₱${(d.price_cents / 100).toFixed(2)}`}
                     >
                       <div className="font-semibold">{d.name}</div>
                       <div className="text-xs text-gray-500 line-clamp-2">
@@ -257,6 +245,11 @@ export default function BuildYourOwnPage() {
                       </div>
                     </button>
                   ))}
+                </div>
+              )}
+              {loadingBase && (
+                <div className="mt-2 text-xs text-gray-500">
+                  Loading recipe…
                 </div>
               )}
             </section>
@@ -326,10 +319,10 @@ export default function BuildYourOwnPage() {
                 <button
                   onClick={addToCart}
                   disabled={!selectedBase}
-                  className="rounded-lg px-4 py-2 text-sm font-semibold text-white transition hover:opacity-90"
+                  className="rounded-lg px-4 py-2 text-sm font-semibold text-white transition hover:opacity-90 disabled:opacity-50"
                   style={{ backgroundColor: COLORS.redOrange }}
                 >
-                  Add to Cart
+                  Add to Cart — ₱{(total_price_cents / 100).toFixed(2)}
                 </button>
 
                 <ExplainMath
@@ -352,7 +345,7 @@ export default function BuildYourOwnPage() {
             </section>
           </div>
 
-          {/* Right section */}
+          {/* Right */}
           <aside className="col-span-12 md:col-span-5 lg:col-span-4">
             <div className="md:sticky md:top-24 space-y-4">
               <section className="rounded-2xl border bg-white p-4 shadow-sm">
@@ -363,6 +356,20 @@ export default function BuildYourOwnPage() {
                   </span>
                 </div>
                 <NutritionBar totals={totals} allergens={allergens} />
+                <div className="mt-3 text-sm text-gray-700 grid grid-cols-2 gap-2">
+                  <div className="rounded border p-2 bg-gray-50">
+                    <div className="text-xs text-gray-500">Base</div>
+                    <div className="font-semibold">
+                      ₱{((selectedBase?.price_cents || 0) / 100).toFixed(2)}
+                    </div>
+                  </div>
+                  <div className="rounded border p-2 bg-gray-50">
+                    <div className="text-xs text-gray-500">Add-ons</div>
+                    <div className="font-semibold">
+                      ₱{(addons_price_cents / 100).toFixed(2)}
+                    </div>
+                  </div>
+                </div>
               </section>
               <section className="rounded-2xl border bg-white p-4 shadow-sm text-sm text-gray-600">
                 Includes both base and add-ons. Use “Explain my math” for
