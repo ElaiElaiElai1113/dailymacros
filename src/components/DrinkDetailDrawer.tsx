@@ -14,7 +14,6 @@ type Drink = {
 const SIZES = [
   { label: "12 oz", ml: 355 },
   { label: "16 oz", ml: 473 },
-  { label: "30 oz", ml: 887 },
 ];
 
 function scaleLines(
