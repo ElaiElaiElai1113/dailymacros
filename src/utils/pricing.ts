@@ -1,5 +1,5 @@
 // src/utils/pricing.ts
-import type { Ingredient, IngredientPricing, LineIngredient } from "@/types";
+import type { IngredientPricing, LineIngredient } from "@/types";
 
 export type PricingDict = Record<string, IngredientPricing[]>;
 
@@ -9,49 +9,58 @@ export function groupPricing(rows: IngredientPricing[]): PricingDict {
   return map;
 }
 
-export function priceForLineCents(
+/**
+ * Compute the price in PESOS for a single line, using the pricing rows for that ingredient.
+ * Modes:
+ *  - per_unit: use price_php * amount (requires unit_label to match the line's unit)
+ *  - per_gram / per_ml: use per_php * amount
+ *  - flat: use price_php (one-time add-on)
+ */
+export function priceForLinePHP(
   line: LineIngredient & { name?: string },
-  ingDict: Record<string, Ingredient>,
   pricingDict: PricingDict
 ): number {
   const list = pricingDict[line.ingredient_id] || [];
   if (!list.length) return 0;
 
-  const unit = line.unit.toLowerCase();
+  const unit = (line.unit || "").toLowerCase();
+  const amount = Number(line.amount || 0);
 
-  // per_unit exact match
+  // per_unit with matching unit_label
   const perUnit = list.find(
     (p) =>
       p.pricing_mode === "per_unit" &&
       (p.unit_label?.toLowerCase() || "") === unit
   );
-  if (perUnit?.cents_per)
-    return Math.round(perUnit.cents_per * Number(line.amount || 0));
+  if (perUnit?.price_php != null) {
+    return Number(perUnit.price_php) * amount;
+  }
 
-  // per_gram / per_ml
+  // per_gram
   const perGram = list.find((p) => p.pricing_mode === "per_gram");
-  if (unit === "g" && perGram?.cents_per) {
-    return Math.round(perGram.cents_per * Number(line.amount || 0));
-  }
-  const perMl = list.find((p) => p.pricing_mode === "per_ml");
-  if (unit === "ml" && perMl?.cents_per) {
-    return Math.round(perMl.cents_per * Number(line.amount || 0));
+  if (unit === "g" && perGram?.per_php != null) {
+    return Number(perGram.per_php) * amount;
   }
 
-  // flat fallback
+  // per_ml
+  const perMl = list.find((p) => p.pricing_mode === "per_ml");
+  if (unit === "ml" && perMl?.per_php != null) {
+    return Number(perMl.per_php) * amount;
+  }
+
+  // flat fallback (one-time)
   const flat = list.find((p) => p.pricing_mode === "flat");
-  if (flat) return flat.price_cents || 0;
+  if (flat?.price_php != null) {
+    return Number(flat.price_php);
+  }
 
   return 0;
 }
 
-export function priceForExtrasCents(
+/** Sum price for extras in PESOS. */
+export function priceForExtrasPHP(
   extras: (LineIngredient & { name?: string })[],
-  ingDict: Record<string, Ingredient>,
   pricingDict: PricingDict
-) {
-  return extras.reduce(
-    (acc, l) => acc + priceForLineCents(l, ingDict, pricingDict),
-    0
-  );
+): number {
+  return extras.reduce((acc, l) => acc + priceForLinePHP(l, pricingDict), 0);
 }

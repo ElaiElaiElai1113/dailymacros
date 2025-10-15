@@ -45,8 +45,8 @@ export type IngredientPricing = {
   id: string;
   ingredient_id: string;
   pricing_mode: "flat" | "per_gram" | "per_ml" | "per_unit";
-  price_cents: number;
-  cents_per: number | null;
+  price_php: number | null;
+  per_php: number | null;
   unit_label: string | null;
   unit_label_norm?: string | null;
   is_active: boolean;

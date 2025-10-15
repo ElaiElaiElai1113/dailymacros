@@ -1,3 +1,4 @@
+// src/pages/BuildYourOwnPage.tsx
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import type {
@@ -7,13 +8,12 @@ import type {
   Ingredient,
   IngredientNutrition,
   IngredientPricing,
-  LineIngredient,
 } from "@/types";
 import IngredientSelector from "@/components/IngredientSelector";
 import NutritionBar from "@/components/NutritionBar";
 import ExplainMath from "@/components/ExplainMath";
 import { totalsFor } from "@/utils/nutrition";
-import { groupPricing, priceForExtrasCents } from "@/utils/pricing";
+import { groupPricing, priceForExtrasPHP } from "@/utils/pricing";
 import { useCart } from "@/context/CartContext";
 import logoUrl from "@/assets/dailymacroslogo.png";
 
@@ -150,12 +150,17 @@ export default function BuildYourOwnPage() {
 
   // Price calc
   const selectedBase = baseDrinks.find((b) => b.id === selectedBaseId) || null;
-  const addons_price_cents = useMemo(
-    () => priceForExtrasCents(extraLines, ingDict, pricingDict),
-    [extraLines, ingDict, pricingDict]
+
+  // Add-ons are priced in PESOS via pricing table
+  const addons_price_php = useMemo(
+    () => priceForExtrasPHP(extraLines, pricingDict),
+    [extraLines, pricingDict]
   );
-  const total_price_cents =
-    (selectedBase?.price_cents || 0) + addons_price_cents;
+  const addons_price_cents = Math.round(addons_price_php * 100);
+
+  // Base is still stored in cents in drinks table
+  const base_price_cents = selectedBase?.price_cents || 0;
+  const total_price_cents = base_price_cents + addons_price_cents;
 
   // Add to cart
   function addToCart() {
@@ -164,7 +169,7 @@ export default function BuildYourOwnPage() {
       item_name: "Custom — " + selectedBase.name,
       drink_id: selectedBase.id,
       unit_price_cents: total_price_cents,
-      base_price_cents: selectedBase.price_cents,
+      base_price_cents,
       addons_price_cents,
       base_drink_name: selectedBase.name,
       lines: [...baseLines, ...extraLines],
@@ -366,7 +371,7 @@ export default function BuildYourOwnPage() {
                   <div className="rounded border p-2 bg-gray-50">
                     <div className="text-xs text-gray-500">Add-ons</div>
                     <div className="font-semibold">
-                      ₱{(addons_price_cents / 100).toFixed(2)}
+                      ₱{addons_price_php.toFixed(2)}
                     </div>
                   </div>
                 </div>
