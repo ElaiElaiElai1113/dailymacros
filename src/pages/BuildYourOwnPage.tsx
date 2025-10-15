@@ -24,9 +24,21 @@ const COLORS = {
   bg: "#FFFDF8",
 };
 
+// Local shape for drinks in this page: DB returns price_php; we normalize to price_cents for the app
+type BYODrink = Drink & { price_cents: number };
+
+type V100Row = {
+  ingredient_id: string;
+  per_100g_energy_kcal: number | null;
+  per_100g_protein_g: number | null;
+  per_100g_fat_g: number | null;
+  per_100g_carbs_g: number | null;
+};
+
 export default function BuildYourOwnPage() {
   const { addItem } = useCart();
 
+  // data dictionaries
   const [ingDict, setIngDict] = useState<Record<string, Ingredient>>({});
   const [nutrDict, setNutrDict] = useState<Record<string, IngredientNutrition>>(
     {}
@@ -35,37 +47,40 @@ export default function BuildYourOwnPage() {
     Record<string, IngredientPricing[]>
   >({});
 
-  const [baseDrinks, setBaseDrinks] = useState<Drink[]>([]);
+  // base drinks + selection
+  const [baseDrinks, setBaseDrinks] = useState<BYODrink[]>([]);
   const [selectedBaseId, setSelectedBaseId] = useState<string | null>(null);
 
+  // lines
   const [baseLines, setBaseLines] = useState<CartLine[]>([]);
   const [extraLines, setExtraLines] = useState<CartLine[]>([]);
 
-  const [loading, setLoading] = useState(true);
+  // ui state
+  const [loadingAll, setLoadingAll] = useState(true);
   const [loadingBase, setLoadingBase] = useState(false);
 
-  // Load ingredients, nutrition, pricing, base drinks
+  // ---------------- Load master data ----------------
   useEffect(() => {
     (async () => {
-      setLoading(true);
+      setLoadingAll(true);
       const [{ data: ii }, { data: nn }, { data: dd }, { data: pp }] =
         await Promise.all([
           supabase.from("ingredients").select("*").eq("is_active", true),
           supabase.from("ingredient_nutrition_v100").select("*"),
           supabase
             .from("drinks")
-            .select("id,name,description,price_cents,base_size_ml,is_active")
+            .select("id,name,description,price_php,base_size_ml,is_active")
             .eq("is_active", true)
             .order("name"),
           supabase.from("ingredient_pricing_effective").select("*"),
         ]);
 
+      // Ingredients
       const ingredients = (ii ?? []) as Ingredient[];
-      const v100 = (nn ?? []) as any[];
-      const drinks = (dd ?? []) as Drink[];
-      const pricing = (pp ?? []) as IngredientPricing[];
-
       setIngDict(Object.fromEntries(ingredients.map((x) => [x.id, x])));
+
+      // Per-100g nutrition
+      const v100 = (nn ?? []) as V100Row[];
       setNutrDict(
         Object.fromEntries(
           v100.map((r) => [
@@ -80,14 +95,27 @@ export default function BuildYourOwnPage() {
           ])
         )
       );
-      setPricingDict(groupPricing(pricing));
-      setBaseDrinks(drinks);
 
-      setLoading(false);
+      // Pricing (already in PHP in your DB view)
+      const pricing = (pp ?? []) as IngredientPricing[];
+      setPricingDict(groupPricing(pricing));
+
+      // Drinks: normalize price_php -> price_cents (for existing cart logic)
+      const drinkRows = (dd ?? []) as Array<
+        Omit<Drink, "price_cents"> & { price_php: number | null }
+      >;
+      const normalized: BYODrink[] = drinkRows.map((d) => ({
+        ...d,
+        price_cents:
+          typeof d.price_php === "number" ? Math.round(d.price_php * 100) : 0,
+      }));
+      setBaseDrinks(normalized);
+
+      setLoadingAll(false);
     })();
   }, []);
 
-  // Load recipe lines of selected base drink
+  // --------------- Load base recipe when selected ---------------
   useEffect(() => {
     if (!selectedBaseId) {
       setBaseLines([]);
@@ -99,7 +127,11 @@ export default function BuildYourOwnPage() {
         .from("drink_lines")
         .select("ingredient_id,amount,unit")
         .eq("drink_id", selectedBaseId);
-      const rows = (data ?? []) as any[];
+      const rows = (data ?? []) as Array<{
+        ingredient_id: string;
+        amount: number;
+        unit: string;
+      }>;
       setBaseLines(
         rows.map((r) => ({
           ingredient_id: r.ingredient_id,
@@ -113,7 +145,7 @@ export default function BuildYourOwnPage() {
     })();
   }, [selectedBaseId, ingDict]);
 
-  // Add-ons handlers
+  // --------------- Add-ons handlers ---------------
   function handleAddAddon(
     ingredient: Ingredient,
     amount: number,
@@ -138,31 +170,31 @@ export default function BuildYourOwnPage() {
     setExtraLines((p) => p.filter((_, x) => x !== i));
   }
 
-  // Totals / macros
+  // --------------- Totals & pricing ---------------
   const combinedLines = useMemo(
     () => [...baseLines, ...extraLines],
     [baseLines, extraLines]
   );
+
   const { totals, allergens } = useMemo(
     () => totalsFor(combinedLines, ingDict, nutrDict),
     [combinedLines, ingDict, nutrDict]
   );
 
-  // Price calc
   const selectedBase = baseDrinks.find((b) => b.id === selectedBaseId) || null;
 
-  // Add-ons are priced in PESOS via pricing table
+  // Add-ons are priced in PHP via pricing table
   const addons_price_php = useMemo(
     () => priceForExtrasPHP(extraLines, pricingDict),
     [extraLines, pricingDict]
   );
   const addons_price_cents = Math.round(addons_price_php * 100);
 
-  // Base is still stored in cents in drinks table
+  // Base price currently in cents (normalized above)
   const base_price_cents = selectedBase?.price_cents || 0;
   const total_price_cents = base_price_cents + addons_price_cents;
 
-  // Add to cart
+  // --------------- Add to cart ---------------
   function addToCart() {
     if (!selectedBase) return;
     const cartItem: CartItem = {
@@ -184,6 +216,7 @@ export default function BuildYourOwnPage() {
     [combinedLines, nutrDict]
   );
 
+  // --------------- UI ---------------
   return (
     <div
       className="min-h-screen"
@@ -197,7 +230,7 @@ export default function BuildYourOwnPage() {
     >
       <div className="max-w-7xl mx-auto px-4 py-8">
         {/* Header */}
-        <div className="flex items-center gap-3 mb-6">
+        <header className="mb-6 flex items-center gap-3">
           <div className="grid h-14 w-14 place-items-center rounded-2xl border bg-white shadow">
             <img
               src={logoUrl}
@@ -213,23 +246,28 @@ export default function BuildYourOwnPage() {
               Build Your Own Shake
             </h1>
             <p className="text-sm text-gray-600">
-              Select your base and mix add-ons to create your perfect blend.
+              Select a base, then add your extras. Live macros included.
             </p>
           </div>
-        </div>
+        </header>
 
         <div className="grid grid-cols-12 gap-6">
-          {/* Left */}
-          <div className="col-span-12 md:col-span-7 lg:col-span-8 space-y-6">
+          {/* Left: builder */}
+          <div className="col-span-12 space-y-6 md:col-span-7 lg:col-span-8">
             {/* Step 1: Base */}
             <section className="rounded-2xl border bg-white p-4 shadow-sm">
               <div className="mb-2 font-semibold text-gray-800">
                 1️⃣ Choose your base drink
               </div>
-              {loading ? (
+
+              {loadingAll ? (
                 <div className="text-sm text-gray-500">Loading drinks…</div>
+              ) : baseDrinks.length === 0 ? (
+                <div className="text-sm text-gray-500">
+                  No active base drinks yet.
+                </div>
               ) : (
-                <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
                   {baseDrinks.map((d) => (
                     <button
                       key={d.id}
@@ -261,7 +299,7 @@ export default function BuildYourOwnPage() {
 
             {/* Step 2: Add-ons */}
             <section className="rounded-2xl border bg-white p-4 shadow-sm">
-              <div className="flex items-center justify-between mb-2">
+              <div className="mb-2 flex items-center justify-between">
                 <div className="font-semibold text-gray-800">2️⃣ Add-ons</div>
                 <span
                   className="rounded-md px-2 py-0.5 text-xs"
@@ -281,7 +319,7 @@ export default function BuildYourOwnPage() {
 
             {/* Selected add-ons */}
             <section className="rounded-2xl border bg-white p-4 shadow-sm">
-              <div className="flex items-center justify-between mb-2">
+              <div className="mb-2 flex items-center justify-between">
                 <div className="font-semibold text-gray-800">
                   Selected Add-ons
                 </div>
@@ -294,12 +332,13 @@ export default function BuildYourOwnPage() {
                   </button>
                 )}
               </div>
+
               {extraLines.length === 0 ? (
                 <div className="text-sm text-gray-500">No add-ons yet.</div>
               ) : (
-                <ul className="text-sm divide-y divide-gray-100">
+                <ul className="divide-y divide-gray-100 text-sm">
                   {extraLines.map((l, i) => (
-                    <li key={i} className="py-2 flex justify-between">
+                    <li key={i} className="flex justify-between py-2">
                       <div>
                         <span className="font-medium text-gray-800">
                           {l.name}
@@ -350,25 +389,25 @@ export default function BuildYourOwnPage() {
             </section>
           </div>
 
-          {/* Right */}
+          {/* Right: sticky macros & cost breakdown */}
           <aside className="col-span-12 md:col-span-5 lg:col-span-4">
-            <div className="md:sticky md:top-24 space-y-4">
+            <div className="space-y-4 md:sticky md:top-24">
               <section className="rounded-2xl border bg-white p-4 shadow-sm">
                 <div className="mb-2 flex justify-between">
                   <div className="font-semibold text-gray-800">Your Macros</div>
-                  <span className="text-xs text-gray-600 bg-gray-50 px-2 py-0.5 rounded">
+                  <span className="rounded px-2 py-0.5 text-xs text-gray-600 bg-gray-50">
                     Live
                   </span>
                 </div>
                 <NutritionBar totals={totals} allergens={allergens} />
-                <div className="mt-3 text-sm text-gray-700 grid grid-cols-2 gap-2">
-                  <div className="rounded border p-2 bg-gray-50">
+                <div className="mt-3 grid grid-cols-2 gap-2 text-sm text-gray-700">
+                  <div className="rounded border bg-gray-50 p-2">
                     <div className="text-xs text-gray-500">Base</div>
                     <div className="font-semibold">
-                      ₱{((selectedBase?.price_cents || 0) / 100).toFixed(2)}
+                      ₱{((base_price_cents || 0) / 100).toFixed(2)}
                     </div>
                   </div>
-                  <div className="rounded border p-2 bg-gray-50">
+                  <div className="rounded border bg-gray-50 p-2">
                     <div className="text-xs text-gray-500">Add-ons</div>
                     <div className="font-semibold">
                       ₱{addons_price_php.toFixed(2)}
@@ -376,17 +415,20 @@ export default function BuildYourOwnPage() {
                   </div>
                 </div>
               </section>
-              <section className="rounded-2xl border bg-white p-4 shadow-sm text-sm text-gray-600">
-                Includes both base and add-ons. Use “Explain my math” for
-                details.
+              <section className="rounded-2xl border bg-white p-4 text-sm text-gray-600 shadow-sm">
+                Prices include base + add-ons. Use <b>Explain my math</b> for a
+                per-ingredient breakdown and unit conversions.
               </section>
             </div>
           </aside>
         </div>
 
-        <footer className="text-center text-xs mt-10 pb-10 text-gray-500">
-          <span className="font-semibold text-[#D26E3D]">DailyMacros</span> —
-          Fuel your day with balance.
+        {/* Footer */}
+        <footer className="mt-10 pb-10 text-center text-xs text-gray-500">
+          <span className="font-semibold" style={{ color: COLORS.redOrange }}>
+            DailyMacros
+          </span>{" "}
+          — Fuel your day with balance.
         </footer>
       </div>
     </div>
