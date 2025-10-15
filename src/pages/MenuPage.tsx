@@ -1,10 +1,11 @@
 // src/pages/MenuPage.tsx
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
-import { Link } from "react-router-dom";
 import { useCart } from "@/context/CartContext";
 import type { Ingredient, IngredientNutrition, LineIngredient } from "@/types";
 import { totalsFor } from "@/utils/nutrition";
+import DrinkDetailDrawer from "@/pages/DrinkDetailDrawer";
+import { Link, useNavigate } from "react-router-dom";
 
 const COLORS = {
   redOrange: "#D26E3D",
@@ -34,12 +35,15 @@ export default function MenuPage() {
   const [drinks, setDrinks] = useState<DrinkRecord[]>([]);
   const [lines, setLines] = useState<DrinkLineRow[]>([]);
   const [ingDict, setIngDict] = useState<Record<string, Ingredient>>({});
+  const navigate = useNavigate();
   const [nutrDict, setNutrDict] = useState<Record<string, IngredientNutrition>>(
     {}
   );
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
   const { addItem } = useCart();
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [selected, setSelected] = useState<DrinkRecord | null>(null);
 
   useEffect(() => {
     (async () => {
