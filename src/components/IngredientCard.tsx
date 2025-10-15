@@ -1,28 +1,26 @@
 import { useMemo, useState } from "react";
 import PricingEditor from "@/components/PricingEditor";
-import type { IngredientRow } from "@/pages/AdminPage"; // or copy the minimal type below
 
-// If you prefer not to import from AdminPage, uncomment this minimal type:
-// export type IngredientRow = {
-//   id: string;
-//   name: string;
-//   category: string;
-//   unit_default: "g" | "ml" | "scoop" | "piece";
-//   grams_per_unit: number | null;
-//   density_g_per_ml: number | null;
-//   allergen_tags: string[] | null;
-//   is_active: boolean;
-//   ingredient_nutrition?: {
-//     ingredient_id: string;
-//     per_100g_energy_kcal: number;
-//     per_100g_protein_g: number;
-//     per_100g_fat_g: number;
-//     per_100g_carbs_g: number;
-//     per_100g_sugars_g: number;
-//     per_100g_fiber_g: number;
-//     per_100g_sodium_mg: number;
-//   } | null;
-// };
+export type IngredientRow = {
+  id: string;
+  name: string;
+  category: string;
+  unit_default: "g" | "ml" | "scoop" | "piece";
+  grams_per_unit: number | null;
+  density_g_per_ml: number | null;
+  allergen_tags: string[] | null;
+  is_active: boolean;
+  ingredient_nutrition?: {
+    ingredient_id: string;
+    per_100g_energy_kcal: number;
+    per_100g_protein_g: number;
+    per_100g_fat_g: number;
+    per_100g_carbs_g: number;
+    per_100g_sugars_g: number;
+    per_100g_fiber_g: number;
+    per_100g_sodium_mg: number;
+  } | null;
+};
 
 function fmt(n?: number | null, digits = 1) {
   if (n === null || n === undefined || Number.isNaN(n)) return "—";
