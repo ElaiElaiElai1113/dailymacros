@@ -1,4 +1,4 @@
-// src/pages/DrinkDetailDrawer.tsx  (or src/components/DrinkDetailDrawer.tsx)
+// src/pages/DrinkDetailDrawer.tsx
 import { useEffect, useMemo, useState } from "react";
 import type { Ingredient, IngredientNutrition, LineIngredient } from "@/types";
 import { totalsFor, breakdownFor } from "@/utils/nutrition";
@@ -46,39 +46,39 @@ export default function DrinkDetailDrawer({
   onAddToCart: (scaledLines?: LineIngredient[]) => void;
   onCustomize: () => void;
 }) {
-  // lock scroll
+  // ❗ Hard guard FIRST so hooks are never conditionally skipped
+  if (!open || !drink) return null;
+
+  // `drink` is non-null from here on
+  const d = drink as Drink;
+
+  // state
+  const [sizeMl, setSizeMl] = useState<number>(() => d.base_size_ml ?? 473);
+
+  // effects (always declared, gated inside if needed)
   useEffect(() => {
-    if (!open) return;
+    // lock scroll while open
     const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     return () => {
       document.body.style.overflow = prev;
     };
-  }, [open]);
+  }, []); // runs on mount/unmount of the drawer
 
-  // close on ESC
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if (e.key === "Escape") onClose();
     }
-    if (open) window.addEventListener("keydown", onKey);
+    window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [open, onClose]);
+  }, [onClose]);
 
-  const [sizeMl, setSizeMl] = useState<number>(
-    () => drink?.base_size_ml ?? 473
-  );
-
-  // when drink changes, reset size
+  // when drink changes, reset size to base
   useEffect(() => {
-    if (drink?.base_size_ml) setSizeMl(drink.base_size_ml);
-  }, [drink?.id, drink?.base_size_ml]);
+    if (d.base_size_ml) setSizeMl(d.base_size_ml);
+  }, [d.id, d.base_size_ml]);
 
-  if (!open || !drink) return null; // ✅ hard guard for TS
-
-  // ✅ safe narrowed reference
-  const d = drink as Drink;
-
+  // memo calculations
   const scaledLines = useMemo(
     () => scaleLines(lines, d.base_size_ml, sizeMl),
     [lines, d.base_size_ml, sizeMl]
@@ -94,10 +94,11 @@ export default function DrinkDetailDrawer({
     [scaledLines, ingDict, nutrDict]
   );
 
-  // 🔎 Diagnostic logs so you can see why some items show 0
+  // optional debug
   useEffect(() => {
-    // prints once per drink change or size change
+    // eslint-disable-next-line no-console
     console.groupCollapsed(`🧪 Nutrition debug — ${d.name} (${sizeMl}ml)`);
+    // eslint-disable-next-line no-console
     console.table(
       scaledLines.map((l) => ({
         ingredient_id: l.ingredient_id,
@@ -106,12 +107,11 @@ export default function DrinkDetailDrawer({
         unit: l.unit,
       }))
     );
+    // eslint-disable-next-line no-console
     console.log("totals:", totals);
-    if (!scaledLines?.length) {
-      console.warn("No recipe lines for", d.name);
-    }
+    // eslint-disable-next-line no-console
     console.groupEnd();
-  }, [d.id, d.name, sizeMl, JSON.stringify(scaledLines), totals, ingDict]);
+  }, [d.name, sizeMl, scaledLines, ingDict, totals]);
 
   function handleAddToCart() {
     onAddToCart(scaledLines);
@@ -148,7 +148,7 @@ Nutrition (est.):
         });
         return;
       } catch {
-        /* fall through */
+        /* noop */
       }
     }
 
@@ -216,7 +216,6 @@ Nutrition (est.):
     w.document.close();
   }
 
-  // 🛡️ Safer chip rendering (avoid misleading 0s)
   const showUnknown =
     !Number.isFinite(totals.energy_kcal) || totals.energy_kcal <= 0;
 
