@@ -17,6 +17,7 @@ type Props = {
   ingDict?: Record<string, Ingredient>;
   nutrDict?: Record<string, IngredientNutrition>;
   buttonClassName?: string;
+  styleOverride?: React.CSSProperties;
 };
 
 export default function ExplainMath({
@@ -24,6 +25,7 @@ export default function ExplainMath({
   ingDict,
   nutrDict,
   buttonClassName,
+  styleOverride,
 }: Props) {
   const [open, setOpen] = useState(false);
   const [ing, setIng] = useState<Record<string, Ingredient>>({});
@@ -103,6 +105,7 @@ export default function ExplainMath({
     <>
       <button
         onClick={() => setOpen(true)}
+        style={styleOverride}
         className={
           buttonClassName ?? "px-3 py-2 border rounded hover:bg-gray-50 text-sm"
         }
