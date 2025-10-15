@@ -1,4 +1,3 @@
-// src/pages/BuildYourOwnPage.tsx
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import type { Ingredient, IngredientNutrition, LineIngredient } from "@/types";
@@ -81,7 +80,7 @@ export default function BuildYourOwnPage() {
     setLines([]);
   }
   function addToCart() {
-    const price_cents = 20000; // TODO: plug in pricing
+    const price_cents = 20000; // TODO: pricing
     addItem({
       item_name: "Custom Shake",
       unit_price_cents: price_cents,
@@ -91,12 +90,15 @@ export default function BuildYourOwnPage() {
     alert("✅ Custom shake added to cart!");
   }
 
-  // UI
+  const hasMissingNutrition = useMemo(
+    () => lines.some((l) => !nutrDict[l.ingredient_id]),
+    [lines, nutrDict]
+  );
+
   return (
     <div
-      className="min-h-screen pb-24 md:pb-0"
+      className="min-h-[120vh] pb-24 md:pb-10"
       style={{
-        // brand background with subtle radial highlight
         background: `
           radial-gradient(1200px 600px at 70% -10%, rgba(210,110,61,0.12), transparent 60%),
           radial-gradient(800px 500px at 10% 10%, rgba(89,145,144,0.12), transparent 50%),
@@ -104,126 +106,163 @@ export default function BuildYourOwnPage() {
         `,
       }}
     >
-      <div className="max-w-3xl mx-auto px-4">
+      <div className="mx-auto w-full max-w-7xl px-4">
         {/* Header */}
-        <header className="pt-8 pb-5 text-center">
-          <div className="inline-flex items-center gap-3">
-            <img
-              src={logoUrl}
-              alt="DailyMacros"
-              className="h-9 w-9 rounded-xl shadow"
-              style={{ border: `2px solid ${COLORS.yellow}` }}
-            />
-            <h1
-              className={`${brand.header}`}
-              style={{ color: COLORS.redOrange }}
-            >
-              Build Your Own Shake
-            </h1>
-          </div>
-          <p className="text-sm mt-2" style={{ color: "#5f5f5f" }}>
-            Mix your favorite ingredients to craft your perfect DailyMacros
-            blend.
-          </p>
-          <div className="mt-3">
-            <span
-              className={`${brand.chip}`}
-              style={{ backgroundColor: COLORS.yellow, color: "#3f3f3f" }}
-            >
-              <span>⚡</span> Live macros preview
-            </span>
+        <header className="pt-8 pb-6">
+          <div className="flex items-center gap-3">
+            <div className="relative grid h-14 w-14 place-items-center rounded-2xl border bg-white shadow-md">
+              <img
+                src={logoUrl}
+                alt="DailyMacros"
+                className="h-10 w-10 object-contain"
+              />
+            </div>
+            <div>
+              <h1
+                className={`${brand.header} text-2xl md:text-3xl`}
+                style={{ color: COLORS.redOrange }}
+              >
+                Build Your Own Shake
+              </h1>
+              <p className="text-sm text-gray-600">
+                Mix ingredients and see macros update live.
+              </p>
+            </div>
           </div>
         </header>
 
-        {/* Ingredient picker */}
-        <section className={`${brand.panel}`}>
-          <div className="mb-2 font-semibold" style={{ color: COLORS.cyan }}>
-            Add ingredients
-          </div>
-          <IngredientSelector onAdd={handleAdd} />
-        </section>
-
-        {/* Selected lines */}
-        <section className={`${brand.panel} mt-5`}>
-          <div className="flex items-center justify-between mb-2">
-            <div className="font-semibold" style={{ color: COLORS.cyan }}>
-              Selected Ingredients
-            </div>
-            {lines.length > 0 && (
-              <button
-                onClick={clearLines}
-                className="text-sm hover:underline"
-                style={{ color: "#b91c1c" }}
-              >
-                Clear all
-              </button>
-            )}
-          </div>
-
-          {lines.length === 0 ? (
-            <div className="text-sm text-gray-500">
-              No ingredients yet — pick some above to start building.
-            </div>
-          ) : (
-            <ul className="text-sm divide-y divide-gray-100">
-              {lines.map((l, i) => (
-                <li
-                  key={`${l.ingredient_id}-${i}`}
-                  className="py-2 flex items-center justify-between rounded-lg px-2 transition-colors"
-                  style={{ backgroundColor: "transparent" }}
+        {/* Content Grid */}
+        <div className="grid grid-cols-12 gap-6">
+          {/* Left: Builder */}
+          <div className="col-span-12 md:col-span-7 lg:col-span-8 space-y-6">
+            <section className={`${brand.panel}`}>
+              <div className="mb-2 flex items-center justify-between">
+                <div className="font-semibold" style={{ color: COLORS.cyan }}>
+                  Add ingredients
+                </div>
+                <span
+                  className={`${brand.chip}`}
+                  style={{ backgroundColor: COLORS.yellow, color: "#3f3f3f" }}
                 >
-                  <div>
-                    <span className="font-medium text-gray-800">
-                      {ingDict[l.ingredient_id]?.name ?? "Ingredient"}
-                    </span>{" "}
-                    <span className="text-gray-500">
-                      — {l.amount} {l.unit}
-                    </span>
-                  </div>
+                  ⚡ Live macros preview
+                </span>
+              </div>
+              <IngredientSelector onAdd={handleAdd} />
+            </section>
+
+            <section className={`${brand.panel}`}>
+              <div className="flex items-center justify-between mb-3">
+                <div className="font-semibold" style={{ color: COLORS.cyan }}>
+                  Selected Ingredients
+                </div>
+                {lines.length > 0 && (
                   <button
-                    onClick={() => removeLine(i)}
-                    className="text-xs hover:opacity-80"
-                    style={{ color: COLORS.redOrange }}
+                    onClick={clearLines}
+                    className="text-sm hover:underline"
+                    style={{ color: "#b91c1c" }}
                   >
-                    Remove
+                    Clear all
                   </button>
-                </li>
-              ))}
-            </ul>
-          )}
+                )}
+              </div>
 
-          {/* Actions */}
-          <div className="mt-4 flex flex-wrap gap-2 justify-center">
-            <button
-              onClick={addToCart}
-              disabled={lines.length === 0}
-              className={brand.buttonPrimary}
-              style={{ backgroundColor: COLORS.redOrange }}
-            >
-              Add to Cart
-            </button>
+              {lines.length === 0 ? (
+                <div className="text-sm text-gray-500">
+                  No ingredients yet — pick some above to start building.
+                </div>
+              ) : (
+                <ul className="text-sm divide-y divide-gray-100">
+                  {lines.map((l, i) => (
+                    <li
+                      key={`${l.ingredient_id}-${i}`}
+                      className="py-2 flex items-center justify-between px-1"
+                    >
+                      <div>
+                        <span className="font-medium text-gray-800">
+                          {ingDict[l.ingredient_id]?.name ?? "Ingredient"}
+                        </span>{" "}
+                        <span className="text-gray-500">
+                          — {l.amount} {l.unit}
+                        </span>
+                      </div>
+                      <button
+                        onClick={() => removeLine(i)}
+                        className="text-xs hover:opacity-80"
+                        style={{ color: COLORS.redOrange }}
+                      >
+                        Remove
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
 
-            <ExplainMath
-              lines={lines}
-              ingDict={ingDict}
-              nutrDict={nutrDict}
-              buttonClassName={brand.buttonOutline}
-              // outline w/ brand cyan
-              styleOverride={{
-                borderColor: COLORS.cyan,
-                color: COLORS.cyan,
-              }}
-            />
+              {/* Actions */}
+              <div className="mt-4 flex flex-wrap gap-2">
+                <button
+                  onClick={addToCart}
+                  disabled={lines.length === 0}
+                  className={`${brand.buttonPrimary} disabled:opacity-50`}
+                  style={{ backgroundColor: COLORS.redOrange }}
+                >
+                  Add to Cart
+                </button>
+
+                <ExplainMath
+                  lines={lines}
+                  ingDict={ingDict}
+                  nutrDict={nutrDict}
+                  buttonClassName={brand.buttonOutline}
+                  styleOverride={{
+                    borderColor: COLORS.cyan,
+                    color: COLORS.cyan,
+                  }}
+                />
+
+                {hasMissingNutrition && (
+                  <span className="ml-auto text-xs text-amber-700">
+                    Some ingredients don’t have nutrition data yet.
+                  </span>
+                )}
+              </div>
+            </section>
+
+            {/* Mobile bottom bar with totals */}
+            <section className="md:hidden sticky bottom-3">
+              <div className="rounded-2xl border bg-white/90 backdrop-blur p-3 shadow-lg">
+                <NutritionBar totals={totals} allergens={allergens} />
+              </div>
+            </section>
           </div>
-        </section>
 
-        {/* Live totals */}
-        <section className="mt-6">
-          <NutritionBar totals={totals} allergens={allergens} />
-        </section>
+          {/* Right: Sticky nutrition (desktop) */}
+          <aside className="col-span-12 md:col-span-5 lg:col-span-4">
+            <div className="md:sticky md:top-24 space-y-4">
+              <section className="rounded-2xl border bg-white p-4 shadow-sm">
+                <div className="mb-2 flex items-center justify-between">
+                  <div className="font-semibold text-gray-800">Your Macros</div>
+                  <span
+                    className="rounded-md px-2 py-0.5 text-xs"
+                    style={{ backgroundColor: "#f3f4f680", color: "#374151" }}
+                  >
+                    Live
+                  </span>
+                </div>
+                <NutritionBar totals={totals} allergens={allergens} />
+              </section>
+
+              <section className="rounded-2xl border bg-white p-4 shadow-sm">
+                <div className="text-sm text-gray-600">
+                  Tip: tap <span className="font-medium">Explain my math</span>{" "}
+                  to see a per-ingredient breakdown and unit conversions.
+                </div>
+              </section>
+            </div>
+          </aside>
+        </div>
 
         {/* Footer brand */}
-        <footer className="text-center text-xs mt-8 pb-8">
+        <footer className="text-center text-xs mt-10 pb-10">
           <span className="font-semibold" style={{ color: COLORS.redOrange }}>
             DailyMacros
           </span>{" "}

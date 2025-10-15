@@ -12,17 +12,17 @@ import logoUrl from "@/assets/dailymacroslogo.png";
 
 export default function App() {
   return (
-    <div className="min-h-screen flex flex-col bg-[#FFFDF8]">
-      {/* 🌟 GLOBAL NAVBAR */}
+    <div className="min-h-screen min-w-0 flex flex-col bg-[#FFFDF8]">
+      {/* NAVBAR */}
       <nav className="sticky top-0 z-50 bg-white/80 backdrop-blur border-b border-gray-100 shadow-sm">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3 md:py-4">
-          {/* LOGO */}
+          {/* Brand */}
           <NavLink
             to="/"
+            end
             aria-label="Go to home"
             className="relative flex items-center gap-3 rounded-xl focus:outline-none focus-visible:ring-2 focus-visible:ring-[#D26E3D]/60"
           >
-            {/* Soft halo glow */}
             <span
               aria-hidden="true"
               className="absolute -inset-3 -z-10 rounded-3xl blur-2xl opacity-70"
@@ -34,13 +34,14 @@ export default function App() {
             <img
               src={logoUrl}
               alt="DailyMacros logo"
-              className="h-12 w-100 object-contain"
+              className="h-12 w-auto object-contain"
+              style={{ width: "120px" }} // or use Tailwind: className="h-12 w-[120px]"
             />
           </NavLink>
 
-          {/* NAV LINKS */}
+          {/* Links */}
           <div className="flex items-center gap-4 text-sm font-medium">
-            <NavItem to="/" label="Home" />
+            <NavItem to="/" label="Home" end />
             <NavItem to="/menu" label="Menu" />
             <NavItem to="/build" label="Build" />
             <NavItem to="/cart" label="Cart" />
@@ -57,8 +58,8 @@ export default function App() {
         </div>
       </nav>
 
-      {/* MAIN ROUTES */}
-      <main className="flex-1 w-full max-w-7xl mx-auto p-4">
+      {/* CONTENT: make this the scrollable region */}
+      <main className="flex-1 min-h-0 w-full max-w-7xl mx-auto p-4 overflow-y-auto overflow-x-hidden">
         <Routes>
           <Route path="/" element={<LandingPage />} />
           <Route path="/menu" element={<MenuPage />} />
@@ -74,22 +75,21 @@ export default function App() {
   );
 }
 
-/* ----------------------------------------- */
-/* NavItem Component                         */
-/* ----------------------------------------- */
-
 function NavItem({
   to,
   label,
   accent,
+  end,
 }: {
   to: string;
   label: string;
   accent?: string;
+  end?: boolean;
 }) {
   return (
     <NavLink
       to={to}
+      end={end}
       className={({ isActive }) =>
         `transition-colors hover:text-[#D26E3D] ${accent ?? "text-gray-700"} ${
           isActive ? "font-semibold text-[#D26E3D]" : ""
