@@ -41,6 +41,17 @@ export type Drink = {
   price_cents: number;
 };
 
+export type IngredientPricing = {
+  id: string;
+  ingredient_id: string;
+  pricing_mode: "flat" | "per_gram" | "per_ml" | "per_unit";
+  price_cents: number;
+  cents_per?: number | null;
+  unit_label?: string | null;
+  is_active: boolean;
+  updated_at: string;
+};
+
 export type DrinkIngredient = {
   drink_id: string;
   ingredient_id: string;
@@ -58,24 +69,20 @@ export type LineIngredient = {
 
 // ——— Cart ———
 
-// richer line for cart display
 export type CartLine = LineIngredient & {
   role?: "base" | "extra";
-  name?: string; // snapshot of the ingredient name for stable display
+  name?: string;
 };
 
 export type CartItem = {
-  item_name: string; // card title
-  drink_id?: string | null; // base drink id (if any)
+  item_name: string;
+  drink_id?: string | null;
   size_ml?: number | null;
   unit_price_cents: number;
-
-  // NEW: optional base/add-on breakdown to show in the cart
+  lines: LineIngredient[];
   base_drink_name?: string;
   base_price_cents?: number;
   addons_price_cents?: number;
-
-  lines: CartLine[];
 };
 
 export type Order = {
