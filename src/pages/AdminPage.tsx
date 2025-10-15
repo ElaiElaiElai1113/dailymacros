@@ -1,8 +1,9 @@
+// src/pages/AdminPage.tsx
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import type { IngredientPricing } from "@/types";
 
-/* ---------- helpers ---------- */
+/* ----------------- helpers ----------------- */
 function numberOrNull(v: string) {
   const x = v.trim();
   if (!x) return null;
@@ -31,7 +32,43 @@ type IngredientRow = {
   } | null;
 };
 
-/* ---------- UI tiny components ---------- */
+type DrinkRow = {
+  id: string;
+  name: string;
+  price_cents: number;
+  is_active: boolean;
+};
+
+/* ----------------- tiny UI bits ----------------- */
+function Chip({
+  children,
+  tone = "gray",
+}: {
+  children: React.ReactNode;
+  tone?: "gray" | "green" | "red" | "yellow" | "cyan";
+}) {
+  const map = {
+    gray: "bg-gray-100 text-gray-700",
+    green: "bg-emerald-100 text-emerald-700",
+    red: "bg-rose-100 text-rose-700",
+    yellow: "bg-amber-100 text-amber-700",
+    cyan: "bg-cyan-100 text-cyan-700",
+  } as const;
+  return (
+    <span className={`rounded-md px-2 py-0.5 text-xs ${map[tone]}`}>
+      {children}
+    </span>
+  );
+}
+
+function SectionTitle({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="text-sm font-semibold tracking-tight text-gray-800">
+      {children}
+    </div>
+  );
+}
+
 function Field({
   label,
   value,
@@ -40,26 +77,26 @@ function Field({
   type = "text",
 }: {
   label: string;
-  value: string;
+  value: string | number;
   setValue: (v: string) => void;
   placeholder?: string;
   type?: "text" | "number";
 }) {
   return (
-    <div>
-      <div className="text-sm">{label}</div>
+    <label className="space-y-1">
+      <div className="text-xs text-gray-600">{label}</div>
       <input
-        className="border px-2 py-1 rounded w-full"
+        className="w-full rounded-lg border px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[#D26E3D]/30"
         value={value}
         onChange={(e) => setValue(e.target.value)}
         placeholder={placeholder}
         type={type}
       />
-    </div>
+    </label>
   );
 }
 
-/* ---------- New Ingredient + Nutrition ---------- */
+/* ----------------- Create Ingredient ----------------- */
 function NewIngredientForm({ onSaved }: { onSaved: () => void }) {
   const [name, setName] = useState("");
   const [category, setCategory] = useState("protein");
@@ -84,10 +121,7 @@ function NewIngredientForm({ onSaved }: { onSaved: () => void }) {
   const unitNeedsDensity = unitDefault === "ml";
 
   async function save() {
-    if (!name.trim()) {
-      alert("Name is required");
-      return;
-    }
+    if (!name.trim()) return alert("Name is required");
     setSaving(true);
 
     const { data: ing, error: e1 } = await supabase
@@ -111,8 +145,7 @@ function NewIngredientForm({ onSaved }: { onSaved: () => void }) {
 
     if (e1) {
       setSaving(false);
-      alert(e1.message);
-      return;
+      return alert(e1.message);
     }
 
     const { error: e2 } = await supabase.from("ingredient_nutrition").insert({
@@ -125,7 +158,6 @@ function NewIngredientForm({ onSaved }: { onSaved: () => void }) {
       per_100g_fiber_g: Number(fib || 0),
       per_100g_sodium_mg: Number(na || 0),
     });
-
     setSaving(false);
     if (e2) return alert(e2.message);
 
@@ -143,22 +175,20 @@ function NewIngredientForm({ onSaved }: { onSaved: () => void }) {
     setSug("");
     setFib("");
     setNa("");
-
     onSaved();
   }
 
   return (
-    <div className="bg-white border rounded p-3 space-y-3">
-      <div className="font-semibold">New Ingredient</div>
-
-      <div className="grid md:grid-cols-2 gap-3">
+    <div className="rounded-2xl border bg-white p-4 shadow-sm">
+      <SectionTitle>New Ingredient</SectionTitle>
+      <div className="mt-3 grid gap-3 md:grid-cols-2">
         <Field label="Name" value={name} setValue={setName} />
-        <div>
-          <div className="text-sm">Category</div>
+        <label className="space-y-1">
+          <div className="text-xs text-gray-600">Category</div>
           <select
-            className="border px-2 py-1 rounded w-full"
             value={category}
             onChange={(e) => setCategory(e.target.value)}
+            className="w-full rounded-lg border px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[#D26E3D]/30"
           >
             <option>base</option>
             <option>protein</option>
@@ -167,41 +197,40 @@ function NewIngredientForm({ onSaved }: { onSaved: () => void }) {
             <option>addin</option>
             <option>topping</option>
           </select>
-        </div>
+        </label>
 
-        <div>
-          <div className="text-sm">Default Unit</div>
+        <label className="space-y-1">
+          <div className="text-xs text-gray-600">Default Unit</div>
           <select
-            className="border px-2 py-1 rounded w-full"
             value={unitDefault}
             onChange={(e) =>
               setUnitDefault(e.target.value as "g" | "ml" | "scoop" | "piece")
             }
+            className="w-full rounded-lg border px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[#D26E3D]/30"
           >
             <option value="g">g</option>
             <option value="ml">ml</option>
             <option value="scoop">scoop</option>
             <option value="piece">piece</option>
           </select>
-          <p className="text-xs text-gray-500 mt-1">
+          <p className="text-[11px] text-gray-500">
             If unit is <b>ml</b>, set density (g/ml). If <b>scoop/piece</b>, set
             grams per unit.
           </p>
-        </div>
+        </label>
 
         {unitNeedsGrams && (
           <Field
-            label="Grams per Unit (for scoop/piece)"
+            label="Grams per Unit"
             value={gramsPerUnit}
             setValue={setGramsPerUnit}
             placeholder="e.g. 30"
             type="number"
           />
         )}
-
         {unitNeedsDensity && (
           <Field
-            label="Density g/ml (for ml)"
+            label="Density g/ml"
             value={density}
             setValue={setDensity}
             placeholder="e.g. 1.02"
@@ -217,34 +246,38 @@ function NewIngredientForm({ onSaved }: { onSaved: () => void }) {
         />
       </div>
 
-      <div className="font-medium mt-2">Per 100g (from dietician)</div>
-      <div className="grid md:grid-cols-4 gap-3">
-        <Field
-          label="Energy kcal"
-          value={kcal}
-          setValue={setKcal}
-          type="number"
-        />
-        <Field label="Protein g" value={p} setValue={setP} type="number" />
-        <Field label="Fat g" value={f} setValue={setF} type="number" />
-        <Field label="Carbs g" value={c} setValue={setC} type="number" />
-        <Field label="Sugars g" value={sug} setValue={setSug} type="number" />
-        <Field label="Fiber g" value={fib} setValue={setFib} type="number" />
-        <Field label="Sodium mg" value={na} setValue={setNa} type="number" />
+      <div className="mt-4">
+        <SectionTitle>Per 100g (from dietician)</SectionTitle>
+        <div className="mt-3 grid gap-3 md:grid-cols-4">
+          <Field
+            label="Energy kcal"
+            value={kcal}
+            setValue={setKcal}
+            type="number"
+          />
+          <Field label="Protein g" value={p} setValue={setP} type="number" />
+          <Field label="Fat g" value={f} setValue={setF} type="number" />
+          <Field label="Carbs g" value={c} setValue={setC} type="number" />
+          <Field label="Sugars g" value={sug} setValue={setSug} type="number" />
+          <Field label="Fiber g" value={fib} setValue={setFib} type="number" />
+          <Field label="Sodium mg" value={na} setValue={setNa} type="number" />
+        </div>
       </div>
 
-      <button
-        onClick={save}
-        disabled={saving}
-        className="px-3 py-2 bg-black text-white rounded disabled:opacity-60"
-      >
-        {saving ? "Saving…" : "Save Ingredient"}
-      </button>
+      <div className="mt-4">
+        <button
+          onClick={save}
+          disabled={saving}
+          className="rounded-lg bg-black px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
+        >
+          {saving ? "Saving…" : "Save Ingredient"}
+        </button>
+      </div>
     </div>
   );
 }
 
-/* ---------- Add nutrition (inline) ---------- */
+/* ----------------- Add nutrition quick widget ----------------- */
 function AddNutritionInline({
   ingredientId,
   onSaved,
@@ -279,9 +312,11 @@ function AddNutritionInline({
   }
 
   return (
-    <div className="mt-2 p-2 border rounded bg-gray-50">
-      <div className="text-xs font-semibold mb-1">Add nutrition (per 100g)</div>
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+    <div className="mt-3 rounded-xl border bg-gray-50 p-3">
+      <div className="mb-2 text-xs font-semibold text-gray-700">
+        Add nutrition (per 100g)
+      </div>
+      <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
         <Field label="kcal" value={kcal} setValue={setKcal} type="number" />
         <Field label="P g" value={p} setValue={setP} type="number" />
         <Field label="F g" value={f} setValue={setF} type="number" />
@@ -293,7 +328,7 @@ function AddNutritionInline({
       <button
         onClick={save}
         disabled={saving}
-        className="mt-2 px-2 py-1 text-xs bg-black text-white rounded disabled:opacity-60"
+        className="mt-2 rounded-lg bg-black px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-60"
       >
         {saving ? "Saving…" : "Save"}
       </button>
@@ -301,84 +336,19 @@ function AddNutritionInline({
   );
 }
 
-/* ---------- Pricing editor ---------- */
-function PriceRow({
-  label,
-  mode,
-  current,
-  onSave,
-}: {
-  label: string;
-  mode: IngredientPricing["pricing_mode"];
-  current: IngredientPricing | undefined;
-  onSave: (payload: Partial<IngredientPricing>) => Promise<void>;
-}) {
-  const [priceCents, setPriceCents] = useState(
-    current?.price_cents?.toString() || ""
-  );
-  const [centsPer, setCentsPer] = useState(
-    current?.cents_per?.toString() || ""
-  );
-  const [unitLabel, setUnitLabel] = useState(current?.unit_label || "");
-
-  useEffect(() => {
-    setPriceCents(current?.price_cents?.toString() || "");
-    setCentsPer(current?.cents_per?.toString() || "");
-    setUnitLabel(current?.unit_label || "");
-  }, [current]);
-
-  async function save() {
-    await onSave({
-      pricing_mode: mode,
-      price_cents: Number(priceCents || 0),
-      cents_per: centsPer === "" ? null : Number(centsPer),
-      unit_label: unitLabel || null,
-    });
-  }
-
-  return (
-    <div className="grid grid-cols-5 items-end gap-2 text-sm">
-      <div className="col-span-1 font-medium">{label}</div>
-      <div>
-        <div className="text-[11px] text-gray-500">price_cents</div>
-        <input
-          className="border rounded px-2 py-1 w-full"
-          value={priceCents}
-          onChange={(e) => setPriceCents(e.target.value)}
-        />
-      </div>
-      <div>
-        <div className="text-[11px] text-gray-500">cents_per</div>
-        <input
-          className="border rounded px-2 py-1 w-full"
-          value={centsPer}
-          onChange={(e) => setCentsPer(e.target.value)}
-        />
-      </div>
-      <div>
-        <div className="text-[11px] text-gray-500">unit_label</div>
-        <input
-          className="border rounded px-2 py-1 w-full"
-          value={unitLabel}
-          onChange={(e) => setUnitLabel(e.target.value)}
-          placeholder="(for per_unit e.g. scoop)"
-        />
-      </div>
-      <div>
-        <button
-          onClick={save}
-          className="rounded border px-3 py-1 hover:bg-gray-50"
-        >
-          Save
-        </button>
-      </div>
-    </div>
-  );
-}
+/* ----------------- Pricing Editor (tabbed) ----------------- */
+type Mode = IngredientPricing["pricing_mode"];
+const MODE_LABEL: Record<Mode, string> = {
+  flat: "Flat add-on",
+  per_gram: "Per gram (g)",
+  per_ml: "Per ml (ml)",
+  per_unit: "Per unit",
+};
 
 function PricingEditor({ ingredientId }: { ingredientId: string }) {
   const [rows, setRows] = useState<IngredientPricing[]>([]);
   const [loading, setLoading] = useState(false);
+  const [mode, setMode] = useState<Mode>("flat");
 
   async function load() {
     setLoading(true);
@@ -393,73 +363,103 @@ function PricingEditor({ ingredientId }: { ingredientId: string }) {
     load();
   }, [ingredientId]);
 
-  async function upsert(payload: Partial<IngredientPricing>) {
-    const { error } = await supabase.from("ingredient_pricing").upsert(
-      {
-        ingredient_id: ingredientId,
-        pricing_mode: payload.pricing_mode!,
-        price_cents: payload.price_cents ?? 0,
-        cents_per: payload.cents_per ?? null,
-        unit_label: payload.unit_label ?? null,
-        is_active: true,
-      },
-      { onConflict: "ingredient_id,pricing_mode,unit_label_norm" }
-    );
+  const current = rows.find((r) => r.pricing_mode === mode);
+
+  const [priceCents, setPriceCents] = useState(
+    current?.price_cents?.toString() || ""
+  );
+  const [centsPer, setCentsPer] = useState(
+    current?.cents_per?.toString() || ""
+  );
+  const [unitLabel, setUnitLabel] = useState(current?.unit_label || "");
+
+  useEffect(() => {
+    setPriceCents(current?.price_cents?.toString() || "");
+    setCentsPer(current?.cents_per?.toString() || "");
+    setUnitLabel(current?.unit_label || "");
+  }, [current?.price_cents, current?.cents_per, current?.unit_label, mode]);
+
+  async function save() {
+    const payload = {
+      ingredient_id: ingredientId,
+      pricing_mode: mode,
+      price_cents: Number(priceCents || 0),
+      cents_per: centsPer === "" ? null : Number(centsPer),
+      unit_label: unitLabel || null,
+      is_active: true,
+    };
+    const { error } = await supabase
+      .from("ingredient_pricing")
+      .upsert(payload, {
+        onConflict: "ingredient_id,pricing_mode,unit_label_norm",
+      });
     if (error) return alert(error.message);
     load();
   }
 
-  const byMode = (m: IngredientPricing["pricing_mode"]) =>
-    rows.find((r) => r.pricing_mode === m);
-
   return (
-    <div className="mt-3 space-y-2 rounded border p-2 bg-gray-50">
-      <div className="text-xs font-semibold text-gray-700 mb-1">Pricing</div>
+    <div className="mt-3 rounded-xl border bg-white p-3">
+      <div className="mb-2 flex items-center justify-between">
+        <div className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+          Pricing
+        </div>
+        {/* tabs */}
+        <div className="flex rounded-lg border bg-gray-50 p-0.5 text-xs">
+          {(["flat", "per_gram", "per_ml", "per_unit"] as Mode[]).map((m) => (
+            <button
+              key={m}
+              onClick={() => setMode(m)}
+              className={`rounded-md px-2 py-1 ${
+                mode === m ? "bg-white shadow-sm" : "text-gray-600"
+              }`}
+            >
+              {MODE_LABEL[m]}
+            </button>
+          ))}
+        </div>
+      </div>
+
       {loading ? (
         <div className="text-xs text-gray-500">Loading pricing…</div>
       ) : (
-        <div className="space-y-2">
-          <PriceRow
-            label="Flat add-on"
-            mode="flat"
-            current={byMode("flat")}
-            onSave={upsert}
+        <div className="grid gap-3 sm:grid-cols-3">
+          <Field
+            label="price_cents"
+            value={priceCents}
+            setValue={setPriceCents}
+            type="number"
           />
-          <PriceRow
-            label="Per gram (g)"
-            mode="per_gram"
-            current={byMode("per_gram")}
-            onSave={upsert}
+          <Field
+            label="cents_per"
+            value={centsPer}
+            setValue={setCentsPer}
+            type="number"
           />
-          <PriceRow
-            label="Per ml (ml)"
-            mode="per_ml"
-            current={byMode("per_ml")}
-            onSave={upsert}
+          <Field
+            label="unit_label"
+            value={unitLabel}
+            setValue={setUnitLabel}
+            placeholder="for per_unit e.g. scoop"
           />
-          <PriceRow
-            label="Per unit"
-            mode="per_unit"
-            current={byMode("per_unit")}
-            onSave={upsert}
-          />
+          <div className="sm:col-span-3">
+            <button
+              onClick={save}
+              className="rounded-lg border px-4 py-2 text-sm font-semibold hover:bg-gray-50"
+            >
+              Save Pricing
+            </button>
+          </div>
         </div>
       )}
     </div>
   );
 }
 
-/* ---------- Drinks editor ---------- */
-type DrinkRow = {
-  id: string;
-  name: string;
-  price_cents: number;
-  is_active: boolean;
-};
-
+/* ----------------- Drinks Admin (compact) ----------------- */
 function DrinksAdmin() {
   const [rows, setRows] = useState<DrinkRow[]>([]);
   const [loading, setLoading] = useState(false);
+  const [q, setQ] = useState("");
 
   async function load() {
     setLoading(true);
@@ -487,23 +487,35 @@ function DrinksAdmin() {
     else load();
   }
 
+  const filtered = rows.filter((r) =>
+    r.name.toLowerCase().includes(q.toLowerCase())
+  );
+
   return (
-    <section className="space-y-2 mt-8">
-      <div className="flex items-center gap-2">
-        <h2 className="font-semibold">Drinks (base)</h2>
-        {loading && <span className="text-xs text-gray-500">Loading…</span>}
+    <section className="rounded-2xl border bg-white p-4 shadow-sm">
+      <div className="mb-3 flex items-center justify-between">
+        <SectionTitle>Drinks (base)</SectionTitle>
+        <input
+          className="w-56 rounded-lg border px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-[#D26E3D]/30"
+          placeholder="Search drinks…"
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+        />
       </div>
-      {rows.length === 0 ? (
-        <div className="text-sm text-gray-500">No drinks yet.</div>
+
+      {loading ? (
+        <div className="text-sm text-gray-500">Loading…</div>
+      ) : filtered.length === 0 ? (
+        <div className="text-sm text-gray-500">No drinks found.</div>
       ) : (
-        <div className="grid md:grid-cols-2 gap-2">
-          {rows.map((d, idx) => (
+        <div className="grid gap-2 md:grid-cols-2">
+          {filtered.map((d, idx) => (
             <div
               key={d.id}
-              className="rounded border p-2 bg-white grid grid-cols-6 gap-2 items-center"
+              className="grid grid-cols-6 items-center gap-2 rounded-xl border p-3"
             >
               <input
-                className="border rounded px-2 py-1 col-span-3"
+                className="col-span-3 rounded-lg border px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[#D26E3D]/30"
                 value={d.name}
                 onChange={(e) =>
                   setRows((prev) =>
@@ -513,25 +525,28 @@ function DrinksAdmin() {
                   )
                 }
               />
-              <input
-                className="border rounded px-2 py-1 col-span-2"
-                value={(d.price_cents / 100).toFixed(2)}
-                onChange={(e) =>
-                  setRows((prev) =>
-                    prev.map((x, i) =>
-                      i === idx
-                        ? {
-                            ...x,
-                            price_cents: Math.round(
-                              Number(e.target.value || 0) * 100
-                            ),
-                          }
-                        : x
+              <div className="col-span-2 flex items-center gap-1">
+                <span className="text-xs text-gray-500">₱</span>
+                <input
+                  className="w-full rounded-lg border px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[#D26E3D]/30"
+                  value={(d.price_cents / 100).toFixed(2)}
+                  onChange={(e) =>
+                    setRows((prev) =>
+                      prev.map((x, i) =>
+                        i === idx
+                          ? {
+                              ...x,
+                              price_cents: Math.round(
+                                Number(e.target.value || 0) * 100
+                              ),
+                            }
+                          : x
+                      )
                     )
-                  )
-                }
-              />
-              <label className="text-xs flex items-center gap-1">
+                  }
+                />
+              </div>
+              <label className="flex items-center gap-2 text-xs">
                 <input
                   type="checkbox"
                   checked={d.is_active}
@@ -542,13 +557,13 @@ function DrinksAdmin() {
                       )
                     )
                   }
-                />{" "}
-                active
+                />
+                Active
               </label>
               <div className="col-span-6 flex justify-end">
                 <button
                   onClick={() => saveDrink(d)}
-                  className="rounded border px-3 py-1 hover:bg-gray-50"
+                  className="rounded-lg border px-3 py-1.5 text-sm hover:bg-gray-50"
                 >
                   Save
                 </button>
@@ -561,10 +576,87 @@ function DrinksAdmin() {
   );
 }
 
-/* ---------- Main Admin page ---------- */
+function IngredientCard({
+  ing,
+  onDeactivate,
+  reload,
+}: {
+  ing: IngredientRow;
+  onDeactivate: (id: string, next: boolean) => void;
+  reload: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const nut = ing.ingredient_nutrition;
+  const round = (n: number | null | undefined) =>
+    n ? Number(n.toFixed(2)) : 0;
+
+  return (
+    <div className="rounded-2xl border bg-white shadow-sm transition hover:shadow-md">
+      {/* Header */}
+      <button
+        onClick={() => setOpen(!open)}
+        className="flex w-full items-center justify-between px-4 py-3 text-left"
+      >
+        <div>
+          <div className="font-semibold text-gray-800">{ing.name}</div>
+          <div className="flex flex-wrap items-center gap-1 mt-0.5">
+            <Chip tone="cyan">{ing.category}</Chip>
+            <Chip>{ing.unit_default}</Chip>
+            {ing.grams_per_unit && <Chip>{ing.grams_per_unit} g/unit</Chip>}
+          </div>
+        </div>
+        <div className="text-sm text-gray-500 flex items-center gap-1">
+          <span>{open ? "▲" : "▼"}</span>
+        </div>
+      </button>
+
+      {/* Summary nutrition */}
+      {nut && (
+        <div className="px-4 pb-3 text-xs text-gray-600 grid grid-cols-4 sm:grid-cols-7 gap-1">
+          <div>Kcal: {round(nut.per_100g_energy_kcal)}</div>
+          <div>P: {round(nut.per_100g_protein_g)} g</div>
+          <div>F: {round(nut.per_100g_fat_g)} g</div>
+          <div>C: {round(nut.per_100g_carbs_g)} g</div>
+          <div>Sug: {round(nut.per_100g_sugars_g)} g</div>
+          <div>Fib: {round(nut.per_100g_fiber_g)} g</div>
+          <div>Na: {round(nut.per_100g_sodium_mg)} mg</div>
+        </div>
+      )}
+
+      {/* Collapsible body */}
+      {open && (
+        <div className="border-t px-4 py-3 space-y-3 bg-gray-50/50">
+          {nut ? (
+            <div className="text-xs text-gray-500">
+              Nutrition per 100 g shown above. Rounded for clarity.
+            </div>
+          ) : (
+            <AddNutritionInline ingredientId={ing.id} onSaved={reload} />
+          )}
+
+          <PricingEditor ingredientId={ing.id} />
+
+          <div className="flex justify-end">
+            <button
+              onClick={() => onDeactivate(ing.id, false)}
+              className="rounded-lg border border-rose-200 px-3 py-1.5 text-xs text-rose-700 hover:bg-rose-50"
+            >
+              Deactivate
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ----------------- Main Admin Page ----------------- */
 export default function AdminPage() {
   const [ings, setIngs] = useState<IngredientRow[]>([]);
   const [loading, setLoading] = useState(false);
+
+  const [q, setQ] = useState("");
+  const [showInactive, setShowInactive] = useState(false);
 
   const active = useMemo(() => ings.filter((i) => i.is_active), [ings]);
   const inactive = useMemo(() => ings.filter((i) => !i.is_active), [ings]);
@@ -593,73 +685,63 @@ export default function AdminPage() {
     load();
   }
 
+  const list = (showInactive ? inactive : active).filter((i) =>
+    i.name.toLowerCase().includes(q.toLowerCase())
+  );
+
   return (
     <div className="space-y-6">
-      <h1 className="text-xl font-bold">Admin</h1>
+      {/* Sticky tools */}
+      <div className="sticky top-0 z-10 -mx-4 border-b bg-white/80 px-4 py-3 backdrop-blur">
+        <div className="mx-auto flex max-w-7xl items-center justify-between gap-3">
+          <h1 className="text-lg font-bold">Admin</h1>
+          <div className="flex items-center gap-2">
+            <input
+              className="w-56 rounded-lg border px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-[#D26E3D]/30"
+              placeholder="Search ingredients…"
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+            />
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={showInactive}
+                onChange={(e) => setShowInactive(e.target.checked)}
+              />
+              Show inactive
+            </label>
+          </div>
+        </div>
+      </div>
 
       {/* Create new ingredient */}
       <NewIngredientForm onSaved={load} />
 
-      {/* Active list */}
+      {/* Ingredient grid */}
       <section className="space-y-2">
         <div className="flex items-center gap-2">
-          <h2 className="font-semibold">Active Ingredients</h2>
+          <SectionTitle>
+            {showInactive ? "Inactive Ingredients" : "Active Ingredients"}
+          </SectionTitle>
           {loading && <span className="text-xs text-gray-500">Loading…</span>}
+          <Chip tone="gray">{list.length}</Chip>
         </div>
-        {active.length === 0 ? (
-          <div className="text-sm text-gray-500">No active ingredients.</div>
+
+        {list.length === 0 ? (
+          <div className="rounded-2xl border bg-white p-6 text-sm text-gray-600">
+            {showInactive
+              ? "No inactive ingredients."
+              : "No active ingredients."}
+          </div>
         ) : (
-          <div className="grid sm:grid-cols-2 md:grid-cols-3 gap-2">
-            {active.map((i) => (
-              <div key={i.id} className="border rounded p-2 bg-white">
-                <div className="flex items-center justify-between">
-                  <div className="font-medium">{i.name}</div>
-                  <button
-                    onClick={() => toggleActive(i.id, false)}
-                    className="text-xs text-rose-600 hover:underline"
-                  >
-                    Deactivate
-                  </button>
-                </div>
-                <div className="text-xs text-gray-600">
-                  {i.category} • unit {i.unit_default}
-                </div>
-
-                {i.grams_per_unit && (
-                  <div className="text-[11px] text-gray-500">
-                    {i.grams_per_unit} g / {i.unit_default}
-                  </div>
-                )}
-                {i.density_g_per_ml && (
-                  <div className="text-[11px] text-gray-500">
-                    density {i.density_g_per_ml} g/ml
-                  </div>
-                )}
-                {i.allergen_tags && i.allergen_tags.length > 0 && (
-                  <div className="text-[11px] text-rose-600">
-                    allergens: {i.allergen_tags.join(", ")}
-                  </div>
-                )}
-
-                {i.ingredient_nutrition ? (
-                  <div className="mt-2 grid grid-cols-3 gap-x-3 gap-y-1 text-[11px] text-gray-700">
-                    <div>
-                      kcal {i.ingredient_nutrition.per_100g_energy_kcal}
-                    </div>
-                    <div>P {i.ingredient_nutrition.per_100g_protein_g} g</div>
-                    <div>F {i.ingredient_nutrition.per_100g_fat_g} g</div>
-                    <div>C {i.ingredient_nutrition.per_100g_carbs_g} g</div>
-                    <div>Sug {i.ingredient_nutrition.per_100g_sugars_g} g</div>
-                    <div>Fib {i.ingredient_nutrition.per_100g_fiber_g} g</div>
-                    <div>Na {i.ingredient_nutrition.per_100g_sodium_mg} mg</div>
-                  </div>
-                ) : (
-                  <AddNutritionInline ingredientId={i.id} onSaved={load} />
-                )}
-
-                {/* Pricing editor */}
-                <PricingEditor ingredientId={i.id} />
-              </div>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {list.map((i) => (
+              <IngredientCard
+                key={i.id}
+                ing={i}
+                onDeactivate={toggleActive}
+                reload={load}
+              />
             ))}
           </div>
         )}
@@ -667,36 +749,6 @@ export default function AdminPage() {
 
       {/* Drinks admin */}
       <DrinksAdmin />
-
-      {/* Inactive list */}
-      <section className="space-y-2">
-        <h2 className="font-semibold">Inactive Ingredients</h2>
-        {inactive.length === 0 ? (
-          <div className="text-sm text-gray-500">No inactive ingredients.</div>
-        ) : (
-          <div className="grid sm:grid-cols-2 md:grid-cols-3 gap-2">
-            {inactive.map((i) => (
-              <div
-                key={i.id}
-                className="border rounded p-2 bg-white opacity-70"
-              >
-                <div className="flex items-center justify-between">
-                  <div className="font-medium">{i.name}</div>
-                  <button
-                    onClick={() => toggleActive(i.id, true)}
-                    className="text-xs text-emerald-700 hover:underline"
-                  >
-                    Activate
-                  </button>
-                </div>
-                <div className="text-xs text-gray-600">
-                  {i.category} • unit {i.unit_default}
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </section>
     </div>
   );
 }
