@@ -1,15 +1,8 @@
-// src/pages/AdminPage.tsx
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
+import IngredientCard from "@/components/IngredientCard";
 
-/** ---------- helpers ---------- */
-function numberOrNull(v: string) {
-  const x = v.trim();
-  if (!x) return null;
-  const n = Number(x);
-  return Number.isFinite(n) ? n : null;
-}
-
+/* ---------- Types ---------- */
 type IngredientRow = {
   id: string;
   name: string;
@@ -31,289 +24,170 @@ type IngredientRow = {
   } | null;
 };
 
-/** ---------- New Ingredient + Nutrition Form ---------- */
-function Field({
-  label,
-  value,
-  setValue,
-  placeholder,
-  type = "text",
-}: {
-  label: string;
-  value: string;
-  setValue: (v: string) => void;
-  placeholder?: string;
-  type?: "text" | "number";
-}) {
+type DrinkRow = {
+  id: string;
+  name: string;
+  price_php: number;
+  is_active: boolean;
+};
+
+/* ---------- UI Bits ---------- */
+function SectionTitle({ children }: { children: React.ReactNode }) {
   return (
-    <div>
-      <div className="text-sm">{label}</div>
-      <input
-        className="border px-2 py-1 rounded w-full"
-        value={value}
-        onChange={(e) => setValue(e.target.value)}
-        placeholder={placeholder}
-        type={type}
-      />
+    <div className="text-sm font-semibold tracking-tight text-gray-800">
+      {children}
     </div>
   );
 }
 
-function NewIngredientForm({ onSaved }: { onSaved: () => void }) {
-  // ingredient meta
-  const [name, setName] = useState("");
-  const [category, setCategory] = useState("protein");
-  const [unitDefault, setUnitDefault] = useState<
-    "g" | "ml" | "scoop" | "piece"
-  >("g");
-  const [gramsPerUnit, setGramsPerUnit] = useState("");
-  const [density, setDensity] = useState("");
-  const [allergens, setAllergens] = useState("");
+function Chip({
+  children,
+  tone = "gray",
+}: {
+  children: React.ReactNode;
+  tone?: "gray" | "green" | "red" | "yellow" | "cyan";
+}) {
+  const map = {
+    gray: "bg-gray-100 text-gray-700",
+    green: "bg-emerald-100 text-emerald-700",
+    red: "bg-rose-100 text-rose-700",
+    yellow: "bg-amber-100 text-amber-700",
+    cyan: "bg-cyan-100 text-cyan-700",
+  } as const;
+  return (
+    <span className={`rounded-md px-2 py-0.5 text-xs ${map[tone]}`}>
+      {children}
+    </span>
+  );
+}
 
-  // per-100g nutrition
-  const [kcal, setKcal] = useState("");
-  const [p, setP] = useState("");
-  const [f, setF] = useState("");
-  const [c, setC] = useState("");
-  const [sug, setSug] = useState("");
-  const [fib, setFib] = useState("");
-  const [na, setNa] = useState("");
+/* ---------- Drinks Admin ---------- */
+function DrinksAdmin() {
+  const [rows, setRows] = useState<DrinkRow[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [q, setQ] = useState("");
 
-  const [saving, setSaving] = useState(false);
+  async function load() {
+    setLoading(true);
+    const { data } = await supabase
+      .from("drinks")
+      .select("id,name,price_php,is_active")
+      .order("name");
+    setRows((data || []) as DrinkRow[]);
+    setLoading(false);
+  }
 
-  const unitNeedsGrams = unitDefault === "scoop" || unitDefault === "piece";
-  const unitNeedsDensity = unitDefault === "ml";
+  useEffect(() => {
+    load();
+  }, []);
 
-  async function save() {
-    if (!name.trim()) {
-      alert("Name is required");
-      return;
-    }
-    setSaving(true);
-
-    // 1) Insert ingredient
-    const { data: ing, error: e1 } = await supabase
-      .from("ingredients")
-      .insert({
-        name: name.trim(),
-        category,
-        unit_default: unitDefault,
-        grams_per_unit: unitNeedsGrams ? numberOrNull(gramsPerUnit) : null,
-        density_g_per_ml: unitNeedsDensity ? numberOrNull(density) : null,
-        allergen_tags: allergens
-          ? allergens
-              .split(",")
-              .map((t) => t.trim())
-              .filter(Boolean)
-          : [],
-        is_active: true,
+  async function saveDrink(d: DrinkRow) {
+    const { error } = await supabase
+      .from("drinks")
+      .update({
+        name: d.name,
+        price_php: d.price_php,
+        is_active: d.is_active,
       })
-      .select("*")
-      .single();
-
-    if (e1) {
-      setSaving(false);
-      alert(e1.message);
-      return;
-    }
-
-    // 2) Insert per-100g stats
-    const { error: e2 } = await supabase.from("ingredient_nutrition").insert({
-      ingredient_id: ing.id,
-      per_100g_energy_kcal: Number(kcal || 0),
-      per_100g_protein_g: Number(p || 0),
-      per_100g_fat_g: Number(f || 0),
-      per_100g_carbs_g: Number(c || 0),
-      per_100g_sugars_g: Number(sug || 0),
-      per_100g_fiber_g: Number(fib || 0),
-      per_100g_sodium_mg: Number(na || 0),
-    });
-
-    setSaving(false);
-    if (e2) {
-      alert(e2.message);
-      return;
-    }
-
-    // reset
-    setName("");
-    setCategory("protein");
-    setUnitDefault("g");
-    setGramsPerUnit("");
-    setDensity("");
-    setAllergens("");
-    setKcal("");
-    setP("");
-    setF("");
-    setC("");
-    setSug("");
-    setFib("");
-    setNa("");
-
-    onSaved();
+      .eq("id", d.id);
+    if (error) alert(error.message);
+    else load();
   }
 
+  const filtered = rows.filter((r) =>
+    r.name.toLowerCase().includes(q.toLowerCase())
+  );
+
   return (
-    <div className="bg-white border rounded p-3 space-y-3">
-      <div className="font-semibold">New Ingredient</div>
-
-      <div className="grid md:grid-cols-2 gap-3">
-        <Field label="Name" value={name} setValue={setName} />
-        <div>
-          <div className="text-sm">Category</div>
-          <select
-            className="border px-2 py-1 rounded w-full"
-            value={category}
-            onChange={(e) => setCategory(e.target.value)}
-          >
-            <option>base</option>
-            <option>protein</option>
-            <option>fruit</option>
-            <option>sweetener</option>
-            <option>addin</option>
-            <option>topping</option>
-          </select>
-        </div>
-
-        <div>
-          <div className="text-sm">Default Unit</div>
-          <select
-            className="border px-2 py-1 rounded w-full"
-            value={unitDefault}
-            onChange={(e) =>
-              setUnitDefault(e.target.value as "g" | "ml" | "scoop" | "piece")
-            }
-          >
-            <option value="g">g</option>
-            <option value="ml">ml</option>
-            <option value="scoop">scoop</option>
-            <option value="piece">piece</option>
-          </select>
-          <p className="text-xs text-gray-500 mt-1">
-            If unit is <b>ml</b>, set density (g/ml). If <b>scoop/piece</b>, set
-            grams per unit.
-          </p>
-        </div>
-
-        {unitNeedsGrams && (
-          <Field
-            label="Grams per Unit (for scoop/piece)"
-            value={gramsPerUnit}
-            setValue={setGramsPerUnit}
-            placeholder="e.g. 30"
-            type="number"
-          />
-        )}
-
-        {unitNeedsDensity && (
-          <Field
-            label="Density g/ml (for ml)"
-            value={density}
-            setValue={setDensity}
-            placeholder="e.g. 1.02"
-            type="number"
-          />
-        )}
-
-        <Field
-          label="Allergens (comma-separated)"
-          value={allergens}
-          setValue={setAllergens}
-          placeholder="milk,nuts,soy"
+    <section className="rounded-2xl border bg-white p-4 shadow-sm">
+      <div className="mb-3 flex items-center justify-between">
+        <SectionTitle>Base Drinks</SectionTitle>
+        <input
+          className="w-56 rounded-lg border px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-[#D26E3D]/30"
+          placeholder="Search drinks…"
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
         />
       </div>
 
-      <div className="font-medium mt-2">Per 100g (from dietician)</div>
-      <div className="grid md:grid-cols-4 gap-3">
-        <Field
-          label="Energy kcal"
-          value={kcal}
-          setValue={setKcal}
-          type="number"
-        />
-        <Field label="Protein g" value={p} setValue={setP} type="number" />
-        <Field label="Fat g" value={f} setValue={setF} type="number" />
-        <Field label="Carbs g" value={c} setValue={setC} type="number" />
-        <Field label="Sugars g" value={sug} setValue={setSug} type="number" />
-        <Field label="Fiber g" value={fib} setValue={setFib} type="number" />
-        <Field label="Sodium mg" value={na} setValue={setNa} type="number" />
-      </div>
-
-      <button
-        onClick={save}
-        disabled={saving}
-        className="px-3 py-2 bg-black text-white rounded disabled:opacity-60"
-      >
-        {saving ? "Saving…" : "Save Ingredient"}
-      </button>
-    </div>
+      {loading ? (
+        <div className="text-sm text-gray-500">Loading…</div>
+      ) : filtered.length === 0 ? (
+        <div className="text-sm text-gray-500">No drinks found.</div>
+      ) : (
+        <div className="grid gap-2 md:grid-cols-2">
+          {filtered.map((d, idx) => (
+            <div
+              key={d.id}
+              className="grid grid-cols-6 items-center gap-2 rounded-xl border p-3 bg-gray-50"
+            >
+              <input
+                className="col-span-3 rounded-lg border px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[#D26E3D]/30"
+                value={d.name}
+                onChange={(e) =>
+                  setRows((prev) =>
+                    prev.map((x, i) =>
+                      i === idx ? { ...x, name: e.target.value } : x
+                    )
+                  )
+                }
+              />
+              <div className="col-span-2 flex items-center gap-1">
+                <span className="text-xs text-gray-500">₱</span>
+                <input
+                  className="w-full rounded-lg border px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[#D26E3D]/30"
+                  value={d.price_php}
+                  onChange={(e) =>
+                    setRows((prev) =>
+                      prev.map((x, i) =>
+                        i === idx
+                          ? {
+                              ...x,
+                              price_php: Number(e.target.value || 0),
+                            }
+                          : x
+                      )
+                    )
+                  }
+                  type="number"
+                />
+              </div>
+              <label className="flex items-center gap-2 text-xs">
+                <input
+                  type="checkbox"
+                  checked={d.is_active}
+                  onChange={(e) =>
+                    setRows((prev) =>
+                      prev.map((x, i) =>
+                        i === idx ? { ...x, is_active: e.target.checked } : x
+                      )
+                    )
+                  }
+                />
+                Active
+              </label>
+              <div className="col-span-6 flex justify-end">
+                <button
+                  onClick={() => saveDrink(d)}
+                  className="rounded-lg border px-3 py-1.5 text-sm hover:bg-gray-50"
+                >
+                  Save
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </section>
   );
 }
 
-/** ---------- Add missing nutrition for an existing ingredient ---------- */
-function AddNutritionInline({
-  ingredientId,
-  onSaved,
-}: {
-  ingredientId: string;
-  onSaved: () => void;
-}) {
-  const [kcal, setKcal] = useState("");
-  const [p, setP] = useState("");
-  const [f, setF] = useState("");
-  const [c, setC] = useState("");
-  const [sug, setSug] = useState("");
-  const [fib, setFib] = useState("");
-  const [na, setNa] = useState("");
-  const [saving, setSaving] = useState(false);
-
-  async function save() {
-    setSaving(true);
-    const { error } = await supabase.from("ingredient_nutrition").insert({
-      ingredient_id: ingredientId,
-      per_100g_energy_kcal: Number(kcal || 0),
-      per_100g_protein_g: Number(p || 0),
-      per_100g_fat_g: Number(f || 0),
-      per_100g_carbs_g: Number(c || 0),
-      per_100g_sugars_g: Number(sug || 0),
-      per_100g_fiber_g: Number(fib || 0),
-      per_100g_sodium_mg: Number(na || 0),
-    });
-    setSaving(false);
-    if (error) {
-      alert(error.message);
-      return;
-    }
-    onSaved();
-  }
-
-  return (
-    <div className="mt-2 p-2 border rounded bg-gray-50">
-      <div className="text-xs font-semibold mb-1">Add nutrition (per 100g)</div>
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-        <Field label="kcal" value={kcal} setValue={setKcal} type="number" />
-        <Field label="P g" value={p} setValue={setP} type="number" />
-        <Field label="F g" value={f} setValue={setF} type="number" />
-        <Field label="C g" value={c} setValue={setC} type="number" />
-        <Field label="Sug g" value={sug} setValue={setSug} type="number" />
-        <Field label="Fib g" value={fib} setValue={setFib} type="number" />
-        <Field label="Na mg" value={na} setValue={setNa} type="number" />
-      </div>
-      <button
-        onClick={save}
-        disabled={saving}
-        className="mt-2 px-2 py-1 text-xs bg-black text-white rounded disabled:opacity-60"
-      >
-        {saving ? "Saving…" : "Save"}
-      </button>
-    </div>
-  );
-}
-
-/** ---------- Main Page ---------- */
+/* ---------- Main Admin Page ---------- */
 export default function AdminPage() {
   const [ings, setIngs] = useState<IngredientRow[]>([]);
   const [loading, setLoading] = useState(false);
+  const [q, setQ] = useState("");
+  const [showInactive, setShowInactive] = useState(false);
 
   const active = useMemo(() => ings.filter((i) => i.is_active), [ings]);
   const inactive = useMemo(() => ings.filter((i) => !i.is_active), [ings]);
@@ -325,11 +199,8 @@ export default function AdminPage() {
       .select("*, ingredient_nutrition(*)")
       .order("name");
     setLoading(false);
-    if (error) {
-      alert(error.message);
-      return;
-    }
-    setIngs((data || []) as any);
+    if (error) return alert(error.message);
+    setIngs((data || []) as IngredientRow[]);
   }
 
   useEffect(() => {
@@ -341,112 +212,68 @@ export default function AdminPage() {
       .from("ingredients")
       .update({ is_active: next })
       .eq("id", id);
-    if (error) {
-      alert(error.message);
-      return;
-    }
+    if (error) return alert(error.message);
     load();
   }
 
+  const list = (showInactive ? inactive : active).filter((i) =>
+    i.name.toLowerCase().includes(q.toLowerCase())
+  );
+
   return (
-    <div className="space-y-6">
-      <h1 className="text-xl font-bold">Admin</h1>
+    <div className="space-y-8">
+      <div className="sticky top-0 z-10 -mx-4 border-b bg-white/80 px-4 py-3 backdrop-blur">
+        <div className="mx-auto flex max-w-7xl items-center justify-between gap-3">
+          <h1 className="text-lg font-bold text-gray-800">Admin Dashboard</h1>
+          <div className="flex items-center gap-3">
+            <input
+              className="w-56 rounded-lg border px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-[#D26E3D]/30"
+              placeholder="Search ingredients…"
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+            />
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={showInactive}
+                onChange={(e) => setShowInactive(e.target.checked)}
+              />
+              Show inactive
+            </label>
+          </div>
+        </div>
+      </div>
 
-      {/* Create new ingredient */}
-      <NewIngredientForm onSaved={load} />
-
-      {/* Active list */}
-      <section className="space-y-2">
-        <div className="flex items-center gap-2">
-          <h2 className="font-semibold">Active Ingredients</h2>
+      <section>
+        <div className="flex items-center gap-2 mb-2">
+          <SectionTitle>
+            {showInactive ? "Inactive Ingredients" : "Active Ingredients"}
+          </SectionTitle>
           {loading && <span className="text-xs text-gray-500">Loading…</span>}
+          <Chip tone="gray">{list.length}</Chip>
         </div>
 
-        {active.length === 0 ? (
-          <div className="text-sm text-gray-500">No active ingredients.</div>
+        {list.length === 0 ? (
+          <div className="rounded-xl border bg-white p-6 text-sm text-gray-500">
+            {showInactive
+              ? "No inactive ingredients."
+              : "No active ingredients."}
+          </div>
         ) : (
-          <div className="grid sm:grid-cols-2 md:grid-cols-3 gap-2">
-            {active.map((i) => (
-              <div key={i.id} className="border rounded p-2 bg-white">
-                <div className="flex items-center justify-between">
-                  <div className="font-medium">{i.name}</div>
-                  <button
-                    onClick={() => toggleActive(i.id, false)}
-                    className="text-xs text-rose-600 hover:underline"
-                  >
-                    Deactivate
-                  </button>
-                </div>
-                <div className="text-xs text-gray-600">
-                  {i.category} • unit {i.unit_default}
-                </div>
-
-                {i.grams_per_unit && (
-                  <div className="text-[11px] text-gray-500">
-                    {i.grams_per_unit} g / {i.unit_default}
-                  </div>
-                )}
-                {i.density_g_per_ml && (
-                  <div className="text-[11px] text-gray-500">
-                    density {i.density_g_per_ml} g/ml
-                  </div>
-                )}
-                {i.allergen_tags && i.allergen_tags.length > 0 && (
-                  <div className="text-[11px] text-rose-600">
-                    allergens: {i.allergen_tags.join(", ")}
-                  </div>
-                )}
-
-                {i.ingredient_nutrition ? (
-                  <div className="mt-2 grid grid-cols-3 gap-x-3 gap-y-1 text-[11px] text-gray-700">
-                    <div>
-                      kcal {i.ingredient_nutrition.per_100g_energy_kcal}
-                    </div>
-                    <div>P {i.ingredient_nutrition.per_100g_protein_g} g</div>
-                    <div>F {i.ingredient_nutrition.per_100g_fat_g} g</div>
-                    <div>C {i.ingredient_nutrition.per_100g_carbs_g} g</div>
-                    <div>Sug {i.ingredient_nutrition.per_100g_sugars_g} g</div>
-                    <div>Fib {i.ingredient_nutrition.per_100g_fiber_g} g</div>
-                    <div>Na {i.ingredient_nutrition.per_100g_sodium_mg} mg</div>
-                  </div>
-                ) : (
-                  <AddNutritionInline ingredientId={i.id} onSaved={load} />
-                )}
-              </div>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {list.map((ing) => (
+              <IngredientCard
+                key={ing.id}
+                ing={ing}
+                onToggleActive={toggleActive}
+                reload={load}
+              />
             ))}
           </div>
         )}
       </section>
 
-      {/* Inactive list */}
-      <section className="space-y-2">
-        <h2 className="font-semibold">Inactive Ingredients</h2>
-        {inactive.length === 0 ? (
-          <div className="text-sm text-gray-500">No inactive ingredients.</div>
-        ) : (
-          <div className="grid sm:grid-cols-2 md:grid-cols-3 gap-2">
-            {inactive.map((i) => (
-              <div
-                key={i.id}
-                className="border rounded p-2 bg-white opacity-70"
-              >
-                <div className="flex items-center justify-between">
-                  <div className="font-medium">{i.name}</div>
-                  <button
-                    onClick={() => toggleActive(i.id, true)}
-                    className="text-xs text-emerald-700 hover:underline"
-                  >
-                    Activate
-                  </button>
-                </div>
-                <div className="text-xs text-gray-600">
-                  {i.category} • unit {i.unit_default}
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </section>
+      <DrinksAdmin />
     </div>
   );
 }

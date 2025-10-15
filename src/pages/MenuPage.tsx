@@ -1,3 +1,4 @@
+// src/pages/MenuPage.tsx
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { Link, useNavigate } from "react-router-dom";
@@ -42,16 +43,24 @@ export default function MenuPage() {
       setLoading(true);
       setErr(null);
       try {
-        // 1) drinks
+        // 1) drinks — use price_php (new schema)
         const { data: dd, error: de } = await supabase
           .from("drinks")
-          .select("id,name,description,base_size_ml,price_cents,is_active")
+          .select("id,name,description,base_size_ml,price_php,is_active")
           .eq("is_active", true)
           .order("name", { ascending: true });
         if (de) throw de;
 
+        // normalize so downstream components can still read price_cents
+        const normalized: DrinkRecord[] = (dd || []).map((d: any) => ({
+          ...d,
+          // keep a cents field derived from php for compatibility
+          price_cents:
+            typeof d.price_php === "number" ? Math.round(d.price_php * 100) : 0,
+        }));
+
         // 2) lines
-        const drinkIds = (dd || []).map((d) => d.id);
+        const drinkIds = normalized.map((d) => d.id);
         const { data: ll, error: le } = await supabase
           .from("drink_lines")
           .select("*")
@@ -72,7 +81,7 @@ export default function MenuPage() {
         if (ie) throw ie;
         if (ne) throw ne;
 
-        setDrinks((dd || []) as DrinkRecord[]);
+        setDrinks(normalized);
         setLines((ll || []) as DrinkLineRow[]);
         setIngDict(
           Object.fromEntries(((ii || []) as Ingredient[]).map((x) => [x.id, x]))
@@ -112,9 +121,10 @@ export default function MenuPage() {
       alert("This drink has no recipe lines yet.");
       return;
     }
+    // Use normalized cents field
     addItem({
       item_name: drink.name,
-      unit_price_cents: drink.price_cents,
+      unit_price_cents: drink.price_cents, // already derived from price_php
       lines: drinkLines,
     });
     alert(`${drink.name} added to cart`);
@@ -196,7 +206,7 @@ export default function MenuPage() {
           if (!selected) return;
           addItem({
             item_name: selected.name,
-            unit_price_cents: selected.price_cents,
+            unit_price_cents: selected.price_cents, // normalized cents
             lines:
               scaledLines && scaledLines.length
                 ? scaledLines

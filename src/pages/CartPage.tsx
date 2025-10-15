@@ -1,12 +1,25 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { Link } from "react-router-dom";
-import { supabase } from "@/lib/supabaseClient";
 import { useCart } from "@/context/CartContext";
-import type { CartItem } from "@/types";
+import { supabase } from "@/lib/supabaseClient";
 
-type NameDict = Record<string, string>;
+type CartLine = {
+  ingredient_id: string;
+  amount: number;
+  unit: string;
+  role?: "base" | "extra";
+  name?: string;
+};
+type CartItem = {
+  item_name: string;
+  unit_price_cents: number;
+  lines: CartLine[];
+  base_drink_name?: string;
+  base_price_cents?: number;
+  addons_price_cents?: number;
+};
 
-function Price({ cents = 0 }: { cents?: number }) {
+function Price({ cents }: { cents: number }) {
   return <span>₱{(cents / 100).toFixed(2)}</span>;
 }
 
@@ -17,30 +30,39 @@ function SectionTitle({ children }: { children: React.ReactNode }) {
     </div>
   );
 }
+const getLineLabel = (l: CartLine, dict: Record<string, string>) =>
+  l.name || dict[l.ingredient_id] || l.ingredient_id;
+
+const titleFor = (it: CartItem) =>
+  it.base_drink_name ? `Custom — ${it.base_drink_name}` : it.item_name;
 
 export default function CartPage() {
-  const { items, removeItem, clear } = useCart();
+  const { items, removeItem, clear } = useCart() as {
+    items: CartItem[];
+    removeItem: (idx: number) => void;
+    clear: () => void;
+  };
 
-  // ingredient name fallback (in case lines didn’t carry `name`)
-  const [nameDict, setNameDict] = useState<NameDict>({});
+  // Fallback ingredient names
+  const [nameDict, setNameDict] = useState<Record<string, string>>({});
   useEffect(() => {
-    const needs = items.some((it) => (it.lines || []).some((l) => !l.name));
-    if (!needs) return;
+    const needsLookup = items.some((it) =>
+      (it.lines || []).some((l) => !l.name)
+    );
+    if (!needsLookup) return;
     (async () => {
-      const { data, error } = await supabase
+      const { data } = await supabase
         .from("ingredients")
         .select("id,name")
         .eq("is_active", true);
-      if (!error && data) {
-        setNameDict(
-          Object.fromEntries((data as any[]).map((x) => [x.id, x.name]))
-        );
-      }
+      setNameDict(
+        Object.fromEntries((data ?? []).map((x: any) => [x.id, x.name]))
+      );
     })();
   }, [items]);
 
   const total = useMemo(
-    () => items.reduce((acc, it) => acc + (it.unit_price_cents || 0), 0),
+    () => items.reduce((s, i) => s + (i.unit_price_cents || 0), 0),
     [items]
   );
 
@@ -73,7 +95,7 @@ export default function CartPage() {
       ) : (
         <div className="space-y-3">
           {items.map((it, idx) => (
-            <ItemCard
+            <CartItemCard
               key={idx}
               item={it}
               onRemove={() => removeItem(idx)}
@@ -81,7 +103,7 @@ export default function CartPage() {
             />
           ))}
 
-          <div className="mt-4 rounded-2xl border bg-white p-4">
+          <div className="mt-4 rounded-xl border bg-white p-4">
             <div className="flex items-center justify-between text-lg font-semibold">
               <div>Total</div>
               <div>
@@ -109,50 +131,40 @@ export default function CartPage() {
   );
 }
 
-function displayTitle(it: CartItem) {
-  return it.base_drink_name ? `Custom — ${it.base_drink_name}` : it.item_name;
-}
-
-function ItemCard({
+function CartItemCard({
   item,
   onRemove,
   nameDict,
 }: {
   item: CartItem;
   onRemove: () => void;
-  nameDict: NameDict;
+  nameDict: Record<string, string>;
 }) {
   const [open, setOpen] = useState(true);
-
   const baseLines = useMemo(
     () => (item.lines || []).filter((l) => l.role === "base"),
     [item.lines]
   );
-  const extras = useMemo(
+  const extraLines = useMemo(
     () => (item.lines || []).filter((l) => l.role !== "base"),
     [item.lines]
   );
-
-  const showBreakdown =
-    typeof item.base_price_cents === "number" ||
+  const hasBreakdown =
+    typeof item.base_price_cents === "number" &&
     typeof item.addons_price_cents === "number";
-
-  const labelFor = (id?: string, name?: string) =>
-    name || (id ? nameDict[id] : "") || "Ingredient";
 
   return (
     <div className="rounded-2xl border bg-white p-4 shadow-sm">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <div className="text-base font-semibold">{displayTitle(item)}</div>
+          <div className="text-base font-semibold">{titleFor(item)}</div>
           <div className="text-xs text-gray-500">
-            {(item.lines || []).length} ingredient
-            {(item.lines || []).length === 1 ? "" : "s"}
+            {(item.lines || []).length} ingredients
           </div>
         </div>
         <div className="text-right">
           <div className="text-base font-semibold">
-            <Price cents={item.unit_price_cents} />
+            <Price cents={item.unit_price_cents || 0} />
           </div>
           <div className="mt-1 flex items-center gap-2 justify-end">
             <button
@@ -173,7 +185,7 @@ function ItemCard({
 
       {open && (
         <div className="mt-3 grid gap-3">
-          {(item.base_drink_name || baseLines.length > 0) && (
+          {(baseLines.length > 0 || item.base_drink_name) && (
             <div className="rounded-lg border p-3">
               <SectionTitle>Base Drink</SectionTitle>
               <div className="mt-1 text-sm font-medium">
@@ -187,7 +199,7 @@ function ItemCard({
                       className="flex items-center justify-between"
                     >
                       <span className="truncate">
-                        {labelFor(l.ingredient_id, l.name)}
+                        {getLineLabel(l, nameDict)}
                       </span>
                       <span className="text-gray-600">
                         {l.amount} {l.unit}
@@ -204,17 +216,17 @@ function ItemCard({
             </div>
           )}
 
-          {extras.length > 0 && (
+          {extraLines.length > 0 && (
             <div className="rounded-lg border p-3">
               <SectionTitle>Add-ons</SectionTitle>
               <ul className="mt-1 space-y-1 text-sm">
-                {extras.map((l, i) => (
+                {extraLines.map((l, i) => (
                   <li
                     key={`e-${i}`}
                     className="flex items-center justify-between"
                   >
                     <span className="truncate">
-                      {labelFor(l.ingredient_id, l.name)}
+                      {getLineLabel(l, nameDict)}
                     </span>
                     <span className="text-gray-600">
                       {l.amount} {l.unit}
@@ -230,7 +242,7 @@ function ItemCard({
             </div>
           )}
 
-          {showBreakdown && (
+          {hasBreakdown && (
             <div className="flex items-center justify-between text-sm font-medium">
               <span>Subtotal</span>
               <span>
