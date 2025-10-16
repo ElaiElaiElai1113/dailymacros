@@ -43,27 +43,37 @@ export default function MenuPage() {
       setLoading(true);
       setErr(null);
       try {
-        // 1) drinks — use price_php (new schema)
+        // 1) drinks
         const { data: dd, error: de } = await supabase
           .from("drinks")
-          .select("id,name,description,base_size_ml,price_php,is_active")
+          .select("id,name,description,base_size_ml,price_php,is_active") // <- price_php
           .eq("is_active", true)
           .order("name", { ascending: true });
         if (de) throw de;
 
-        // normalize so downstream components can still read price_cents
-        const normalized: DrinkRecord[] = (dd || []).map((d: any) => ({
+        const drinkRows = (dd || []) as Array<{
+          id: string;
+          name: string;
+          description: string | null;
+          base_size_ml: number | null;
+          price_php: number | null;
+          is_active: boolean;
+        }>;
+
+        // Normalize price for UI that still uses cents
+        const normalized = drinkRows.map((d) => ({
           ...d,
-          // keep a cents field derived from php for compatibility
-          price_cents:
-            typeof d.price_php === "number" ? Math.round(d.price_php * 100) : 0,
+          price_cents: Math.round((d.price_php ?? 0) * 100),
         }));
 
-        // 2) lines
         const drinkIds = normalized.map((d) => d.id);
+        console.log("🧪 drinks loaded:", drinkIds.length);
+
+        // 2) lines: join against drinks to ensure we only pull existing drink ids.
+        // If RLS on drink_lines requires auth, this will come back empty. We'll log it.
         const { data: ll, error: le } = await supabase
           .from("drink_lines")
-          .select("*")
+          .select("drink_id,ingredient_id,amount,unit,drinks!inner(id)")
           .in(
             "drink_id",
             drinkIds.length
@@ -71,6 +81,8 @@ export default function MenuPage() {
               : ["00000000-0000-0000-0000-000000000000"]
           );
         if (le) throw le;
+
+        console.log("🧪 recipe lines loaded:", (ll || []).length);
 
         // 3) ingredients + nutrition
         const [{ data: ii, error: ie }, { data: nn, error: ne }] =
@@ -81,8 +93,8 @@ export default function MenuPage() {
         if (ie) throw ie;
         if (ne) throw ne;
 
-        setDrinks(normalized);
-        setLines((ll || []) as DrinkLineRow[]);
+        setDrinks(normalized as any); // your DrinkCard expects price_cents
+        setLines((ll || []) as any);
         setIngDict(
           Object.fromEntries(((ii || []) as Ingredient[]).map((x) => [x.id, x]))
         );
@@ -94,6 +106,13 @@ export default function MenuPage() {
             ])
           )
         );
+
+        // Helpful: warn if there are 0 lines in total
+        if (!ll || ll.length === 0) {
+          console.warn(
+            "⚠️ No recipe lines returned. Likely causes: (a) RLS on drink_lines blocks select, (b) drink_lines is empty, (c) wrong schema/table name."
+          );
+        }
       } catch (e: any) {
         setErr(e.message || "Failed to load menu");
       } finally {
