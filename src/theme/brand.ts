@@ -1,4 +1,3 @@
-// src/theme/brand.ts
 export const COLORS = {
   redOrange: "#D26E3D",
   yellow: "#EECB65",
@@ -6,7 +5,6 @@ export const COLORS = {
   bg: "#F6ECC6",
 } as const;
 
-// quick utility classes (Tailwind) that match brand tones
 export const brand = {
   panel: "bg-white border border-gray-200 rounded-2xl p-4 shadow-sm",
   header: "text-2xl font-bold",

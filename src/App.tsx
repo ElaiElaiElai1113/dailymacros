@@ -9,6 +9,8 @@ import StaffDashboard from "./pages/StaffDashboard";
 import AdminPage from "./pages/AdminPage";
 import LandingPage from "./pages/LandingPage";
 import logoUrl from "@/assets/dailymacroslogo.png";
+import LoginPage from "./pages/LoginPage";
+import RoleGate from "./lib/auth/RoleGate";
 
 export default function App() {
   return (
@@ -46,8 +48,7 @@ export default function App() {
             <NavItem to="/build" label="Build" />
             <NavItem to="/cart" label="Cart" />
             <NavItem to="/orders" label="My Orders" />
-            <NavItem to="/staff" label="Staff" accent="text-rose-600" />
-            <NavItem to="/admin" label="Admin" accent="text-amber-600" />
+
             <NavLink
               to="/menu"
               className="ml-3 rounded-lg bg-[#D26E3D] px-4 py-2 text-sm text-white font-semibold shadow hover:opacity-90 transition"
@@ -67,8 +68,29 @@ export default function App() {
           <Route path="/cart" element={<CartPage />} />
           <Route path="/checkout" element={<CheckoutPage />} />
           <Route path="/orders" element={<OrdersPage />} />
-          <Route path="/staff" element={<StaffDashboard />} />
-          <Route path="/admin" element={<AdminPage />} />
+
+          {/* Login */}
+          <Route path="/login" element={<LoginPage />} />
+
+          {/* Staff (staff + admin) */}
+          <Route
+            path="/staff"
+            element={
+              <RoleGate allow={["staff", "admin"]}>
+                <StaffDashboard />
+              </RoleGate>
+            }
+          />
+
+          {/* Admin (admin only) */}
+          <Route
+            path="/admin"
+            element={
+              <RoleGate allow={["admin"]}>
+                <AdminPage />
+              </RoleGate>
+            }
+          />
         </Routes>
       </main>
     </div>
