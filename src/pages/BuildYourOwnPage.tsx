@@ -13,7 +13,11 @@ import IngredientSelector from "@/components/IngredientSelector";
 import NutritionBar from "@/components/NutritionBar";
 import ExplainMath from "@/components/ExplainMath";
 import { totalsFor } from "@/utils/nutrition";
-import { groupPricing, priceForExtrasPHP } from "@/utils/pricing";
+import {
+  groupPricing,
+  priceForExtrasPHP,
+  priceForLinePHP,
+} from "@/utils/pricing";
 import { useCart } from "@/context/CartContext";
 import logoUrl from "@/assets/dailymacroslogo.png";
 
@@ -24,7 +28,7 @@ const COLORS = {
   bg: "#FFFDF8",
 };
 
-// Local shape for drinks in this page: DB returns price_php; we normalize to price_cents for the app
+// Local shape for drinks (DB returns price_php; normalize to cents for cart math)
 type BYODrink = Drink & { price_cents: number };
 
 type V100Row = {
@@ -38,7 +42,7 @@ type V100Row = {
 export default function BuildYourOwnPage() {
   const { addItem } = useCart();
 
-  // data dictionaries
+  // dictionaries
   const [ingDict, setIngDict] = useState<Record<string, Ingredient>>({});
   const [nutrDict, setNutrDict] = useState<Record<string, IngredientNutrition>>(
     {}
@@ -55,11 +59,11 @@ export default function BuildYourOwnPage() {
   const [baseLines, setBaseLines] = useState<CartLine[]>([]);
   const [extraLines, setExtraLines] = useState<CartLine[]>([]);
 
-  // ui state
+  // ui
   const [loadingAll, setLoadingAll] = useState(true);
   const [loadingBase, setLoadingBase] = useState(false);
 
-  // ---------------- Load master data ----------------
+  // -------- Load master data --------
   useEffect(() => {
     (async () => {
       setLoadingAll(true);
@@ -75,11 +79,11 @@ export default function BuildYourOwnPage() {
           supabase.from("ingredient_pricing_effective").select("*"),
         ]);
 
-      // Ingredients
+      // ingredients
       const ingredients = (ii ?? []) as Ingredient[];
       setIngDict(Object.fromEntries(ingredients.map((x) => [x.id, x])));
 
-      // Per-100g nutrition
+      // nutrition v100
       const v100 = (nn ?? []) as V100Row[];
       setNutrDict(
         Object.fromEntries(
@@ -96,11 +100,11 @@ export default function BuildYourOwnPage() {
         )
       );
 
-      // Pricing (already in PHP in your DB view)
+      // pricing (PHP)
       const pricing = (pp ?? []) as IngredientPricing[];
       setPricingDict(groupPricing(pricing));
 
-      // Drinks: normalize price_php -> price_cents (for existing cart logic)
+      // drinks: normalize price_php -> cents for cart
       const drinkRows = (dd ?? []) as Array<
         Omit<Drink, "price_cents"> & { price_php: number | null }
       >;
@@ -115,7 +119,7 @@ export default function BuildYourOwnPage() {
     })();
   }, []);
 
-  // --------------- Load base recipe when selected ---------------
+  // -------- Load base recipe when selected --------
   useEffect(() => {
     if (!selectedBaseId) {
       setBaseLines([]);
@@ -127,11 +131,11 @@ export default function BuildYourOwnPage() {
         .from("drink_lines")
         .select("ingredient_id,amount,unit")
         .eq("drink_id", selectedBaseId);
-      const rows = (data ?? []) as Array<{
+      const rows = (data ?? []) as {
         ingredient_id: string;
         amount: number;
         unit: string;
-      }>;
+      }[];
       setBaseLines(
         rows.map((r) => ({
           ingredient_id: r.ingredient_id,
@@ -145,7 +149,7 @@ export default function BuildYourOwnPage() {
     })();
   }, [selectedBaseId, ingDict]);
 
-  // --------------- Add-ons handlers ---------------
+  // -------- Add-ons --------
   function handleAddAddon(
     ingredient: Ingredient,
     amount: number,
@@ -170,7 +174,7 @@ export default function BuildYourOwnPage() {
     setExtraLines((p) => p.filter((_, x) => x !== i));
   }
 
-  // --------------- Totals & pricing ---------------
+  // -------- Totals & pricing --------
   const combinedLines = useMemo(
     () => [...baseLines, ...extraLines],
     [baseLines, extraLines]
@@ -180,21 +184,20 @@ export default function BuildYourOwnPage() {
     () => totalsFor(combinedLines, ingDict, nutrDict),
     [combinedLines, ingDict, nutrDict]
   );
-
   const selectedBase = baseDrinks.find((b) => b.id === selectedBaseId) || null;
 
-  // Add-ons are priced in PHP via pricing table
+  // Add-ons priced in PHP
   const addons_price_php = useMemo(
     () => priceForExtrasPHP(extraLines, pricingDict),
     [extraLines, pricingDict]
   );
   const addons_price_cents = Math.round(addons_price_php * 100);
 
-  // Base price currently in cents (normalized above)
+  // Base price normalized to cents
   const base_price_cents = selectedBase?.price_cents || 0;
   const total_price_cents = base_price_cents + addons_price_cents;
 
-  // --------------- Add to cart ---------------
+  // -------- Add to cart --------
   function addToCart() {
     if (!selectedBase) return;
     const cartItem: CartItem = {
@@ -216,7 +219,9 @@ export default function BuildYourOwnPage() {
     [combinedLines, nutrDict]
   );
 
-  // --------------- UI ---------------
+  // Helper for per-line price label (PHP)
+  const linePricePHP = (l: CartLine) => priceForLinePHP(l, pricingDict) ?? 0;
+
   return (
     <div
       className="min-h-screen"
@@ -252,9 +257,9 @@ export default function BuildYourOwnPage() {
         </header>
 
         <div className="grid grid-cols-12 gap-6">
-          {/* Left: builder */}
+          {/* Left */}
           <div className="col-span-12 space-y-6 md:col-span-7 lg:col-span-8">
-            {/* Step 1: Base */}
+            {/* Step 1 */}
             <section className="rounded-2xl border bg-white p-4 shadow-sm">
               <div className="mb-2 font-semibold text-gray-800">
                 1️⃣ Choose your base drink
@@ -297,7 +302,7 @@ export default function BuildYourOwnPage() {
               )}
             </section>
 
-            {/* Step 2: Add-ons */}
+            {/* Step 2 */}
             <section className="rounded-2xl border bg-white p-4 shadow-sm">
               <div className="mb-2 flex items-center justify-between">
                 <div className="font-semibold text-gray-800">2️⃣ Add-ons</div>
@@ -305,7 +310,7 @@ export default function BuildYourOwnPage() {
                   className="rounded-md px-2 py-0.5 text-xs"
                   style={{ backgroundColor: COLORS.yellow, color: "#3f3f3f" }}
                 >
-                  ⚡ Live macros preview
+                  ⚡ Live macros & prices
                 </span>
               </div>
               {!selectedBase ? (
@@ -313,7 +318,16 @@ export default function BuildYourOwnPage() {
                   Choose a base drink first to enable add-ons.
                 </div>
               ) : (
-                <IngredientSelector onAdd={handleAddAddon} />
+                // NEW: pass a price getter so each ingredient shows "from ₱X"
+                <IngredientSelector
+                  onAdd={handleAddAddon}
+                  getPricePHP={(ing, amount, unit) =>
+                    priceForLinePHP(
+                      { ingredient_id: ing.id, amount, unit },
+                      pricingDict
+                    )
+                  }
+                />
               )}
             </section>
 
@@ -337,24 +351,35 @@ export default function BuildYourOwnPage() {
                 <div className="text-sm text-gray-500">No add-ons yet.</div>
               ) : (
                 <ul className="divide-y divide-gray-100 text-sm">
-                  {extraLines.map((l, i) => (
-                    <li key={i} className="flex justify-between py-2">
-                      <div>
-                        <span className="font-medium text-gray-800">
-                          {l.name}
-                        </span>{" "}
-                        <span className="text-gray-500">
-                          — {l.amount} {l.unit}
-                        </span>
-                      </div>
-                      <button
-                        onClick={() => removeAddon(i)}
-                        className="text-xs text-rose-700 hover:underline"
+                  {extraLines.map((l, i) => {
+                    const php = linePricePHP(l);
+                    return (
+                      <li
+                        key={i}
+                        className="flex items-center justify-between py-2"
                       >
-                        Remove
-                      </button>
-                    </li>
-                  ))}
+                        <div className="min-w-0">
+                          <span className="font-medium text-gray-800">
+                            {l.name}
+                          </span>{" "}
+                          <span className="text-gray-500">
+                            — {l.amount} {l.unit}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-3 shrink-0">
+                          <span className="text-gray-700">
+                            ₱{php.toFixed(2)}
+                          </span>
+                          <button
+                            onClick={() => removeAddon(i)}
+                            className="text-xs text-rose-700 hover:underline"
+                          >
+                            Remove
+                          </button>
+                        </div>
+                      </li>
+                    );
+                  })}
                 </ul>
               )}
 
@@ -416,14 +441,13 @@ export default function BuildYourOwnPage() {
                 </div>
               </section>
               <section className="rounded-2xl border bg-white p-4 text-sm text-gray-600 shadow-sm">
-                Prices include base + add-ons. Use <b>Explain my math</b> for a
-                per-ingredient breakdown and unit conversions.
+                Prices include base + add-ons. Use <b>Explain my math</b> to see
+                per-ingredient pricing and unit logic.
               </section>
             </div>
           </aside>
         </div>
 
-        {/* Footer */}
         <footer className="mt-10 pb-10 text-center text-xs text-gray-500">
           <span className="font-semibold" style={{ color: COLORS.redOrange }}>
             DailyMacros
