@@ -46,7 +46,6 @@ function Chip({
 export default function IngredientCard({
   ing,
   onToggleActive,
-  reload,
 }: {
   ing: IngredientCardRow;
   onToggleActive: (id: string, next: boolean) => void;

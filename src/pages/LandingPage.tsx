@@ -2,8 +2,6 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { supabase } from "@/lib/supabaseClient";
 
-import logoUrl from "@/assets/dailymacroslogo.png";
-
 type Drink = {
   id: string;
   name: string;
