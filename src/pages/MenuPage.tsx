@@ -159,16 +159,6 @@ export default function MenuPage() {
       {/* Header */}
       <div className="mx-auto max-w-7xl px-4 pt-8">
         <div className="flex items-center justify-between">
-          <Link to="/" className="flex items-center gap-3">
-            <img
-              src="/logo.svg"
-              alt="DailyMacros logo"
-              className="h-9 w-9 rounded-lg"
-            />
-            <span className="font-semibold tracking-tight text-lg">
-              DailyMacros
-            </span>
-          </Link>
           <Link
             to="/build"
             className="rounded-lg px-4 py-2 text-white text-sm font-medium hover:opacity-90"
