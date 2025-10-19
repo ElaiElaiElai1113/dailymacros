@@ -436,6 +436,244 @@ export default function AdminPage() {
 
       {/* Drinks admin (kept) */}
       <DrinksAdmin />
+
+      {/* Orders */}
+      <OrdersAdmin />
     </div>
+  );
+}
+
+/* ---------- Orders Admin ---------- */
+function OrdersAdmin() {
+  type OrderItemRow = {
+    id: string;
+    item_name: string;
+    unit_price_cents: number | null;
+    line_total_cents: number | null;
+    position: number | null;
+  };
+
+  type OrderRow = {
+    id: string;
+    created_at: string;
+    pickup_time: string | null;
+    status: "new" | "in_prep" | "ready" | "completed" | "cancelled";
+    guest_name: string | null;
+    guest_phone: string | null;
+    customer_id: string | null;
+    order_items: OrderItemRow[];
+  };
+
+  const STATUS_OPTIONS: OrderRow["status"][] = [
+    "new",
+    "in_prep",
+    "ready",
+    "completed",
+    "cancelled",
+  ];
+
+  const [rows, setRows] = useState<OrderRow[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const [q, setQ] = useState("");
+  const [statusFilter, setStatusFilter] = useState<"" | OrderRow["status"]>("");
+
+  async function load() {
+    setLoading(true);
+    setErr(null);
+    const query = supabase
+      .from("orders")
+      .select(
+        `
+        id, created_at, pickup_time, status, guest_name, guest_phone, customer_id,
+        order_items (
+          id, item_name, unit_price_cents, line_total_cents, position
+        )
+      `
+      )
+      .order("created_at", { ascending: false })
+      .limit(100); // tweak for pagination
+
+    const { data, error } = await query;
+    setLoading(false);
+    if (error) {
+      setErr(error.message);
+      return;
+    }
+    setRows((data || []) as unknown as OrderRow[]);
+  }
+
+  useEffect(() => {
+    load();
+    // Optional: realtime subscriptions if enabled
+    const channel = supabase
+      .channel("orders-admin")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "orders" },
+        () => load()
+      )
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, []);
+
+  async function updateStatus(id: string, status: OrderRow["status"]) {
+    const { error } = await supabase
+      .from("orders")
+      .update({ status, updated_at: new Date().toISOString() })
+      .eq("id", id);
+    if (error) return alert(error.message);
+    // optimistic refresh
+    setRows((prev) => prev.map((o) => (o.id === id ? { ...o, status } : o)));
+  }
+
+  // derived: filter/search
+  const filtered = rows
+    .filter((o) => (statusFilter ? o.status === statusFilter : true))
+    .filter((o) => {
+      if (!q.trim()) return true;
+      const needle = q.toLowerCase();
+      return (
+        o.id.toLowerCase().includes(needle) ||
+        (o.guest_name || "").toLowerCase().includes(needle) ||
+        (o.guest_phone || "").toLowerCase().includes(needle) ||
+        o.order_items.some((it) =>
+          (it.item_name || "").toLowerCase().includes(needle)
+        )
+      );
+    });
+
+  return (
+    <section className="rounded-2xl border bg-white p-4 shadow-sm">
+      <div className="mb-3 flex flex-wrap items-center gap-3">
+        <SectionTitle>Orders</SectionTitle>
+        {loading && <span className="text-xs text-gray-500">Loading…</span>}
+        {err && <span className="text-xs text-rose-600">Error: {err}</span>}
+        <div className="ml-auto flex gap-2">
+          <input
+            placeholder="Search id, name, item…"
+            className="w-56 rounded-lg border px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-[#D26E3D]/30"
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+          />
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value as any)}
+            className="rounded-lg border px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-[#D26E3D]/30"
+          >
+            <option value="">All statuses</option>
+            {STATUS_OPTIONS.map((s) => (
+              <option key={s} value={s}>
+                {s}
+              </option>
+            ))}
+          </select>
+          <button
+            onClick={load}
+            className="rounded-lg border px-3 py-1.5 text-sm hover:bg-gray-50"
+          >
+            Refresh
+          </button>
+        </div>
+      </div>
+
+      {filtered.length === 0 ? (
+        <div className="rounded-xl border bg-gray-50 p-6 text-sm text-gray-600">
+          No orders found.
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {filtered.map((o) => {
+            const created = new Date(o.created_at);
+            const pickup = o.pickup_time ? new Date(o.pickup_time) : null;
+            const subtotal = (o.order_items || []).reduce(
+              (s, it) => s + (it.line_total_cents || it.unit_price_cents || 0),
+              0
+            );
+
+            return (
+              <div
+                key={o.id}
+                className="rounded-xl border bg-white p-3 shadow-sm"
+              >
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <div className="text-sm font-semibold">
+                      Order #{o.id.slice(0, 8)}
+                    </div>
+                    <div className="text-xs text-gray-500">
+                      Placed {created.toLocaleString()}
+                      {pickup && (
+                        <>
+                          {" · "}Pickup {pickup.toLocaleString()}
+                        </>
+                      )}
+                    </div>
+                    {(o.guest_name || o.guest_phone) && (
+                      <div className="mt-1 text-xs text-gray-600">
+                        {o.guest_name && <span>{o.guest_name}</span>}
+                        {o.guest_name && o.guest_phone && <span> · </span>}
+                        {o.guest_phone && <span>{o.guest_phone}</span>}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <select
+                      value={o.status}
+                      onChange={(e) =>
+                        updateStatus(o.id, e.target.value as OrderRow["status"])
+                      }
+                      className="rounded-lg border px-2 py-1 text-sm outline-none focus:ring-2 focus:ring-[#D26E3D]/30"
+                    >
+                      {STATUS_OPTIONS.map((s) => (
+                        <option key={s} value={s}>
+                          {s}
+                        </option>
+                      ))}
+                    </select>
+                    <div className="rounded-md border bg-gray-50 px-2 py-1 text-sm">
+                      ₱{(subtotal / 100).toFixed(2)}
+                    </div>
+                  </div>
+                </div>
+
+                {o.order_items.length > 0 && (
+                  <div className="mt-3">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="text-left text-xs text-gray-500">
+                          <th className="py-1.5">Item</th>
+                          <th className="py-1.5">Line Total</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y">
+                        {o.order_items
+                          .sort((a, b) => (a.position || 0) - (b.position || 0))
+                          .map((it) => (
+                            <tr key={it.id}>
+                              <td className="py-2">{it.item_name}</td>
+                              <td className="py-2">
+                                ₱
+                                {(
+                                  (it.line_total_cents ||
+                                    it.unit_price_cents ||
+                                    0) / 100
+                                ).toFixed(2)}
+                              </td>
+                            </tr>
+                          ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </section>
   );
 }
