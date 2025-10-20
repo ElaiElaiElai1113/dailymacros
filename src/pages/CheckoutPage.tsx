@@ -89,7 +89,7 @@ export default function CheckoutPage() {
           pickup_time: new Date(pickup).toISOString(),
           guest_name: name.trim() || null,
           guest_phone: phone.trim() || null,
-          // you can add status defaults on the DB side (e.g., 'pending')
+          status: "pending",
         })
         .select("*")
         .single();

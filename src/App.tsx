@@ -1,4 +1,5 @@
 // src/App.tsx
+import { lazy, Suspense } from "react";
 import { Route, Routes, NavLink } from "react-router-dom";
 import MenuPage from "./pages/MenuPage";
 import BuildYourOwnPage from "./pages/BuildYourOwnPage";
@@ -6,11 +7,15 @@ import CartPage from "./pages/CartPage";
 import CheckoutPage from "./pages/CheckoutPage";
 import OrdersPage from "./pages/OrdersPage";
 import StaffDashboard from "./pages/StaffDashboard";
-import AdminPage from "./pages/AdminPage";
+import AdminPage from "./pages/admin/AdminPage";
 import LandingPage from "./pages/LandingPage";
 import logoUrl from "@/assets/dailymacroslogo.png";
 import LoginPage from "./pages/LoginPage";
 import RoleGate from "./lib/auth/RoleGate";
+
+const DrinksAdminPage = lazy(() => import("@/pages/admin/DrinksAdmin"));
+const AddonsAdminPage = lazy(() => import("@/pages/admin/AddonsAdmin"));
+const OrdersAdminPage = lazy(() => import("@/pages/admin/OrdersAdmin"));
 
 export default function App() {
   return (
@@ -59,7 +64,6 @@ export default function App() {
         </div>
       </nav>
 
-      {/* CONTENT: make this the scrollable region */}
       <main className="flex-1 min-h-0 w-full max-w-7xl mx-auto p-4 overflow-y-auto overflow-x-hidden">
         <Routes>
           <Route path="/" element={<LandingPage />} />
@@ -68,7 +72,9 @@ export default function App() {
           <Route path="/cart" element={<CartPage />} />
           <Route path="/checkout" element={<CheckoutPage />} />
           <Route path="/orders" element={<OrdersPage />} />
-
+          <Route path="/admin/drinks" element={<DrinksAdminPage />} />
+          <Route path="/admin/addons" element={<AddonsAdminPage />} />
+          <Route path="/admin/orders" element={<OrdersAdminPage />} />
           {/* Login */}
           <Route path="/login" element={<LoginPage />} />
 
