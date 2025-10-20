@@ -1,3 +1,4 @@
+// src/pages/OrdersAdminPage.tsx
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { supabase } from "@/lib/supabaseClient";
 
@@ -30,6 +31,16 @@ type OrderItemRow = {
   line_total_cents?: number | null;
 };
 
+type OrderItemIngredientRow = {
+  id: string;
+  order_item_id: string;
+  ingredient_id: string;
+  amount: number;
+  unit: string;
+  is_extra: boolean | null;
+  ingredient_name?: string;
+};
+
 /* ---------------------------- UI helpers ---------------------------- */
 const STATUS_LABEL: Record<StatusValue, string> = {
   pending: "Pending",
@@ -38,7 +49,6 @@ const STATUS_LABEL: Record<StatusValue, string> = {
   picked_up: "Picked up",
   cancelled: "Cancelled",
 };
-
 const STATUS_TONE: Record<StatusValue, string> = {
   pending: "bg-amber-100 text-amber-800 border-amber-200",
   in_progress: "bg-blue-100 text-blue-800 border-blue-200",
@@ -46,20 +56,17 @@ const STATUS_TONE: Record<StatusValue, string> = {
   picked_up: "bg-gray-100 text-gray-800 border-gray-200",
   cancelled: "bg-rose-100 text-rose-800 border-rose-200",
 };
-
-function Peso({ cents }: { cents?: number | null }) {
-  return <span>₱{((cents || 0) / 100).toFixed(2)}</span>;
-}
-function Badge({ status }: { status: StatusValue }) {
-  return (
-    <span
-      className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium ${STATUS_TONE[status]}`}
-    >
-      {STATUS_LABEL[status]}
-    </span>
-  );
-}
-function timeAgo(iso: string) {
+const Peso = ({ cents }: { cents?: number | null }) => (
+  <span>₱{((cents || 0) / 100).toFixed(2)}</span>
+);
+const Badge = ({ status }: { status: StatusValue }) => (
+  <span
+    className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium ${STATUS_TONE[status]}`}
+  >
+    {STATUS_LABEL[status]}
+  </span>
+);
+const timeAgo = (iso: string) => {
   const d = new Date(iso).getTime();
   const s = Math.floor((Date.now() - d) / 1000);
   if (s < 60) return `${s}s ago`;
@@ -69,20 +76,23 @@ function timeAgo(iso: string) {
   if (h < 24) return `${h}h ago`;
   const days = Math.floor(h / 24);
   return `${days}d ago`;
-}
-function toast(msg: string) {
+};
+const toast = (msg: string) => {
   const t = document.createElement("div");
   t.textContent = msg;
   t.className =
     "fixed bottom-4 right-4 z-50 rounded bg-black/80 px-3 py-1.5 text-xs text-white";
   document.body.appendChild(t);
   setTimeout(() => t.remove(), 1400);
-}
+};
 
 /* ------------------------- Orders Admin Page ------------------------- */
 export default function OrdersAdminPage() {
   const [orders, setOrders] = useState<OrderRow[]>([]);
   const [itemsMap, setItemsMap] = useState<Record<string, OrderItemRow[]>>({});
+  const [linesMap, setLinesMap] = useState<
+    Record<string, OrderItemIngredientRow[]>
+  >({});
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -92,15 +102,16 @@ export default function OrdersAdminPage() {
   const [autoRefresh, setAutoRefresh] = useState(true);
   const searchTimer = useRef<number | null>(null);
 
-  const debouncedSetSearch = (v: string) => {
+  const debouncedSetSearch = useCallback((v: string) => {
     if (searchTimer.current) window.clearTimeout(searchTimer.current);
     searchTimer.current = window.setTimeout(() => setSearch(v), 200);
-  };
+  }, []);
 
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
+      // 1) Orders
       const { data: oo, error: eo } = await supabase
         .from("orders")
         .select(
@@ -113,22 +124,62 @@ export default function OrdersAdminPage() {
       const list = (oo || []) as OrderRow[];
       setOrders(list);
 
-      const ids = list.map((o) => o.id);
-      if (ids.length) {
-        const { data: ii, error: ei } = await supabase
-          .from("order_items")
-          .select("id,order_id,item_name,unit_price_cents,line_total_cents")
-          .in("order_id", ids);
-        if (ei) throw ei;
-
-        const map: Record<string, OrderItemRow[]> = {};
-        (ii || []).forEach((r) => {
-          (map[r.order_id] ||= []).push(r as OrderItemRow);
-        });
-        setItemsMap(map);
-      } else {
+      // 2) Items for those orders
+      const orderIds = list.map((o) => o.id);
+      if (!orderIds.length) {
         setItemsMap({});
+        setLinesMap({});
+        return;
       }
+
+      const { data: ii, error: ei } = await supabase
+        .from("order_items")
+        .select("id,order_id,item_name,unit_price_cents,line_total_cents")
+        .in("order_id", orderIds);
+      if (ei) throw ei;
+
+      const itemRows = (ii || []) as OrderItemRow[];
+      const map: Record<string, OrderItemRow[]> = {};
+      itemRows.forEach((r) => {
+        (map[r.order_id] ||= []).push(r);
+      });
+      setItemsMap(map);
+
+      // 3) Ingredient lines for those items (join to ingredient name)
+      const itemIds = itemRows.map((r) => r.id);
+      if (!itemIds.length) {
+        setLinesMap({});
+        return;
+      }
+
+      const { data: ll, error: el } = await supabase
+        .from("order_item_ingredients")
+        .select(
+          "id,order_item_id,ingredient_id,amount,unit,is_extra,ingredients(name)"
+        )
+        .in("order_item_id", itemIds);
+      if (el) throw el;
+
+      const byItem: Record<string, OrderItemIngredientRow[]> = {};
+      (ll || []).forEach((r: any) => {
+        const row: OrderItemIngredientRow = {
+          id: r.id,
+          order_item_id: r.order_item_id,
+          ingredient_id: r.ingredient_id,
+          amount: r.amount,
+          unit: r.unit,
+          is_extra: r.is_extra,
+          ingredient_name: r.ingredients?.name ?? r.ingredient_id,
+        };
+        (byItem[row.order_item_id] ||= []).push(row);
+      });
+
+      // base first, extras after
+      Object.values(byItem).forEach((arr) =>
+        arr.sort((a, b) => Number(!!a.is_extra) - Number(!!b.is_extra))
+      );
+
+      setLinesMap(byItem);
     } catch (e: any) {
       setError(e.message || "Failed to load orders");
     } finally {
@@ -140,7 +191,7 @@ export default function OrdersAdminPage() {
     load();
   }, [load]);
 
-  // lightweight polling
+  // polling
   useEffect(() => {
     if (!autoRefresh) return;
     const t = setInterval(load, 15000);
@@ -200,7 +251,6 @@ export default function OrdersAdminPage() {
 
   const updateOrderStatus = useCallback(
     async (orderId: string, next: StatusValue) => {
-      // optimistic update
       const prev = orders;
       setOrders((os) =>
         os.map((o) => (o.id === orderId ? { ...o, status: next } : o))
@@ -210,7 +260,7 @@ export default function OrdersAdminPage() {
         .update({ status: next })
         .eq("id", orderId);
       if (error) {
-        setOrders(prev); // rollback
+        setOrders(prev);
         alert(error.message);
       } else {
         toast(`Order updated: ${STATUS_LABEL[next]}`);
@@ -218,6 +268,19 @@ export default function OrdersAdminPage() {
     },
     [orders]
   );
+
+  /** ✅ FIX: use the function parameter, not a stray `it` identifier */
+  const printLabel = (orderItemId: string) => {
+    window.open(
+      `/print-label/${orderItemId}`,
+      "_blank",
+      "width=480,height=720"
+    );
+  };
+
+  const printAllLabels = (orderId: string) => {
+    (itemsMap[orderId] || []).forEach((row) => printLabel(row.id));
+  };
 
   /* ------------------------------- UI ------------------------------- */
   return (
@@ -345,28 +408,85 @@ export default function OrdersAdminPage() {
                         {o.guest_phone || "—"}
                       </div>
                     </td>
+
+                    {/* Items + per-item Print */}
                     <td className="px-3 py-3">
-                      <ul className="space-y-1 max-w-[360px]">
-                        {items.map((it) => (
-                          <li
-                            key={it.id}
-                            className="flex items-center justify-between gap-3"
-                          >
-                            <span className="truncate">{it.item_name}</span>
-                            <span className="text-gray-600">
-                              <Peso
-                                cents={
-                                  it.line_total_cents ?? it.unit_price_cents
-                                }
-                              />
-                            </span>
-                          </li>
-                        ))}
+                      <ul className="space-y-2 max-w-[480px]">
+                        {items.map((item) => {
+                          const lines = linesMap[item.id] || [];
+                          const base = lines.filter((l) => !l.is_extra);
+                          const extras = lines.filter((l) => !!l.is_extra);
+                          return (
+                            <li
+                              key={item.id}
+                              className="rounded border p-2 bg-white"
+                            >
+                              <div className="flex items-center justify-between gap-2">
+                                <span className="font-medium truncate">
+                                  {item.item_name}
+                                </span>
+                                <div className="flex items-center gap-2">
+                                  <span className="text-gray-600">
+                                    <Peso
+                                      cents={
+                                        item.line_total_cents ??
+                                        item.unit_price_cents
+                                      }
+                                    />
+                                  </span>
+                                  <button
+                                    className="rounded border px-2 py-0.5 text-[11px] hover:bg-gray-50"
+                                    onClick={() => printLabel(item.id)}
+                                  >
+                                    Print label
+                                  </button>
+                                </div>
+                              </div>
+
+                              {lines.length > 0 ? (
+                                <div className="mt-1 grid gap-1">
+                                  {base.length > 0 && (
+                                    <div className="text-[11px] text-gray-700">
+                                      <span className="font-semibold">
+                                        Base:
+                                      </span>{" "}
+                                      {base
+                                        .map(
+                                          (l) =>
+                                            `${l.ingredient_name} — ${l.amount} ${l.unit}`
+                                        )
+                                        .join("; ")}
+                                    </div>
+                                  )}
+                                  {extras.length > 0 && (
+                                    <div className="text-[11px] text-emerald-700">
+                                      <span className="font-semibold">
+                                        Add-ons:
+                                      </span>{" "}
+                                      {extras
+                                        .map(
+                                          (l) =>
+                                            `${l.ingredient_name} — ${l.amount} ${l.unit}`
+                                        )
+                                        .join("; ")}
+                                    </div>
+                                  )}
+                                </div>
+                              ) : (
+                                <div className="mt-1 text-[11px] text-gray-400">
+                                  No ingredient lines.
+                                </div>
+                              )}
+                            </li>
+                          );
+                        })}
                       </ul>
                     </td>
+
                     <td className="px-3 py-3 font-semibold">
                       <Peso cents={itemsTotal(o)} />
                     </td>
+
                     <td className="px-3 py-3">
                       <Badge status={o.status} />
                       <div className="mt-2">
@@ -388,6 +508,7 @@ export default function OrdersAdminPage() {
                         </select>
                       </div>
                     </td>
+
                     <td className="px-3 py-3 text-right space-x-2">
                       <button
                         className="rounded-lg border px-2 py-1 text-xs hover:bg-gray-50"
@@ -415,6 +536,13 @@ export default function OrdersAdminPage() {
                         }
                       >
                         {canAdvance ? `→ ${STATUS_LABEL[next]}` : "—"}
+                      </button>
+                      <button
+                        className="rounded border px-2 py-1 text-xs hover:bg-gray-50"
+                        onClick={() => printAllLabels(o.id)}
+                        title="Open print labels for all items"
+                      >
+                        Print all labels
                       </button>
                     </td>
                   </tr>
