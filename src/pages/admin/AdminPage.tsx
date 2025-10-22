@@ -23,13 +23,6 @@ type IngredientRow = {
   is_addon: boolean;
 };
 
-type DrinkRow = {
-  id: string;
-  name: string;
-  price_php: number;
-  is_active: boolean;
-};
-
 function SectionTitle({ children }: { children: React.ReactNode }) {
   return (
     <div className="text-sm font-semibold tracking-tight text-gray-800">

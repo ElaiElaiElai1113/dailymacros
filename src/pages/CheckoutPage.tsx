@@ -4,25 +4,6 @@ import PickupTimePicker from "@/components/PickupTimePicker";
 import { supabase } from "@/lib/supabaseClient";
 import { useMemo, useState } from "react";
 
-type CartLine = {
-  ingredient_id: string;
-  amount: number;
-  unit: string;
-  is_extra?: boolean;
-  role?: "base" | "extra";
-};
-
-type CartItem = {
-  item_name: string;
-  unit_price_cents: number;
-  lines: CartLine[];
-  drink_id?: string | null;
-  size_ml?: number | null;
-  base_drink_name?: string;
-  base_price_cents?: number;
-  addons_price_cents?: number;
-};
-
 function Price({ cents }: { cents: number }) {
   return <span>₱{(Number(cents || 0) / 100).toFixed(2)}</span>;
 }
