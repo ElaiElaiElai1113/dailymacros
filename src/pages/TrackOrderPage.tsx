@@ -48,14 +48,6 @@ const STATUS_LABEL: Record<StatusValue, string> = {
   cancelled: "Cancelled",
 };
 
-const STATUS_STEP: Record<StatusValue, number> = {
-  pending: 0,
-  in_progress: 1,
-  ready: 2,
-  picked_up: 3,
-  cancelled: 0, // separate path
-};
-
 function Peso({ cents }: { cents?: number | null }) {
   return <span>₱{((cents || 0) / 100).toFixed(2)}</span>;
 }
