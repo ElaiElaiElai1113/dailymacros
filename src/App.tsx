@@ -22,6 +22,7 @@ import StaffDashboard from "./pages/StaffDashboard";
 import AdminPage from "./pages/admin/AdminPage";
 import LoginPage from "./pages/LoginPage";
 import PrintLabelPage from "./pages/PrintLabelPage";
+import TrackOrderPage from "./pages/TrackOrderPage";
 
 /** Lazy admin pages */
 const DrinksAdminPage = lazy(() => import("@/pages/admin/DrinksAdmin"));
@@ -103,7 +104,6 @@ function Navbar() {
           <NavItem to="/menu" label="Menu" />
           <NavItem to="/build" label="Build" />
           <NavItem to="/cart" label="Cart" />
-          <NavItem to="/orders" label="My Orders" />
           <Link
             to="/menu"
             className="ml-2 rounded-lg bg-[#D26E3D] px-4 py-2 text-sm text-white font-semibold shadow hover:opacity-90 transition"
@@ -199,6 +199,7 @@ export default function App() {
           <Route path="/cart" element={<CartPage />} />
           <Route path="/checkout" element={<CheckoutPage />} />
           <Route path="/orders" element={<OrdersPage />} />
+          <Route path="/track/:code" element={<TrackOrderPage />} />
           <Route path="/login" element={<LoginPage />} />
 
           {/* Staff area */}
