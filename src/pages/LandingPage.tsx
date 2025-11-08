@@ -6,8 +6,8 @@ type Drink = {
   id: string;
   name: string;
   description: string | null;
-  price_cents: number;
-  image_url?: string | null; // 👈 add image
+  price_php: number;
+  image_url?: string | null;
 };
 
 const COLORS = {
@@ -17,6 +17,37 @@ const COLORS = {
   bg: "#FFF9EE",
 };
 
+function isPublicImage(url?: string | null) {
+  if (!url) return false;
+  return url.includes("/storage/v1/object/public/");
+}
+
+// 👇 helper component to actually show errors
+function DebugImage({ src, alt }: { src: string; alt: string }) {
+  const [errored, setErrored] = useState(false);
+  return (
+    <div className="w-full h-full flex items-center justify-center bg-white">
+      {!errored ? (
+        <img
+          src={src}
+          alt={alt}
+          className="max-h-full max-w-full object-contain"
+          onError={() => {
+            console.error("Image failed to load:", src);
+            setErrored(true);
+          }}
+        />
+      ) : (
+        <div className="text-[10px] text-red-500 p-2 break-all text-center">
+          image failed:
+          <br />
+          {src}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function LandingPage() {
   const [drinks, setDrinks] = useState<Drink[]>([]);
   const [loading, setLoading] = useState(true);
@@ -24,18 +55,23 @@ export default function LandingPage() {
   useEffect(() => {
     (async () => {
       setLoading(true);
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from("drinks")
-        .select("id,name,description,price_cents,image_url") // 👈 pull image_url
+        .select("id,name,description,price_php,image_url")
         .eq("is_active", true)
         .order("name", { ascending: true })
         .limit(6);
-      setDrinks((data as Drink[]) || []);
+
+      if (!error) {
+        setDrinks((data as Drink[]) || []);
+      } else {
+        console.error("supabase error in landing page:", error);
+      }
       setLoading(false);
     })();
   }, []);
 
-  // first drink = featured (fallback if none)
+  // pick the first drink as the featured hero drink
   const featured = useMemo<Drink | null>(
     () => (drinks.length > 0 ? drinks[0] : null),
     [drinks]
@@ -50,20 +86,17 @@ export default function LandingPage() {
     >
       {/* HERO SECTION */}
       <section className="relative mx-auto max-w-7xl grid items-center gap-10 px-4 py-16 md:grid-cols-2">
-        {/* left copy */}
-        <div className="z-10 space-y-5">
-          <span className="inline-flex items-center gap-2 rounded-full bg-white/70 px-4 py-1 text-xs font-semibold text-gray-700 shadow-sm ring-1 ring-white/40">
-            🥤 DailyMacros POS • protein shakes
-          </span>
+        {/* hero text */}
+        <div className="z-10">
           <h1 className="text-5xl font-extrabold leading-tight text-gray-900 md:text-6xl">
             Fuel your day with{" "}
             <span style={{ color: COLORS.cyan }}>macro-perfect</span> shakes.
           </h1>
-          <p className="text-gray-700 md:text-lg">
+          <p className="mt-4 text-gray-700 md:text-lg">
             Hand-crafted by dietitians. Customize your ingredients, track your
             macros, and order seamlessly — no login needed.
           </p>
-          <div className="flex flex-wrap gap-3">
+          <div className="mt-6 flex flex-wrap gap-3">
             <Link
               to="/menu"
               className="rounded-xl px-6 py-3 font-semibold text-white shadow hover:opacity-90"
@@ -78,16 +111,9 @@ export default function LandingPage() {
               Build Your Own
             </Link>
           </div>
-
-          {/* tiny badges */}
-          <div className="flex flex-wrap gap-3 pt-2 text-xs text-gray-500">
-            <Badge>Transparent macros</Badge>
-            <Badge>No guesswork</Badge>
-            <Badge>Works with Supabase</Badge>
-          </div>
         </div>
 
-        {/* HERO CARD */}
+        {/* HERO IMAGE / MOCKUP */}
         <div className="relative mx-auto max-w-md">
           {/* glow */}
           <div
@@ -96,107 +122,59 @@ export default function LandingPage() {
               background: `linear-gradient(135deg, ${COLORS.cyan}, ${COLORS.yellow})`,
             }}
           />
-          <div className="relative rounded-3xl border bg-white/90 backdrop-blur p-6 shadow-xl space-y-4">
-            {/* image area */}
-            <div className="h-48 w-full rounded-2xl bg-gray-50 flex items-center justify-center overflow-hidden">
-              {featured?.image_url ? (
-                <img
-                  src={featured.image_url}
-                  alt={featured.name}
-                  className="max-h-full max-w-full object-contain"
-                />
+          <div className="relative rounded-3xl border bg-white p-6 shadow-xl">
+            {/* image slot */}
+            <div className="h-48 rounded-2xl bg-gray-50 flex items-center justify-center overflow-hidden">
+              {featured &&
+              featured.image_url &&
+              isPublicImage(featured.image_url) ? (
+                <DebugImage src={featured.image_url} alt={featured.name} />
               ) : (
-                <div className="h-full w-full bg-gradient-to-tr from-[#D26E3D22] to-[#59919022] rounded-2xl" />
+                <div className="h-full w-full rounded-2xl bg-gradient-to-tr from-[#D26E3D33] to-[#59919033]" />
               )}
             </div>
 
-            {/* meta */}
-            <div className="flex items-start justify-between gap-3">
+            {/* featured meta */}
+            <div className="mt-4 flex items-start justify-between">
               <div>
-                <div className="text-xs font-medium text-[#599190] uppercase tracking-wide">
+                <div className="text-sm font-medium text-[#599190]">
                   Featured
                 </div>
                 <div className="text-lg font-semibold">
-                  {featured?.name || "Berry Oat Smoothie"}
+                  {featured ? featured.name : "Berry Oat Smoothie"}
                 </div>
-                <p className="text-xs text-gray-500 mt-1">
-                  {featured?.description ||
-                    "Mixed berries, oats, Greek yogurt & whey protein."}
-                </p>
               </div>
               <div className="rounded-md bg-[#EECB65aa] px-3 py-1 text-xs font-semibold text-[#5a4200]">
-                ₱{featured ? (featured.price_cents / 100).toFixed(0) : "200"}
+                ₱{featured ? featured.price_php.toFixed(0) : "200"}
               </div>
             </div>
 
-            {/* stats */}
-            <div className="grid grid-cols-4 gap-2 text-center text-xs">
+            <p className="mt-2 text-sm text-gray-600">
+              {featured?.description ||
+                "Mixed berries, oats, Greek yogurt & whey protein. Balanced, delicious, and transparent."}
+            </p>
+
+            <div className="mt-4 grid grid-cols-4 gap-2 text-center text-xs">
               <Stat label="Kcal" value="~350" />
               <Stat label="Protein" value="~25g" />
               <Stat label="Carbs" value="~40g" />
               <Stat label="Fat" value="~8g" />
             </div>
-          </div>
 
-          {/* floating mini card */}
-          <div className="absolute -bottom-6 -left-6 rounded-2xl bg-white shadow-lg px-4 py-3 text-xs flex items-center gap-3">
-            <div className="h-8 w-8 rounded-full bg-[#D26E3D22]" />
-            <div>
-              <div className="font-semibold text-gray-800">Macros live</div>
-              <div className="text-gray-500 text-[11px]">
-                Updates as you add toppings
+            {/* debug: show the URL so you can click it */}
+            {featured?.image_url ? (
+              <div className="mt-3 text-[10px] text-gray-400 break-all">
+                image_url: {featured.image_url}
               </div>
-            </div>
+            ) : null}
           </div>
-        </div>
-      </section>
-
-      {/* WHY CHOOSE US */}
-      <section className="mx-auto max-w-7xl px-4 py-16">
-        <h2 className="text-center text-3xl font-extrabold">
-          Why DailyMacros?
-        </h2>
-        <p className="text-center text-gray-500 mt-2 max-w-2xl mx-auto">
-          Built for people who actually track. Everything is priced, measured,
-          and visible for you and your customers.
-        </p>
-        <div className="mt-10 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
-          <Feature
-            icon="🥤"
-            title="Nutrition-Based"
-            desc="Every shake is calculated with verified nutrition data."
-            accent={COLORS.cyan}
-          />
-          <Feature
-            icon="🧮"
-            title="Build Your Own"
-            desc="Customize ingredients & instantly see your macros."
-            accent={COLORS.yellow}
-          />
-          <Feature
-            icon="⚕️"
-            title="Dietitian Verified"
-            desc="Formulated by professionals for optimal results."
-            accent={COLORS.redOrange}
-          />
-          <Feature
-            icon="🚀"
-            title="Quick Ordering"
-            desc="Smart POS integration and pickup-ready flow."
-            accent={COLORS.cyan}
-          />
         </div>
       </section>
 
       {/* MENU PREVIEW */}
       <section className="mx-auto max-w-7xl px-4 py-16">
-        <div className="mb-8 flex items-center justify-between gap-3">
-          <div>
-            <h2 className="text-3xl font-extrabold">Popular on the Menu</h2>
-            <p className="text-gray-500 text-sm">
-              Pulled straight from your Supabase drinks table.
-            </p>
-          </div>
+        <div className="mb-8 flex items-center justify-between">
+          <h2 className="text-3xl font-extrabold">Popular on the Menu</h2>
           <Link
             to="/menu"
             className="text-sm font-semibold hover:opacity-80"
@@ -221,8 +199,8 @@ export default function LandingPage() {
         )}
       </section>
 
-      {/* CTA STRIP */}
-      <section className="bg-gradient-to-r from-[#EECB65] to-[#D26E3D] text-white py-16 mt-4">
+      {/* CTA + FOOTER same as before ... */}
+      <section className="bg-gradient-to-r from-[#EECB65] to-[#D26E3D] text-white py-16">
         <div className="mx-auto max-w-6xl flex flex-col items-center text-center gap-6">
           <h3 className="text-3xl font-bold">Ready to power your day?</h3>
           <p className="text-white/90 max-w-xl">
@@ -245,14 +223,17 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* FOOTER */}
       <footer className="border-t bg-white text-gray-600 text-sm">
-        <div className="mx-auto max-w-7xl px-4 py-6 flex flex-col md:flex-row items-center justify-between gap-2">
+        <div className="mx-auto max-w-7xl px-4 py-6 flex flex-col md:flex-row items-center justify-between">
           <div className="flex items-center gap-2">
-            <div className="h-6 w-6 bg-gray-100 rounded" />
+            <img
+              src="/logo-placeholder.svg"
+              alt="DailyMacros logo"
+              className="h-6 w-6 bg-gray-100 rounded"
+            />
             <span>© {new Date().getFullYear()} DailyMacros</span>
           </div>
-          <p className="text-gray-500">
+          <p className="mt-2 md:mt-0 text-gray-500">
             Designed for nutrition, built for performance.
           </p>
         </div>
@@ -288,15 +269,13 @@ function Feature({
 }
 
 function DrinkCard({ drink, colors }: { drink: Drink; colors: typeof COLORS }) {
+  const showImage = isPublicImage(drink.image_url);
+
   return (
     <div className="group rounded-2xl border bg-white p-4 shadow-sm hover:shadow-md transition flex flex-col gap-3">
       <div className="h-36 w-full rounded-xl bg-gray-50 flex items-center justify-center overflow-hidden">
-        {drink.image_url ? (
-          <img
-            src={drink.image_url}
-            alt={drink.name}
-            className="max-h-full max-w-full object-contain"
-          />
+        {showImage ? (
+          <DebugImage src={drink.image_url!} alt={drink.name} />
         ) : (
           <div
             className="h-full w-full rounded-xl"
@@ -317,7 +296,7 @@ function DrinkCard({ drink, colors }: { drink: Drink; colors: typeof COLORS }) {
           className="rounded-md px-2.5 py-1 text-xs font-medium text-white"
           style={{ background: colors.cyan }}
         >
-          ₱{(drink.price_cents / 100).toFixed(2)}
+          ₱{drink.price_php.toFixed(2)}
         </div>
       </div>
       <div className="mt-auto flex gap-2">
@@ -347,13 +326,5 @@ function Stat({ label, value }: { label: string; value: string }) {
       </div>
       <div className="mt-0.5 text-sm font-semibold">{value}</div>
     </div>
-  );
-}
-
-function Badge({ children }: { children: React.ReactNode }) {
-  return (
-    <span className="rounded-full bg-white/80 px-3 py-1 ring-1 ring-white/30 shadow-sm">
-      {children}
-    </span>
   );
 }

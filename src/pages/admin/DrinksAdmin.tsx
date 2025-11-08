@@ -1,4 +1,3 @@
-// src/pages/admin/DrinksAdminPage.tsx
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 
