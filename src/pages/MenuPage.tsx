@@ -1,4 +1,3 @@
-// src/pages/MenuPage.tsx
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { Link, useNavigate } from "react-router-dom";
@@ -46,7 +45,9 @@ export default function MenuPage() {
         // 1) drinks
         const { data: dd, error: de } = await supabase
           .from("drinks")
-          .select("id,name,description,base_size_ml,price_php,is_active") // <- price_php
+          .select(
+            "id,name,description,base_size_ml,price_php,is_active,image_url" // 👈 added image_url
+          )
           .eq("is_active", true)
           .order("name", { ascending: true });
         if (de) throw de;
@@ -58,6 +59,7 @@ export default function MenuPage() {
           base_size_ml: number | null;
           price_php: number | null;
           is_active: boolean;
+          image_url?: string | null; // 👈 keep it
         }>;
 
         // Normalize price for UI that still uses cents
@@ -69,8 +71,7 @@ export default function MenuPage() {
         const drinkIds = normalized.map((d) => d.id);
         console.log("🧪 drinks loaded:", drinkIds.length);
 
-        // 2) lines: join against drinks to ensure we only pull existing drink ids.
-        // If RLS on drink_lines requires auth, this will come back empty. We'll log it.
+        // 2) lines
         const { data: ll, error: le } = await supabase
           .from("drink_lines")
           .select("drink_id,ingredient_id,amount,unit,drinks!inner(id)")
@@ -93,7 +94,7 @@ export default function MenuPage() {
         if (ie) throw ie;
         if (ne) throw ne;
 
-        setDrinks(normalized as any); // your DrinkCard expects price_cents
+        setDrinks(normalized as any); // DrinkCard will now also get image_url
         setLines((ll || []) as any);
         setIngDict(
           Object.fromEntries(((ii || []) as Ingredient[]).map((x) => [x.id, x]))
@@ -107,7 +108,6 @@ export default function MenuPage() {
           )
         );
 
-        // Helpful: warn if there are 0 lines in total
         if (!ll || ll.length === 0) {
           console.warn(
             "⚠️ No recipe lines returned. Likely causes: (a) RLS on drink_lines blocks select, (b) drink_lines is empty, (c) wrong schema/table name."
@@ -140,10 +140,9 @@ export default function MenuPage() {
       alert("This drink has no recipe lines yet.");
       return;
     }
-    // Use normalized cents field
     addItem({
       item_name: drink.name,
-      unit_price_cents: drink.price_cents, // already derived from price_php
+      unit_price_cents: drink.price_cents,
       lines: drinkLines,
     });
     alert(`${drink.name} added to cart`);
@@ -215,7 +214,7 @@ export default function MenuPage() {
           if (!selected) return;
           addItem({
             item_name: selected.name,
-            unit_price_cents: selected.price_cents, // normalized cents
+            unit_price_cents: selected.price_cents,
             lines:
               scaledLines && scaledLines.length
                 ? scaledLines

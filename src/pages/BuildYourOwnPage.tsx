@@ -1,6 +1,18 @@
 // src/pages/BuildYourOwnPage.tsx
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
+import {
+  groupPricing,
+  priceForExtrasPHP,
+  priceForLinePHP,
+} from "@/utils/pricing";
+import { totalsFor } from "@/utils/nutrition";
+import { useCart } from "@/context/CartContext";
+import IngredientSelector from "@/components/IngredientSelector";
+import NutritionBar from "@/components/NutritionBar";
+import ExplainMath from "@/components/ExplainMath";
+import logoUrl from "@/assets/dailymacroslogo.png";
+
 import type {
   CartItem,
   CartLine,
@@ -9,17 +21,6 @@ import type {
   IngredientNutrition,
   IngredientPricing,
 } from "@/types";
-import IngredientSelector from "@/components/IngredientSelector";
-import NutritionBar from "@/components/NutritionBar";
-import ExplainMath from "@/components/ExplainMath";
-import { totalsFor } from "@/utils/nutrition";
-import {
-  groupPricing,
-  priceForExtrasPHP,
-  priceForLinePHP,
-} from "@/utils/pricing";
-import { useCart } from "@/context/CartContext";
-import logoUrl from "@/assets/dailymacroslogo.png";
 
 const COLORS = {
   redOrange: "#D26E3D",
@@ -28,8 +29,10 @@ const COLORS = {
   bg: "#FFFDF8",
 };
 
-// Local shape for drinks (DB returns price_php; normalize to cents for cart math)
-type BYODrink = Drink & { price_cents: number };
+type BYODrink = Drink & {
+  price_cents: number;
+  image_url?: string | null;
+};
 
 type V100Row = {
   ingredient_id: string;
@@ -42,7 +45,7 @@ type V100Row = {
 export default function BuildYourOwnPage() {
   const { addItem } = useCart();
 
-  // dictionaries
+  // master data
   const [ingDict, setIngDict] = useState<Record<string, Ingredient>>({});
   const [nutrDict, setNutrDict] = useState<Record<string, IngredientNutrition>>(
     {}
@@ -51,7 +54,7 @@ export default function BuildYourOwnPage() {
     Record<string, IngredientPricing[]>
   >({});
 
-  // base drinks + selection
+  // drinks
   const [baseDrinks, setBaseDrinks] = useState<BYODrink[]>([]);
   const [selectedBaseId, setSelectedBaseId] = useState<string | null>(null);
 
@@ -63,7 +66,9 @@ export default function BuildYourOwnPage() {
   const [loadingAll, setLoadingAll] = useState(true);
   const [loadingBase, setLoadingBase] = useState(false);
 
-  // -------- Load master data --------
+  /* --------------------------------------------------------
+   * 1) load master data (ingredients, nutrition, drinks, pricing)
+   * ------------------------------------------------------ */
   useEffect(() => {
     (async () => {
       setLoadingAll(true);
@@ -73,7 +78,9 @@ export default function BuildYourOwnPage() {
           supabase.from("ingredient_nutrition_v100").select("*"),
           supabase
             .from("drinks")
-            .select("id,name,description,price_php,base_size_ml,is_active")
+            .select(
+              "id,name,description,price_php,base_size_ml,is_active,image_url"
+            )
             .eq("is_active", true)
             .order("name"),
           supabase.from("ingredient_pricing_effective").select("*"),
@@ -83,7 +90,7 @@ export default function BuildYourOwnPage() {
       const ingredients = (ii ?? []) as Ingredient[];
       setIngDict(Object.fromEntries(ingredients.map((x) => [x.id, x])));
 
-      // nutrition v100
+      // nutrition
       const v100 = (nn ?? []) as V100Row[];
       setNutrDict(
         Object.fromEntries(
@@ -104,9 +111,12 @@ export default function BuildYourOwnPage() {
       const pricing = (pp ?? []) as IngredientPricing[];
       setPricingDict(groupPricing(pricing));
 
-      // drinks: normalize price_php -> cents for cart
+      // drinks
       const drinkRows = (dd ?? []) as Array<
-        Omit<Drink, "price_cents"> & { price_php: number | null }
+        Omit<Drink, "price_cents"> & {
+          price_php: number | null;
+          image_url?: string | null;
+        }
       >;
       const normalized: BYODrink[] = drinkRows.map((d) => ({
         ...d,
@@ -119,7 +129,9 @@ export default function BuildYourOwnPage() {
     })();
   }, []);
 
-  // -------- Load base recipe when selected --------
+  /* --------------------------------------------------------
+   * 2) load base recipe when user chooses a base drink
+   * ------------------------------------------------------ */
   useEffect(() => {
     if (!selectedBaseId) {
       setBaseLines([]);
@@ -131,11 +143,14 @@ export default function BuildYourOwnPage() {
         .from("drink_lines")
         .select("ingredient_id,amount,unit")
         .eq("drink_id", selectedBaseId);
-      const rows = (data ?? []) as {
-        ingredient_id: string;
-        amount: number;
-        unit: string;
-      }[];
+
+      const rows =
+        (data as Array<{
+          ingredient_id: string;
+          amount: number;
+          unit: string;
+        }>) ?? [];
+
       setBaseLines(
         rows.map((r) => ({
           ingredient_id: r.ingredient_id,
@@ -149,7 +164,9 @@ export default function BuildYourOwnPage() {
     })();
   }, [selectedBaseId, ingDict]);
 
-  // -------- Add-ons --------
+  /* --------------------------------------------------------
+   * 3) add-ons
+   * ------------------------------------------------------ */
   function handleAddAddon(
     ingredient: Ingredient,
     amount: number,
@@ -159,8 +176,8 @@ export default function BuildYourOwnPage() {
       alert("Pick a base drink first.");
       return;
     }
-    setExtraLines((p) => [
-      ...p,
+    setExtraLines((prev) => [
+      ...prev,
       {
         ingredient_id: ingredient.id,
         amount,
@@ -170,11 +187,14 @@ export default function BuildYourOwnPage() {
       },
     ]);
   }
-  function removeAddon(i: number) {
-    setExtraLines((p) => p.filter((_, x) => x !== i));
+
+  function removeAddon(idx: number) {
+    setExtraLines((prev) => prev.filter((_, i) => i !== idx));
   }
 
-  // -------- Totals & pricing --------
+  /* --------------------------------------------------------
+   * 4) totals & pricing
+   * ------------------------------------------------------ */
   const combinedLines = useMemo(
     () => [...baseLines, ...extraLines],
     [baseLines, extraLines]
@@ -184,20 +204,30 @@ export default function BuildYourOwnPage() {
     () => totalsFor(combinedLines, ingDict, nutrDict),
     [combinedLines, ingDict, nutrDict]
   );
+
   const selectedBase = baseDrinks.find((b) => b.id === selectedBaseId) || null;
 
-  // Add-ons priced in PHP
+  // add-ons priced in PHP
   const addons_price_php = useMemo(
     () => priceForExtrasPHP(extraLines, pricingDict),
     [extraLines, pricingDict]
   );
-  const addons_price_cents = Math.round(addons_price_php * 100);
 
-  // Base price normalized to cents
+  const addons_price_cents = Math.round(addons_price_php * 100);
   const base_price_cents = selectedBase?.price_cents || 0;
   const total_price_cents = base_price_cents + addons_price_cents;
 
-  // -------- Add to cart --------
+  const hasMissingNutrition = useMemo(
+    () => combinedLines.some((l) => !nutrDict[l.ingredient_id]),
+    [combinedLines, nutrDict]
+  );
+
+  // per-line PHP price helper
+  const linePricePHP = (l: CartLine) => priceForLinePHP(l, pricingDict) ?? 0;
+
+  /* --------------------------------------------------------
+   * 5) add to cart
+   * ------------------------------------------------------ */
   function addToCart() {
     if (!selectedBase) return;
     const cartItem: CartItem = {
@@ -214,14 +244,9 @@ export default function BuildYourOwnPage() {
     alert("✅ Added to cart!");
   }
 
-  const hasMissingNutrition = useMemo(
-    () => combinedLines.some((l) => !nutrDict[l.ingredient_id]),
-    [combinedLines, nutrDict]
-  );
-
-  // Helper for per-line price label (PHP)
-  const linePricePHP = (l: CartLine) => priceForLinePHP(l, pricingDict) ?? 0;
-
+  /* --------------------------------------------------------
+   * 6) UI
+   * ------------------------------------------------------ */
   return (
     <div
       className="min-h-screen"
@@ -234,7 +259,7 @@ export default function BuildYourOwnPage() {
       }}
     >
       <div className="max-w-7xl mx-auto px-4 py-8">
-        {/* Header */}
+        {/* HEADER */}
         <header className="mb-6 flex items-center gap-3">
           <div className="grid h-14 w-14 place-items-center rounded-2xl border bg-white shadow">
             <img
@@ -251,18 +276,25 @@ export default function BuildYourOwnPage() {
               Build Your Own Shake
             </h1>
             <p className="text-sm text-gray-600">
-              Select a base, then add your extras. Live macros included.
+              Pick a base, add protein / toppings, see macros live.
             </p>
           </div>
         </header>
 
         <div className="grid grid-cols-12 gap-6">
-          {/* Left */}
+          {/* LEFT */}
           <div className="col-span-12 space-y-6 md:col-span-7 lg:col-span-8">
-            {/* Step 1 */}
+            {/* STEP 1 */}
             <section className="rounded-2xl border bg-white p-4 shadow-sm">
-              <div className="mb-2 font-semibold text-gray-800">
-                1️⃣ Choose your base drink
+              <div className="mb-2 flex items-center justify-between">
+                <div className="font-semibold text-gray-800">
+                  1️⃣ Choose your base drink
+                </div>
+                {loadingBase && (
+                  <span className="text-[11px] text-gray-500">
+                    Loading recipe…
+                  </span>
+                )}
               </div>
 
               {loadingAll ? (
@@ -272,37 +304,50 @@ export default function BuildYourOwnPage() {
                   No active base drinks yet.
                 </div>
               ) : (
-                <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-                  {baseDrinks.map((d) => (
-                    <button
-                      key={d.id}
-                      onClick={() => setSelectedBaseId(d.id)}
-                      className={`rounded-xl border p-3 text-left transition ${
-                        d.id === selectedBaseId
-                          ? "ring-2 ring-[#D26E3D]"
-                          : "hover:shadow-sm"
-                      }`}
-                      title={`₱${(d.price_cents / 100).toFixed(2)}`}
-                    >
-                      <div className="font-semibold">{d.name}</div>
-                      <div className="text-xs text-gray-500 line-clamp-2">
-                        {d.description || "Signature blend"}
-                      </div>
-                      <div className="mt-2 text-xs text-[#599190]">
-                        ₱{(d.price_cents / 100).toFixed(2)}
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              )}
-              {loadingBase && (
-                <div className="mt-2 text-xs text-gray-500">
-                  Loading recipe…
+                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                  {baseDrinks.map((d) => {
+                    const active = d.id === selectedBaseId;
+                    return (
+                      <button
+                        key={d.id}
+                        onClick={() => setSelectedBaseId(d.id)}
+                        className={`group overflow-hidden rounded-2xl border bg-white shadow-sm transition ${
+                          active
+                            ? "ring-2 ring-[#D26E3D]/60"
+                            : "hover:shadow-md hover:border-[#EECB65]"
+                        }`}
+                      >
+                        {d.image_url ? (
+                          <div className="h-32 w-full bg-white flex items-center justify-center overflow-hidden">
+                            <img
+                              src={d.image_url}
+                              alt={d.name}
+                              className="max-h-full max-w-full object-contain transition group-hover:scale-[1.01]"
+                            />
+                          </div>
+                        ) : (
+                          <div className="h-32 w-full bg-gradient-to-br from-[#FFE7D6] to-[#FFF8DE]" />
+                        )}
+
+                        <div className="p-3 space-y-1 text-left">
+                          <div className="font-semibold text-gray-900">
+                            {d.name}
+                          </div>
+                          <p className="text-xs text-gray-500 line-clamp-2">
+                            {d.description || "Signature blend"}
+                          </p>
+                          <div className="text-xs font-medium text-[#599190]">
+                            ₱{(d.price_cents / 100).toFixed(2)}
+                          </div>
+                        </div>
+                      </button>
+                    );
+                  })}
                 </div>
               )}
             </section>
 
-            {/* Step 2 */}
+            {/* STEP 2 – Add-ons */}
             <section className="rounded-2xl border bg-white p-4 shadow-sm">
               <div className="mb-2 flex items-center justify-between">
                 <div className="font-semibold text-gray-800">2️⃣ Add-ons</div>
@@ -318,7 +363,6 @@ export default function BuildYourOwnPage() {
                   Choose a base drink first to enable add-ons.
                 </div>
               ) : (
-                // NEW: pass a price getter so each ingredient shows "from ₱X"
                 <IngredientSelector
                   onAdd={handleAddAddon}
                   getPricePHP={(ing, amount, unit) =>
@@ -331,7 +375,7 @@ export default function BuildYourOwnPage() {
               )}
             </section>
 
-            {/* Selected add-ons */}
+            {/* Selected Add-ons */}
             <section className="rounded-2xl border bg-white p-4 shadow-sm">
               <div className="mb-2 flex items-center justify-between">
                 <div className="font-semibold text-gray-800">
@@ -383,7 +427,7 @@ export default function BuildYourOwnPage() {
                 </ul>
               )}
 
-              {/* Actions */}
+              {/* actions */}
               <div className="mt-4 flex flex-wrap gap-2">
                 <button
                   onClick={addToCart}
@@ -414,7 +458,7 @@ export default function BuildYourOwnPage() {
             </section>
           </div>
 
-          {/* Right: sticky macros & cost breakdown */}
+          {/* RIGHT / sticky */}
           <aside className="col-span-12 md:col-span-5 lg:col-span-4">
             <div className="space-y-4 md:sticky md:top-24">
               <section className="rounded-2xl border bg-white p-4 shadow-sm">
@@ -440,6 +484,7 @@ export default function BuildYourOwnPage() {
                   </div>
                 </div>
               </section>
+
               <section className="rounded-2xl border bg-white p-4 text-sm text-gray-600 shadow-sm">
                 Prices include base + add-ons. Use <b>Explain my math</b> to see
                 per-ingredient pricing and unit logic.

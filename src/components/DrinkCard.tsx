@@ -10,6 +10,7 @@ export type DrinkRecord = {
   base_size_ml: number | null;
   price_cents: number;
   is_active: boolean;
+  image_url?: string | null; // 👈 allow image
 };
 
 export default function DrinkCard({
@@ -40,13 +41,24 @@ export default function DrinkCard({
       tabIndex={0}
       onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && onOpen()}
     >
-      <div
-        className="aspect-[16/9] w-full rounded-xl"
-        style={{
-          background:
-            "linear-gradient(135deg, rgba(89,145,144,0.15), rgba(210,110,61,0.15))",
-        }}
-      />
+      {/* IMAGE / HERO */}
+      <div className="h-40 w-full rounded-xl bg-gray-50 flex items-center justify-center overflow-hidden">
+        {drink.image_url ? (
+          <img
+            src={drink.image_url}
+            alt={drink.name}
+            className="max-h-full max-w-full object-contain transition group-hover:scale-[1.01]"
+          />
+        ) : (
+          <div
+            className="h-full w-full rounded-xl"
+            style={{
+              background:
+                "linear-gradient(135deg, rgba(89,145,144,0.15), rgba(210,110,61,0.15))",
+            }}
+          />
+        )}
+      </div>
 
       <div className="mt-3 flex items-start justify-between gap-3">
         <div>
