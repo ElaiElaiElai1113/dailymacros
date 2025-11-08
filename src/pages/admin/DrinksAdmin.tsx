@@ -109,12 +109,10 @@ export default function DrinksAdminPage() {
     const ext = file.name.split(".").pop() || "png";
     const path = `${drinkId}.${ext}`;
 
-    const { data, error } = await supabase.storage
-      .from("drinks")
-      .upload(path, file, {
-        upsert: true,
-        cacheControl: "3600",
-      });
+    const { error } = await supabase.storage.from("drinks").upload(path, file, {
+      upsert: true,
+      cacheControl: "3600",
+    });
 
     if (error) {
       console.error("upload error", error);
