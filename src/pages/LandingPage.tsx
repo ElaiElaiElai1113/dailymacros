@@ -244,30 +244,6 @@ export default function LandingPage() {
 
 /* ------------------------- COMPONENTS -------------------------- */
 
-function Feature({
-  icon,
-  title,
-  desc,
-  accent,
-}: {
-  icon: string;
-  title: string;
-  desc: string;
-  accent: string;
-}) {
-  return (
-    <div className="rounded-2xl border bg-white p-6 shadow-sm hover:shadow-md transition-all">
-      <div className="text-3xl">{icon}</div>
-      <div className="mt-3 font-semibold text-lg">{title}</div>
-      <p className="mt-2 text-gray-600 text-sm">{desc}</p>
-      <div
-        className="mt-3 h-1 w-12 rounded-full"
-        style={{ background: accent }}
-      />
-    </div>
-  );
-}
-
 function DrinkCard({ drink, colors }: { drink: Drink; colors: typeof COLORS }) {
   const showImage = isPublicImage(drink.image_url);
 
