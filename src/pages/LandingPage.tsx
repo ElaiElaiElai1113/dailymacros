@@ -160,13 +160,6 @@ export default function LandingPage() {
               <Stat label="Carbs" value="~40g" />
               <Stat label="Fat" value="~8g" />
             </div>
-
-            {/* debug: show the URL so you can click it */}
-            {featured?.image_url ? (
-              <div className="mt-3 text-[10px] text-gray-400 break-all">
-                image_url: {featured.image_url}
-              </div>
-            ) : null}
           </div>
         </div>
       </section>

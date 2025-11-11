@@ -2,7 +2,6 @@
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { supabase } from "@/lib/supabaseClient";
 
-/* ----------------------------- Types ----------------------------- */
 const STATUS_OPTIONS = [
   "pending",
   "in_progress",
@@ -21,6 +20,11 @@ type OrderRow = {
   guest_phone: string | null;
   customer_id: string | null;
   total_cents?: number | null;
+  subtotal_cents?: number | null;
+  payment_method?: string | null;
+  payment_status?: string | null;
+  payment_reference?: string | null;
+  payment_proof_url?: string | null;
 };
 
 type OrderItemRow = {
@@ -41,7 +45,6 @@ type OrderItemIngredientRow = {
   ingredient_name?: string;
 };
 
-/* ---------------------------- UI helpers ---------------------------- */
 const STATUS_LABEL: Record<StatusValue, string> = {
   pending: "Pending",
   in_progress: "In progress",
@@ -49,6 +52,7 @@ const STATUS_LABEL: Record<StatusValue, string> = {
   picked_up: "Picked up",
   cancelled: "Cancelled",
 };
+
 const STATUS_TONE: Record<StatusValue, string> = {
   pending: "bg-amber-100 text-amber-800 border-amber-200",
   in_progress: "bg-blue-100 text-blue-800 border-blue-200",
@@ -56,9 +60,17 @@ const STATUS_TONE: Record<StatusValue, string> = {
   picked_up: "bg-gray-100 text-gray-800 border-gray-200",
   cancelled: "bg-rose-100 text-rose-800 border-rose-200",
 };
+
+const PAYMENT_TONE: Record<string, string> = {
+  paid: "bg-green-100 text-green-800 border-green-200",
+  unpaid: "bg-gray-100 text-gray-700 border-gray-200",
+  pending_verification: "bg-yellow-100 text-yellow-800 border-yellow-200",
+};
+
 const Peso = ({ cents }: { cents?: number | null }) => (
   <span>₱{((cents || 0) / 100).toFixed(2)}</span>
 );
+
 const Badge = ({ status }: { status: StatusValue }) => (
   <span
     className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium ${STATUS_TONE[status]}`}
@@ -66,6 +78,7 @@ const Badge = ({ status }: { status: StatusValue }) => (
     {STATUS_LABEL[status]}
   </span>
 );
+
 const timeAgo = (iso: string) => {
   const d = new Date(iso).getTime();
   const s = Math.floor((Date.now() - d) / 1000);
@@ -77,6 +90,7 @@ const timeAgo = (iso: string) => {
   const days = Math.floor(h / 24);
   return `${days}d ago`;
 };
+
 const toast = (msg: string) => {
   const t = document.createElement("div");
   t.textContent = msg;
@@ -86,7 +100,6 @@ const toast = (msg: string) => {
   setTimeout(() => t.remove(), 1400);
 };
 
-/* ------------------------- Orders Admin Page ------------------------- */
 export default function OrdersAdminPage() {
   const [orders, setOrders] = useState<OrderRow[]>([]);
   const [itemsMap, setItemsMap] = useState<Record<string, OrderItemRow[]>>({});
@@ -95,11 +108,12 @@ export default function OrdersAdminPage() {
   >({});
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  // UI state
   const [activeTab, setActiveTab] = useState<"" | StatusValue>("pending");
   const [search, setSearch] = useState("");
   const [autoRefresh, setAutoRefresh] = useState(true);
+  const [paySavingId, setPaySavingId] = useState<string | null>(null);
+  const [paidMethod, setPaidMethod] = useState<Record<string, string>>({});
+  const [paidRef, setPaidRef] = useState<Record<string, string>>({});
   const searchTimer = useRef<number | null>(null);
 
   const debouncedSetSearch = useCallback((v: string) => {
@@ -111,11 +125,10 @@ export default function OrdersAdminPage() {
     setLoading(true);
     setError(null);
     try {
-      // 1) Orders
       const { data: oo, error: eo } = await supabase
         .from("orders")
         .select(
-          "id,created_at,pickup_time,status,guest_name,guest_phone,customer_id"
+          "id,created_at,pickup_time,status,guest_name,guest_phone,customer_id,subtotal_cents,payment_method,payment_status,payment_reference,payment_proof_url"
         )
         .order("created_at", { ascending: false })
         .limit(250);
@@ -124,7 +137,6 @@ export default function OrdersAdminPage() {
       const list = (oo || []) as OrderRow[];
       setOrders(list);
 
-      // 2) Items for those orders
       const orderIds = list.map((o) => o.id);
       if (!orderIds.length) {
         setItemsMap({});
@@ -145,7 +157,6 @@ export default function OrdersAdminPage() {
       });
       setItemsMap(map);
 
-      // 3) Ingredient lines for those items (join to ingredient name)
       const itemIds = itemRows.map((r) => r.id);
       if (!itemIds.length) {
         setLinesMap({});
@@ -173,12 +184,9 @@ export default function OrdersAdminPage() {
         };
         (byItem[row.order_item_id] ||= []).push(row);
       });
-
-      // base first, extras after
       Object.values(byItem).forEach((arr) =>
         arr.sort((a, b) => Number(!!a.is_extra) - Number(!!b.is_extra))
       );
-
       setLinesMap(byItem);
     } catch (e: any) {
       setError(e.message || "Failed to load orders");
@@ -191,7 +199,6 @@ export default function OrdersAdminPage() {
     load();
   }, [load]);
 
-  // polling
   useEffect(() => {
     if (!autoRefresh) return;
     const t = setInterval(load, 15000);
@@ -227,6 +234,7 @@ export default function OrdersAdminPage() {
 
   const itemsTotal = useCallback(
     (o: OrderRow) => {
+      if (typeof o.subtotal_cents === "number") return o.subtotal_cents;
       if (typeof o.total_cents === "number") return o.total_cents;
       const items = itemsMap[o.id] || [];
       return items.reduce(
@@ -269,7 +277,6 @@ export default function OrdersAdminPage() {
     [orders]
   );
 
-  /** ✅ FIX: use the function parameter, not a stray `it` identifier */
   const printLabel = (orderItemId: string) => {
     window.open(
       `/print-label/${orderItemId}`,
@@ -282,10 +289,31 @@ export default function OrdersAdminPage() {
     (itemsMap[orderId] || []).forEach((row) => printLabel(row.id));
   };
 
-  /* ------------------------------- UI ------------------------------- */
+  const markPaid = async (orderId: string) => {
+    const method = paidMethod[orderId] || "cash";
+    const reference =
+      method === "cash" ? null : paidRef[orderId]?.trim() || null;
+    setPaySavingId(orderId);
+    const { error } = await supabase
+      .from("orders")
+      .update({
+        payment_status: "paid",
+        payment_method: method,
+        payment_reference: reference,
+        paid_at: new Date().toISOString(),
+      })
+      .eq("id", orderId);
+    setPaySavingId(null);
+    if (error) {
+      alert(error.message);
+    } else {
+      toast("Payment marked as paid");
+      load();
+    }
+  };
+
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-lg font-bold text-gray-900">Orders</h1>
         <div className="flex items-center gap-2">
@@ -311,7 +339,6 @@ export default function OrdersAdminPage() {
         </div>
       </div>
 
-      {/* Status Tabs */}
       <div className="flex flex-wrap gap-2">
         <Tab
           active={activeTab === ""}
@@ -331,7 +358,6 @@ export default function OrdersAdminPage() {
         ))}
       </div>
 
-      {/* Content */}
       <div className="overflow-x-auto rounded-2xl border bg-white shadow-sm">
         <table className="min-w-full text-sm">
           <thead className="bg-gray-50 text-left text-xs uppercase text-gray-600">
@@ -342,6 +368,7 @@ export default function OrdersAdminPage() {
               <th className="px-3 py-2">Items</th>
               <th className="px-3 py-2">Total</th>
               <th className="px-3 py-2">Status</th>
+              <th className="px-3 py-2">Payment</th>
               <th className="px-3 py-2"></th>
             </tr>
           </thead>
@@ -350,14 +377,14 @@ export default function OrdersAdminPage() {
               <RowSkeleton />
             ) : error ? (
               <tr>
-                <td colSpan={7} className="px-3 py-4 text-rose-700">
+                <td colSpan={8} className="px-3 py-4 text-rose-700">
                   {error}
                 </td>
               </tr>
             ) : filtered.length === 0 ? (
               <tr>
                 <td
-                  colSpan={7}
+                  colSpan={8}
                   className="px-3 py-10 text-center text-gray-500"
                 >
                   No orders found.
@@ -369,6 +396,14 @@ export default function OrdersAdminPage() {
                 const next = advanceStatus(o.status);
                 const canAdvance =
                   next !== o.status && o.status !== "cancelled";
+                const paymentBadgeTone =
+                  o.payment_status && PAYMENT_TONE[o.payment_status]
+                    ? PAYMENT_TONE[o.payment_status]
+                    : PAYMENT_TONE["unpaid"];
+                const selectedMethod =
+                  paidMethod[o.id] || o.payment_method || "cash";
+                const paymentIsVerified = o.payment_status === "paid";
+
                 return (
                   <tr
                     key={o.id}
@@ -408,8 +443,6 @@ export default function OrdersAdminPage() {
                         {o.guest_phone || "—"}
                       </div>
                     </td>
-
-                    {/* Items + per-item Print */}
                     <td className="px-3 py-3">
                       <ul className="space-y-2 max-w-[480px]">
                         {items.map((item) => {
@@ -442,7 +475,6 @@ export default function OrdersAdminPage() {
                                   </button>
                                 </div>
                               </div>
-
                               {lines.length > 0 ? (
                                 <div className="mt-1 grid gap-1">
                                   {base.length > 0 && (
@@ -482,33 +514,100 @@ export default function OrdersAdminPage() {
                         })}
                       </ul>
                     </td>
-
                     <td className="px-3 py-3 font-semibold">
                       <Peso cents={itemsTotal(o)} />
                     </td>
 
+                    {/* STATUS COLUMN */}
                     <td className="px-3 py-3">
-                      <Badge status={o.status} />
-                      <div className="mt-2">
+                      {paymentIsVerified ? (
+                        <>
+                          <Badge status={o.status} />
+                          <div className="mt-2">
+                            <select
+                              className="w-full rounded-lg border px-2 py-1 text-sm"
+                              value={o.status}
+                              onChange={(e) =>
+                                updateOrderStatus(
+                                  o.id,
+                                  e.target.value as StatusValue
+                                )
+                              }
+                            >
+                              {STATUS_OPTIONS.map((s) => (
+                                <option key={s} value={s}>
+                                  {STATUS_LABEL[s]}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                        </>
+                      ) : (
+                        <div className="text-xs text-amber-600">
+                          Payment not verified
+                        </div>
+                      )}
+                    </td>
+
+                    {/* PAYMENT COLUMN */}
+                    <td className="px-3 py-3">
+                      <div
+                        className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium ${paymentBadgeTone}`}
+                      >
+                        {o.payment_status || "unpaid"}
+                      </div>
+                      <div className="mt-2 flex flex-col gap-2">
                         <select
-                          className="w-full rounded-lg border px-2 py-1 text-sm"
-                          value={o.status}
+                          value={selectedMethod}
                           onChange={(e) =>
-                            updateOrderStatus(
-                              o.id,
-                              e.target.value as StatusValue
-                            )
+                            setPaidMethod((prev) => ({
+                              ...prev,
+                              [o.id]: e.target.value,
+                            }))
                           }
+                          className="w-full rounded-lg border px-2 py-1 text-sm"
                         >
-                          {STATUS_OPTIONS.map((s) => (
-                            <option key={s} value={s}>
-                              {STATUS_LABEL[s]}
-                            </option>
-                          ))}
+                          <option value="cash">Cash</option>
+                          <option value="gcash">GCash</option>
+                          <option value="bank">Bank</option>
                         </select>
+
+                        {/* only show ref input for non-cash */}
+                        {selectedMethod !== "cash" && (
+                          <input
+                            value={paidRef[o.id] ?? o.payment_reference ?? ""}
+                            onChange={(e) =>
+                              setPaidRef((prev) => ({
+                                ...prev,
+                                [o.id]: e.target.value,
+                              }))
+                            }
+                            placeholder="Transaction/ref no."
+                            className="w-full rounded-lg border px-2 py-1 text-sm"
+                          />
+                        )}
+
+                        {o.payment_proof_url ? (
+                          <a
+                            href={o.payment_proof_url}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="text-xs text-[#D26E3D] underline"
+                          >
+                            View proof
+                          </a>
+                        ) : null}
+                        <button
+                          onClick={() => markPaid(o.id)}
+                          disabled={paySavingId === o.id}
+                          className="rounded-lg bg-[#D26E3D] px-3 py-1.5 text-xs font-semibold text-white hover:opacity-90 disabled:opacity-50"
+                        >
+                          {paySavingId === o.id ? "Saving…" : "Mark as Paid"}
+                        </button>
                       </div>
                     </td>
 
+                    {/* ACTIONS */}
                     <td className="px-3 py-3 text-right space-x-2">
                       <button
                         className="rounded-lg border px-2 py-1 text-xs hover:bg-gray-50"
@@ -520,22 +619,28 @@ export default function OrdersAdminPage() {
                         Copy ID
                       </button>
                       <button
-                        disabled={!canAdvance}
+                        disabled={!canAdvance || !paymentIsVerified}
                         className={`rounded-lg px-2 py-1 text-xs ${
-                          canAdvance
+                          canAdvance && paymentIsVerified
                             ? "border border-indigo-200 text-indigo-700 hover:bg-indigo-50"
                             : "border text-gray-400 cursor-not-allowed"
                         }`}
                         onClick={() =>
-                          canAdvance && updateOrderStatus(o.id, next)
+                          canAdvance &&
+                          paymentIsVerified &&
+                          updateOrderStatus(o.id, next)
                         }
                         title={
-                          canAdvance
-                            ? `Mark as ${STATUS_LABEL[next]}`
-                            : "No next step"
+                          paymentIsVerified
+                            ? canAdvance
+                              ? `Mark as ${STATUS_LABEL[next]}`
+                              : "No next step"
+                            : "Payment not verified"
                         }
                       >
-                        {canAdvance ? `→ ${STATUS_LABEL[next]}` : "—"}
+                        {canAdvance && paymentIsVerified
+                          ? `→ ${STATUS_LABEL[next]}`
+                          : "—"}
                       </button>
                       <button
                         className="rounded border px-2 py-1 text-xs hover:bg-gray-50"
@@ -556,7 +661,6 @@ export default function OrdersAdminPage() {
   );
 }
 
-/* --------------------------- Small components --------------------------- */
 function Tab({
   active,
   label,
@@ -597,7 +701,7 @@ function Tab({
 function RowSkeleton() {
   return (
     <tr className="animate-pulse">
-      <td className="px-3 py-4" colSpan={7}>
+      <td className="px-3 py-4" colSpan={8}>
         <div className="h-4 w-full rounded bg-gray-100" />
       </td>
     </tr>
