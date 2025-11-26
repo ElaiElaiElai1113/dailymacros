@@ -30,10 +30,12 @@ export default function MenuPage() {
   );
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
+  const [uiErrors, setUiErrors] = useState<string[]>([]);
+  const [successMsg, setSuccessMsg] = useState<string | null>(null);
+
   const { addItem } = useCart();
   const navigate = useNavigate();
 
-  // drawer state
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [selected, setSelected] = useState<DrinkRecord | null>(null);
 
@@ -42,11 +44,10 @@ export default function MenuPage() {
       setLoading(true);
       setErr(null);
       try {
-        // 1) drinks
         const { data: dd, error: de } = await supabase
           .from("drinks")
           .select(
-            "id,name,description,base_size_ml,price_php,is_active,image_url" // 👈 added image_url
+            "id,name,description,base_size_ml,price_php,is_active,image_url"
           )
           .eq("is_active", true)
           .order("name", { ascending: true });
@@ -59,19 +60,16 @@ export default function MenuPage() {
           base_size_ml: number | null;
           price_php: number | null;
           is_active: boolean;
-          image_url?: string | null; // 👈 keep it
+          image_url?: string | null;
         }>;
 
-        // Normalize price for UI that still uses cents
         const normalized = drinkRows.map((d) => ({
           ...d,
           price_cents: Math.round((d.price_php ?? 0) * 100),
         }));
 
         const drinkIds = normalized.map((d) => d.id);
-        console.log("🧪 drinks loaded:", drinkIds.length);
 
-        // 2) lines
         const { data: ll, error: le } = await supabase
           .from("drink_lines")
           .select("drink_id,ingredient_id,amount,unit,drinks!inner(id)")
@@ -83,9 +81,6 @@ export default function MenuPage() {
           );
         if (le) throw le;
 
-        console.log("🧪 recipe lines loaded:", (ll || []).length);
-
-        // 3) ingredients + nutrition
         const [{ data: ii, error: ie }, { data: nn, error: ne }] =
           await Promise.all([
             supabase.from("ingredients").select("*"),
@@ -94,7 +89,7 @@ export default function MenuPage() {
         if (ie) throw ie;
         if (ne) throw ne;
 
-        setDrinks(normalized as any); // DrinkCard will now also get image_url
+        setDrinks(normalized as any);
         setLines((ll || []) as any);
         setIngDict(
           Object.fromEntries(((ii || []) as Ingredient[]).map((x) => [x.id, x]))
@@ -107,12 +102,6 @@ export default function MenuPage() {
             ])
           )
         );
-
-        if (!ll || ll.length === 0) {
-          console.warn(
-            "⚠️ No recipe lines returned. Likely causes: (a) RLS on drink_lines blocks select, (b) drink_lines is empty, (c) wrong schema/table name."
-          );
-        }
       } catch (e: any) {
         setErr(e.message || "Failed to load menu");
       } finally {
@@ -121,7 +110,6 @@ export default function MenuPage() {
     })();
   }, []);
 
-  // Map drinkId -> LineIngredient[]
   const drinkLinesMap = useMemo(() => {
     const map: Record<string, LineIngredient[]> = {};
     for (const r of lines) {
@@ -137,7 +125,10 @@ export default function MenuPage() {
   function handleAddToCart(drink: DrinkRecord) {
     const drinkLines = drinkLinesMap[drink.id] || [];
     if (drinkLines.length === 0) {
-      alert("This drink has no recipe lines yet.");
+      setSuccessMsg(null);
+      setUiErrors([
+        `"${drink.name}" does not have a recipe configured yet. Please choose another drink or contact the staff.`,
+      ]);
       return;
     }
     addItem({
@@ -145,18 +136,20 @@ export default function MenuPage() {
       unit_price_cents: drink.price_cents,
       lines: drinkLines,
     });
-    alert(`${drink.name} added to cart`);
+    setUiErrors([]);
+    setSuccessMsg(`${drink.name} added to cart.`);
   }
 
   function openDrawer(drink: DrinkRecord) {
     setSelected(drink);
     setDrawerOpen(true);
+    setUiErrors([]);
+    setSuccessMsg(null);
   }
 
   return (
     <div className="min-h-screen" style={{ backgroundColor: COLORS.bg }}>
-      {/* Header */}
-      <div className="mx-auto max-w-7xl px-4 pt-8">
+      <div className="mx-auto max-w-7xl px-4 pt-8 space-y-4">
         <div className="flex items-center justify-between">
           <Link
             to="/build"
@@ -165,44 +158,86 @@ export default function MenuPage() {
           >
             Build Your Own
           </Link>
+          <Link
+            to="/cart"
+            className="rounded-lg border px-3 py-1.5 text-sm font-medium hover:bg-white/60"
+          >
+            View Cart
+          </Link>
         </div>
 
-        <h1 className="mt-8 text-3xl font-extrabold tracking-tight">
-          Our Menu
-        </h1>
-        <p className="mt-2 text-gray-700">
-          Dietitian-crafted shakes. Transparent macros. Tap a card for details
-          or add to cart.
-        </p>
+        <div>
+          <h1 className="mt-4 text-3xl font-extrabold tracking-tight">
+            Our Menu
+          </h1>
+          <p className="mt-2 text-gray-700">
+            Dietitian-crafted shakes. Transparent macros. Tap a card for details
+            or add to cart.
+          </p>
+        </div>
+
+        {err && (
+          <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700 flex gap-3">
+            <div className="mt-0.5">⚠️</div>
+            <div>
+              <div className="font-semibold mb-1">
+                There was a problem loading the menu.
+              </div>
+              <div>{err}</div>
+            </div>
+          </div>
+        )}
+
+        {uiErrors.length > 0 && (
+          <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 flex gap-3">
+            <div className="mt-0.5">⚠️</div>
+            <div>
+              <div className="font-semibold mb-1">
+                Please check the following:
+              </div>
+              <ul className="list-disc space-y-0.5 pl-4">
+                {uiErrors.map((msg, i) => (
+                  <li key={i}>{msg}</li>
+                ))}
+              </ul>
+            </div>
+          </div>
+        )}
+
+        {successMsg && (
+          <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700 flex gap-3">
+            <div className="mt-0.5">✅</div>
+            <div>{successMsg}</div>
+          </div>
+        )}
       </div>
 
       <div className="mx-auto max-w-7xl px-4 py-8">
         {loading ? (
           <div className="text-sm text-gray-700">Loading menu…</div>
-        ) : err ? (
-          <div className="text-sm text-rose-700">Error: {err}</div>
-        ) : drinks.length === 0 ? (
+        ) : !err && drinks.length === 0 ? (
           <div className="text-sm text-gray-700">
-            No active drinks yet. Add some in Admin.
+            No active drinks yet. Please check back later.
           </div>
         ) : (
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {drinks.map((d) => (
-              <DrinkCard
-                key={d.id}
-                drink={d}
-                lines={drinkLinesMap[d.id] || []}
-                ingDict={ingDict}
-                nutrDict={nutrDict}
-                onAdd={() => handleAddToCart(d)}
-                onOpen={() => openDrawer(d)}
-              />
-            ))}
-          </div>
+          !err && (
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {drinks.map((d) => (
+                <DrinkCard
+                  key={d.id}
+                  drink={d}
+                  lines={drinkLinesMap[d.id] || []}
+                  ingDict={ingDict}
+                  nutrDict={nutrDict}
+                  onAdd={() => handleAddToCart(d)}
+                  onOpen={() => openDrawer(d)}
+                />
+              ))}
+            </div>
+          )
         )}
       </div>
 
-      {/* Drawer */}
       <DrinkDetailDrawer
         open={drawerOpen && !!selected}
         onClose={() => setDrawerOpen(false)}
@@ -212,14 +247,23 @@ export default function MenuPage() {
         nutrDict={nutrDict}
         onAddToCart={(scaledLines) => {
           if (!selected) return;
+          const fallbackLines = drinkLinesMap[selected.id] || [];
+          const linesToUse =
+            scaledLines && scaledLines.length ? scaledLines : fallbackLines;
+          if (!linesToUse.length) {
+            setSuccessMsg(null);
+            setUiErrors([
+              `"${selected.name}" does not have a recipe configured yet. Please choose another drink or contact the staff.`,
+            ]);
+            return;
+          }
           addItem({
             item_name: selected.name,
             unit_price_cents: selected.price_cents,
-            lines:
-              scaledLines && scaledLines.length
-                ? scaledLines
-                : drinkLinesMap[selected.id] || [],
+            lines: linesToUse,
           });
+          setUiErrors([]);
+          setSuccessMsg(`${selected.name} added to cart.`);
           setDrawerOpen(false);
         }}
         onCustomize={() => {

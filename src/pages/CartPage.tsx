@@ -1,24 +1,22 @@
 // src/pages/CartPage.tsx
 import { useMemo, useState, useEffect } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useCart } from "@/context/CartContext";
 import { supabase } from "@/lib/supabaseClient";
 
-/* ---------- Types: align with Checkout usage ---------- */
 type CartLine = {
   ingredient_id: string;
   amount: number;
   unit: string;
   role?: "base" | "extra";
   name?: string;
-  is_extra?: boolean; // used by checkout insert
+  is_extra?: boolean;
 };
 
 type CartItem = {
   item_name: string;
   unit_price_cents: number;
   lines: CartLine[];
-  // keep optional fields used in Checkout flow
   drink_id?: string | null;
   size_ml?: number | null;
   base_drink_name?: string;
@@ -49,13 +47,13 @@ const titleFor = (it: CartItem) =>
   it.base_drink_name ? `Custom — ${it.base_drink_name}` : it.item_name;
 
 export default function CartPage() {
+  const navigate = useNavigate();
   const { items, removeItem, clear } = useCart() as {
     items: CartItem[];
     removeItem: (idx: number) => void;
     clear: () => void;
   };
 
-  // Fallback ingredient names (if not already on lines)
   const [nameDict, setNameDict] = useState<Record<string, string>>({});
   const [loadingNames, setLoadingNames] = useState(false);
 
@@ -83,9 +81,36 @@ export default function CartPage() {
     [items]
   );
 
+  const itemFlags = useMemo(
+    () =>
+      items.map((it) => ({
+        hasNoLines: !it.lines || it.lines.length === 0,
+        hasZeroPrice: !it.unit_price_cents || it.unit_price_cents <= 0,
+      })),
+    [items]
+  );
+
+  const blockingIssues = useMemo(() => {
+    const issues: string[] = [];
+    items.forEach((it, idx) => {
+      const flags = itemFlags[idx];
+      if (!flags) return;
+      const title = titleFor(it);
+      if (flags.hasNoLines) {
+        issues.push(`"${title}" has no ingredients selected.`);
+      }
+      if (flags.hasZeroPrice) {
+        issues.push(`"${title}" price looks invalid (₱0.00).`);
+      }
+    });
+    return issues;
+  }, [items, itemFlags]);
+
+  const hasIssues = blockingIssues.length > 0;
+  const canCheckout = items.length > 0 && subtotal > 0 && !hasIssues;
+
   return (
     <div className="space-y-5">
-      {/* Header */}
       <header className="flex items-center justify-between">
         <h1 className="text-xl font-extrabold tracking-tight">Your Cart</h1>
         {items.length > 0 && (
@@ -99,7 +124,22 @@ export default function CartPage() {
         )}
       </header>
 
-      {/* Empty state */}
+      {blockingIssues.length > 0 && (
+        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 flex gap-3">
+          <div className="mt-0.5">⚠️</div>
+          <div>
+            <div className="font-semibold mb-1">
+              Please fix these issues before checking out:
+            </div>
+            <ul className="list-disc space-y-0.5 pl-4">
+              {blockingIssues.map((msg, i) => (
+                <li key={i}>{msg}</li>
+              ))}
+            </ul>
+          </div>
+        </div>
+      )}
+
       {items.length === 0 ? (
         <div className="rounded-2xl border bg-white p-6 text-gray-600">
           Your cart is empty.{" "}
@@ -114,7 +154,6 @@ export default function CartPage() {
         </div>
       ) : (
         <>
-          {/* Items */}
           <div className="space-y-3">
             {items.map((it, idx) => (
               <CartItemCard
@@ -123,17 +162,22 @@ export default function CartPage() {
                 onRemove={() => removeItem(idx)}
                 nameDict={nameDict}
                 loadingNames={loadingNames}
+                flags={itemFlags[idx]}
               />
             ))}
           </div>
 
-          {/* Summary */}
           <div className="grid gap-4 md:grid-cols-2">
             <div className="rounded-2xl border bg-white p-4">
               <div className="text-sm text-gray-600">
-                Prices shown include item-level totals. Nutrition is computed
-                per recipe. Add-ons may adjust the base price.
+                Prices shown are per drink. Nutrition and macros are based on
+                the ingredients you selected. Add-ons may adjust the base price.
               </div>
+              {loadingNames && (
+                <div className="mt-2 text-[11px] text-gray-500">
+                  Updating ingredient names…
+                </div>
+              )}
             </div>
 
             <div className="rounded-2xl border bg-white p-4">
@@ -143,13 +187,15 @@ export default function CartPage() {
                   <Price cents={subtotal} bold />
                 </div>
               </div>
-              <div className="mt-3 flex gap-2">
-                <Link
-                  to="/checkout"
-                  className="rounded-lg bg-[#D26E3D] px-4 py-2 text-sm font-semibold text-white hover:opacity-90"
+              <div className="mt-3 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => canCheckout && navigate("/checkout")}
+                  disabled={!canCheckout}
+                  className="rounded-lg bg-[#D26E3D] px-4 py-2 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   Proceed to Checkout
-                </Link>
+                </button>
                 <Link
                   to="/menu"
                   className="rounded-lg border px-4 py-2 text-sm font-semibold hover:bg-gray-50"
@@ -158,7 +204,13 @@ export default function CartPage() {
                 </Link>
               </div>
               <div className="mt-2 text-[11px] text-gray-500">
-                You can review pickup time and contact info on the next page.
+                You&apos;ll choose pickup time and payment method on the next
+                page.
+                {!canCheckout && (
+                  <div className="mt-1 text-red-600">
+                    Fix the issues above to enable checkout.
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -173,11 +225,13 @@ function CartItemCard({
   onRemove,
   nameDict,
   loadingNames,
+  flags,
 }: {
   item: CartItem;
   onRemove: () => void;
   nameDict: Record<string, string>;
   loadingNames: boolean;
+  flags?: { hasNoLines: boolean; hasZeroPrice: boolean };
 }) {
   const [open, setOpen] = useState(true);
 
@@ -194,8 +248,16 @@ function CartItemCard({
     typeof item.base_price_cents === "number" &&
     typeof item.addons_price_cents === "number";
 
+  const hasNoLines = flags?.hasNoLines ?? false;
+  const hasZeroPrice = flags?.hasZeroPrice ?? false;
+  const problematic = hasNoLines || hasZeroPrice;
+
   return (
-    <div className="rounded-2xl border bg-white p-4 shadow-sm">
+    <div
+      className={`rounded-2xl border bg-white p-4 shadow-sm ${
+        problematic ? "border-red-300" : ""
+      }`}
+    >
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0">
           <div className="truncate text-base font-semibold">
@@ -205,6 +267,21 @@ function CartItemCard({
             {(item.lines || []).length} ingredients
             {loadingNames && <span className="ml-2">• loading names…</span>}
           </div>
+          {problematic && (
+            <div className="mt-1 text-[11px] text-red-600">
+              {hasNoLines && (
+                <div>
+                  This item has no ingredients. Please rebuild or remove it.
+                </div>
+              )}
+              {hasZeroPrice && (
+                <div>
+                  This item has no valid price. Please remove and add it again
+                  from the menu.
+                </div>
+              )}
+            </div>
+          )}
         </div>
         <div className="text-right">
           <div className="text-base font-semibold">
