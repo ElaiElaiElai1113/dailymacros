@@ -1,4 +1,3 @@
-// src/App.tsx
 import { lazy, Suspense, useMemo, useState } from "react";
 import {
   Route,
@@ -11,7 +10,6 @@ import {
 import logoUrl from "@/assets/dailymacroslogo.png";
 import RoleGate from "@/lib/auth/RoleGate";
 
-/** Eager pages */
 import LandingPage from "./pages/LandingPage";
 import MenuPage from "./pages/MenuPage";
 import BuildYourOwnPage from "./pages/BuildYourOwnPage";
@@ -24,12 +22,10 @@ import LoginPage from "./pages/LoginPage";
 import PrintLabelPage from "./pages/PrintLabelPage";
 import TrackOrderPage from "./pages/TrackOrderPage";
 
-/** Lazy admin pages */
 const DrinksAdminPage = lazy(() => import("@/pages/admin/DrinksAdmin"));
 const AddonsAdminPage = lazy(() => import("@/pages/admin/AddonsAdmin"));
 const OrdersAdminPage = lazy(() => import("@/pages/admin/OrdersAdmin"));
 
-/* ----------------------------- Small bits ----------------------------- */
 function Loading() {
   return (
     <div className="flex h-[40vh] items-center justify-center">
@@ -50,7 +46,6 @@ function Container({ children }: { children: React.ReactNode }) {
 function SiteLayout() {
   const location = useLocation();
 
-  // Hide navbar/container on print pages
   const isPrint = useMemo(
     () => location.pathname.startsWith("/print-label"),
     [location.pathname]
@@ -75,7 +70,6 @@ function Navbar() {
   return (
     <nav className="sticky top-0 z-50 bg-white/80 backdrop-blur border-b border-gray-100 shadow-sm print:hidden">
       <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3 md:py-4">
-        {/* Brand */}
         <NavLink
           to="/"
           end
@@ -98,7 +92,6 @@ function Navbar() {
           />
         </NavLink>
 
-        {/* Desktop links */}
         <div className="hidden md:flex items-center gap-4 text-sm font-medium">
           <NavItem to="/" label="Home" end />
           <NavItem to="/menu" label="Menu" />
@@ -112,15 +105,23 @@ function Navbar() {
           </Link>
         </div>
 
-        {/* Mobile menu button */}
-        <button
-          className="md:hidden rounded-lg border px-3 py-1.5 text-sm"
-          aria-expanded={open}
-          aria-controls="mobile-menu"
-          onClick={() => setOpen((v) => !v)}
-        >
-          {open ? "Close" : "Menu"}
-        </button>
+        <div className="flex items-center gap-2 md:hidden">
+          <Link
+            to="/cart"
+            aria-label="View cart"
+            className="rounded-full border border-[#D26E3D]/80 px-3 py-1.5 text-xs font-semibold text-[#D26E3D] shadow-sm active:scale-[0.98] transition"
+          >
+            Cart
+          </Link>
+          <button
+            className="rounded-lg border px-3 py-1.5 text-sm"
+            aria-expanded={open}
+            aria-controls="mobile-menu"
+            onClick={() => setOpen((v) => !v)}
+          >
+            {open ? "Close" : "Menu"}
+          </button>
+        </div>
       </div>
 
       {/* Mobile menu */}
@@ -131,11 +132,7 @@ function Navbar() {
             <NavItem to="/menu" label="Menu" onClick={() => setOpen(false)} />
             <NavItem to="/build" label="Build" onClick={() => setOpen(false)} />
             <NavItem to="/cart" label="Cart" onClick={() => setOpen(false)} />
-            <NavItem
-              to="/orders"
-              label="My Orders"
-              onClick={() => setOpen(false)}
-            />
+
             <Link
               to="/menu"
               onClick={() => setOpen(false)}
@@ -183,7 +180,6 @@ function NavItem({
 export default function App() {
   return (
     <Routes>
-      {/* All normal pages under SiteLayout */}
       <Route element={<SiteLayout />}>
         <Route
           element={
@@ -192,7 +188,6 @@ export default function App() {
             </Suspense>
           }
         >
-          {/* Public */}
           <Route path="/" element={<LandingPage />} />
           <Route path="/menu" element={<MenuPage />} />
           <Route path="/build" element={<BuildYourOwnPage />} />
@@ -202,7 +197,6 @@ export default function App() {
           <Route path="/track/:code" element={<TrackOrderPage />} />
           <Route path="/login" element={<LoginPage />} />
 
-          {/* Staff area */}
           <Route
             path="/staff"
             element={
@@ -212,7 +206,6 @@ export default function App() {
             }
           />
 
-          {/* Admin hub (kept) */}
           <Route
             path="/admin"
             element={
@@ -222,7 +215,6 @@ export default function App() {
             }
           />
 
-          {/* Admin sections (lazy) */}
           <Route
             path="/admin/drinks"
             element={
@@ -248,7 +240,6 @@ export default function App() {
             }
           />
 
-          {/* 404 */}
           <Route
             path="*"
             element={
@@ -267,7 +258,6 @@ export default function App() {
           />
         </Route>
 
-        {/* PRINT LABEL — bare route (no navbar/chrome) */}
         <Route path="/print-label/:orderItemId" element={<PrintLabelPage />} />
       </Route>
     </Routes>
