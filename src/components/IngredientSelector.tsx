@@ -1,3 +1,4 @@
+// src/components/IngredientSelector.tsx
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import type { Ingredient } from "@/types";
@@ -10,9 +11,28 @@ type Props = {
     amount: number,
     unit: string
   ) => number | null | undefined;
+  /** IDs of ingredients already chosen as add-ons (for visual highlight) */
+  selectedIngredientIds?: string[];
 };
 
-export default function IngredientSelector({ onAdd, getPricePHP }: Props) {
+const HIGHLIGHT_CLASSES = [
+  // orange-ish
+  "ring-2 ring-[#D26E3D]/80 bg-[#FFF5EB]",
+  // yellow-ish
+  "ring-2 ring-[#EECB65]/80 bg-[#FFFBEB]",
+  // teal-ish
+  "ring-2 ring-[#599190]/80 bg-[#ECF6F5]",
+];
+
+const COLORS = {
+  redOrange: "#D26E3D",
+};
+
+export default function IngredientSelector({
+  onAdd,
+  getPricePHP,
+  selectedIngredientIds = [],
+}: Props) {
   const [ings, setIngs] = useState<Ingredient[]>([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
@@ -99,28 +119,50 @@ export default function IngredientSelector({ onAdd, getPricePHP }: Props) {
         </div>
       ) : (
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4">
-          {filtered.map((ing) => {
+          {filtered.map((ing, idx) => {
             const pricePHP =
               typeof getPricePHP === "function"
                 ? getPricePHP(ing, amount, unit)
                 : undefined;
 
             const disabled = !amount || amount <= 0;
+            const isSelected = selectedIngredientIds.includes(ing.id);
+            const highlightClass =
+              HIGHLIGHT_CLASSES[idx % HIGHLIGHT_CLASSES.length];
+
+            const baseClasses =
+              "relative rounded-xl border bg-white p-3 text-left transition";
+
+            const stateClasses = disabled
+              ? "opacity-60 cursor-not-allowed"
+              : isSelected
+              ? highlightClass
+              : "hover:shadow-sm hover:border-[#EECB65]";
 
             return (
               <button
                 key={ing.id}
                 onClick={() => !disabled && onAdd(ing, amount, unit)}
                 disabled={disabled}
-                className={`rounded-xl border bg-white p-3 text-left transition ${
-                  disabled ? "opacity-60" : "hover:shadow-sm"
-                }`}
+                className={`${baseClasses} ${stateClasses}`}
                 title={
                   pricePHP !== undefined && pricePHP !== null
                     ? `₱${pricePHP.toFixed(2)}`
                     : undefined
                 }
               >
+                {isSelected && (
+                  <span
+                    className="absolute right-2 top-2 rounded-full px-2 py-0.5 text-[10px] font-semibold"
+                    style={{
+                      backgroundColor: COLORS.redOrange,
+                      color: "#FFFDF8",
+                    }}
+                  >
+                    Added
+                  </span>
+                )}
+
                 <div className="truncate font-semibold text-gray-800">
                   {ing.name}
                 </div>

@@ -176,16 +176,16 @@ export default function BuildYourOwnPage() {
       alert("Pick a base drink first.");
       return;
     }
-    setExtraLines((prev) => [
-      ...prev,
-      {
-        ingredient_id: ingredient.id,
-        amount,
-        unit,
-        name: ingredient.name,
-        role: "extra",
-      },
-    ]);
+
+    const newLine: CartLine = {
+      ingredient_id: ingredient.id,
+      amount,
+      unit,
+      name: ingredient.name,
+      role: "extra",
+    };
+
+    setExtraLines((prev) => [...prev, newLine]);
   }
 
   function removeAddon(idx: number) {
@@ -371,6 +371,7 @@ export default function BuildYourOwnPage() {
                       pricingDict
                     )
                   }
+                  selectedIngredientIds={extraLines.map((l) => l.ingredient_id)}
                 />
               )}
             </section>
