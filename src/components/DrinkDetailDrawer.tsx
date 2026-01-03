@@ -1,14 +1,24 @@
-// src/pages/DrinkDetailDrawer.tsx
 import { useEffect, useMemo, useState } from "react";
 import type { Ingredient, IngredientNutrition, LineIngredient } from "@/types";
 import { totalsFor, breakdownFor } from "@/utils/nutrition";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetDescription,
+} from "@/components/ui/sheet";
+import { Card, CardContent } from "@/components/ui/card";
 
 type Drink = {
   id: string;
   name: string;
   description: string | null;
-  base_size_ml: number | null; // used as reference for scaling
+  base_size_ml: number | null;
   price_cents: number;
+  image_url?: string | null;
 };
 
 const SIZES = [
@@ -45,42 +55,17 @@ export default function DrinkDetailDrawer({
   onAddToCart: (scaledLines?: LineIngredient[]) => void;
   onCustomize: () => void;
 }) {
-  // ❗ Hard guard FIRST so hooks are never conditionally skipped
-  if (!open || !drink) return null;
+  if (!drink) return null;
 
-  // `drink` is non-null from here on
-  const d = drink as Drink;
-
-  // state
-  const [sizeMl, setSizeMl] = useState<number>(() => d.base_size_ml ?? 473);
-
-  // effects (always declared, gated inside if needed)
-  useEffect(() => {
-    // lock scroll while open
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.body.style.overflow = prev;
-    };
-  }, []); // runs on mount/unmount of the drawer
+  const [sizeMl, setSizeMl] = useState<number>(() => drink.base_size_ml ?? 473);
 
   useEffect(() => {
-    function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape") onClose();
-    }
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
+    if (drink.base_size_ml) setSizeMl(drink.base_size_ml);
+  }, [drink.id, drink.base_size_ml]);
 
-  // when drink changes, reset size to base
-  useEffect(() => {
-    if (d.base_size_ml) setSizeMl(d.base_size_ml);
-  }, [d.id, d.base_size_ml]);
-
-  // memo calculations
   const scaledLines = useMemo(
-    () => scaleLines(lines, d.base_size_ml, sizeMl),
-    [lines, d.base_size_ml, sizeMl]
+    () => scaleLines(lines, drink.base_size_ml, sizeMl),
+    [lines, drink.base_size_ml, sizeMl]
   );
 
   const { totals } = useMemo(
@@ -93,42 +78,26 @@ export default function DrinkDetailDrawer({
     [scaledLines, ingDict, nutrDict]
   );
 
-  // optional debug
-  useEffect(() => {
-    // eslint-disable-next-line no-console
-    console.groupCollapsed(`🧪 Nutrition debug — ${d.name} (${sizeMl}ml)`);
-    // eslint-disable-next-line no-console
-    console.table(
-      scaledLines.map((l) => ({
-        ingredient_id: l.ingredient_id,
-        name: ingDict[l.ingredient_id]?.name,
-        amount: l.amount,
-        unit: l.unit,
-      }))
-    );
-    // eslint-disable-next-line no-console
-    console.log("totals:", totals);
-    // eslint-disable-next-line no-console
-    console.groupEnd();
-  }, [d.name, sizeMl, scaledLines, ingDict, totals]);
+  const showUnknown =
+    !Number.isFinite(totals.energy_kcal) || totals.energy_kcal <= 0;
 
   function handleAddToCart() {
     onAddToCart(scaledLines);
   }
 
   async function handleShareOrPrint() {
-    const price = `₱${(d.price_cents / 100).toFixed(2)}`;
+    const price = `PHP ${(drink.price_cents / 100).toFixed(2)}`;
     const ingList = scaledLines
       .map(
         (l) =>
-          `${
-            ingDict[l.ingredient_id]?.name || "Ingredient"
-          } — ${l.amount.toFixed(1)} ${l.unit}`
+          `${ingDict[l.ingredient_id]?.name || "Ingredient"} - ${l.amount.toFixed(
+            1
+          )} ${l.unit}`
       )
       .join("\n");
 
-    const summary = `DailyMacros — ${d.name}
-Size: ${sizeMl} ml • Price: ${price}
+    const summary = `DailyMacros - ${drink.name}
+Size: ${sizeMl} ml - Price: ${price}
 
 Ingredients:
 ${ingList}
@@ -142,7 +111,7 @@ Nutrition (est.):
     if (navigator.share && navigator.canShare?.({ text: summary })) {
       try {
         await navigator.share({
-          title: `${d.name} — Nutrition`,
+          title: `${drink.name} - Nutrition`,
           text: summary,
         });
         return;
@@ -156,9 +125,9 @@ Nutrition (est.):
 <html>
 <head>
 <meta charset="utf-8" />
-<title>${escapeHtml(d.name)} — Nutrition Label</title>
+<title>${escapeHtml(drink.name)} - Nutrition Label</title>
 <style>
-  body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; margin: 24px; }
+  body { font-family: system-ui, -apple-system, Segoe UI, sans-serif; margin: 24px; }
   .card { width: 360px; border: 1px solid #ddd; border-radius: 12px; padding: 16px; }
   .title { font-weight: 700; font-size: 16px; }
   .muted { color: #666; font-size: 12px; margin-top: 2px; }
@@ -174,8 +143,8 @@ Nutrition (est.):
 </head>
 <body>
   <div class="card">
-    <div class="title">DailyMacros — ${escapeHtml(d.name)}</div>
-    <div class="muted">Size: ${sizeMl} ml • Price: ${price}</div>
+    <div class="title">DailyMacros - ${escapeHtml(drink.name)}</div>
+    <div class="muted">Size: ${sizeMl} ml - Price: ${price}</div>
 
     <div class="section">
       <strong>Ingredients</strong>
@@ -185,7 +154,7 @@ Nutrition (est.):
             (l) =>
               `<li>${escapeHtml(
                 ingDict[l.ingredient_id]?.name || "Ingredient"
-              )} — ${l.amount.toFixed(1)} ${l.unit}</li>`
+              )} - ${l.amount.toFixed(1)} ${l.unit}</li>`
           )
           .join("")}
       </ul>
@@ -203,7 +172,7 @@ Nutrition (est.):
       </table>
     </div>
 
-    <div class="footer">Nutrition estimates are computed from ingredient-level data and selected size.</div>
+    <div class="footer">Nutrition estimates are computed from ingredient-level data.</div>
   </div>
   <script>window.print();</script>
 </body>
@@ -215,208 +184,204 @@ Nutrition (est.):
     w.document.close();
   }
 
-  const showUnknown =
-    !Number.isFinite(totals.energy_kcal) || totals.energy_kcal <= 0;
-
   return (
-    <div className="fixed inset-0 z-50">
-      <div
-        className="absolute inset-0 bg-black/50"
-        onClick={onClose}
-        aria-hidden="true"
-      />
-      <div className="absolute inset-x-0 bottom-0 mx-auto w-full max-w-2xl rounded-t-2xl bg-white shadow-2xl md:inset-0 md:m-auto md:h-auto md:rounded-2xl">
-        <header className="flex flex-wrap items-start justify-between gap-4 border-b p-4">
-          <div>
-            <h3 className="text-lg font-semibold">{d.name}</h3>
-            <p className="text-sm text-gray-600">
-              {d.description || "Signature protein smoothie."}
-            </p>
-            <p className="mt-1 text-xs text-gray-500">
-              Base size: {d.base_size_ml ? `${d.base_size_ml} ml` : "—"}
-            </p>
-          </div>
-          <button
-            onClick={onClose}
-            className="rounded-lg border px-2 py-1 text-sm hover:bg-gray-50"
-            aria-label="Close"
-          >
-            ✕
-          </button>
-        </header>
-
-        <div className="grid gap-4 p-4 md:grid-cols-2">
-          <div>
-            <div
-              className="aspect-[16/10] w-full rounded-xl"
-              style={{
-                background:
-                  "linear-gradient(135deg, rgba(89,145,144,0.15), rgba(210,110,61,0.15))",
-              }}
-            />
-            <div className="mt-4">
-              <div className="mb-1 text-sm font-semibold">Choose size</div>
-              <div className="flex flex-wrap gap-2">
-                {SIZES.map((s) => (
-                  <button
-                    key={s.ml}
-                    onClick={() => setSizeMl(s.ml)}
-                    className={`rounded-lg border px-3 py-1.5 text-sm ${
-                      sizeMl === s.ml
-                        ? "bg-black text-white"
-                        : "hover:bg-gray-50"
-                    }`}
-                  >
-                    {s.label}
-                  </button>
-                ))}
+    <Sheet open={open} onOpenChange={(next) => !next && onClose()}>
+      <SheetContent side="bottom" className="max-h-[92vh] overflow-y-auto">
+        <div className="mx-auto h-1.5 w-12 rounded-full bg-muted" />
+        <SheetHeader className="mt-4">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <SheetTitle>{drink.name}</SheetTitle>
+              <SheetDescription>
+                {drink.description || "Signature protein blend."}
+              </SheetDescription>
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                {drink.base_size_ml ? (
+                  <Badge variant="secondary">
+                    Base {drink.base_size_ml} ml
+                  </Badge>
+                ) : null}
+                <Badge variant="glow">
+                  PHP {(drink.price_cents / 100).toFixed(2)}
+                </Badge>
               </div>
-              <div className="mt-1 text-xs text-gray-500">
-                Scaling recipe relative to base size{" "}
-                {d.base_size_ml ? `${d.base_size_ml} ml` : "—"}.
-              </div>
-            </div>
-
-            <div className="mt-4 flex flex-wrap gap-2">
-              <button
-                onClick={handleAddToCart}
-                className="rounded-lg bg-[#D26E3D] px-4 py-2 text-sm font-medium text-white hover:opacity-90"
-              >
-                Add to Cart — ₱{(d.price_cents / 100).toFixed(2)}
-              </button>
-              <button
-                onClick={onCustomize}
-                className="rounded-lg border px-4 py-2 text-sm font-medium hover:bg-gray-50"
-              >
-                Customize
-              </button>
-              <button
-                onClick={handleShareOrPrint}
-                className="rounded-lg border px-4 py-2 text-sm font-medium hover:bg-gray-50"
-                title="Share or print a nutrition label"
-              >
-                Share / Print Label
-              </button>
-            </div>
-
-            <div className="mt-4 rounded-xl border bg-white p-3">
-              <div className="mb-2 text-sm font-semibold">
-                Estimated Nutrition ({sizeMl} ml)
-              </div>
-              <div className="grid grid-cols-4 gap-2 text-center text-xs">
-                <Stat
-                  label="Kcal"
-                  value={
-                    showUnknown
-                      ? "—"
-                      : Math.round(totals.energy_kcal).toString()
-                  }
-                />
-                <Stat
-                  label="Protein"
-                  value={showUnknown ? "—" : `${totals.protein_g}g`}
-                />
-                <Stat
-                  label="Carbs"
-                  value={showUnknown ? "—" : `${totals.carbs_g}g`}
-                />
-                <Stat
-                  label="Fat"
-                  value={showUnknown ? "—" : `${totals.fat_g}g`}
-                />
-              </div>
-              {showUnknown && (
-                <div className="mt-2 text-[11px] text-amber-600">
-                  Nutrition missing or ingredients lack conversion data. See
-                  console for details.
-                </div>
-              )}
             </div>
           </div>
+        </SheetHeader>
 
-          <div className="space-y-4">
-            <section className="rounded-xl border p-3">
-              <div className="mb-2 text-sm font-semibold">Ingredients</div>
-              {scaledLines.length === 0 ? (
-                <div className="text-sm text-gray-500">
-                  No recipe lines found.
-                </div>
+        <div className="mt-6 grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
+          <div className="space-y-5">
+            <div className="aspect-[16/10] w-full overflow-hidden rounded-3xl border bg-white">
+              {drink.image_url ? (
+                <img
+                  src={drink.image_url}
+                  alt={drink.name}
+                  className="h-full w-full object-contain"
+                />
               ) : (
-                <ul className="text-sm">
-                  {scaledLines.map((l, idx) => (
-                    <li
-                      key={idx}
-                      className="flex items-center justify-between py-1"
-                    >
-                      <span className="truncate">
-                        {ingDict[l.ingredient_id]?.name || "Ingredient"}
-                      </span>
-                      <span className="text-gray-600">
-                        {l.amount.toFixed(
-                          l.unit === "scoop" || l.unit === "piece" ? 2 : 1
-                        )}{" "}
-                        {l.unit}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
+                <div className="h-full w-full bg-gradient-to-br from-[#FFE7C5] via-white to-[#D7EFEA]" />
               )}
-            </section>
+            </div>
 
-            <section className="rounded-xl border p-3">
-              <div className="mb-2 text-sm font-semibold">Explain my math</div>
-              {breakdown.length === 0 ? (
-                <div className="text-sm text-gray-500">Nothing to show.</div>
-              ) : (
-                <div className="space-y-2">
-                  {breakdown.map((b) => (
-                    <div
-                      key={b.ingredient_id}
-                      className="rounded-lg border p-2 text-xs"
-                    >
-                      <div className="mb-1 font-medium">{b.name}</div>
-                      <div className="text-gray-600">
-                        Input: {b.input.amount} {b.input.unit} → {b.grams_used}{" "}
-                        g
-                      </div>
-                      <div className="mt-1 grid grid-cols-5 gap-2 text-center">
-                        <SmallStat
-                          label="Kcal"
-                          value={b.contrib.energy_kcal.toFixed(0)}
-                        />
-                        <SmallStat
-                          label="Prot"
-                          value={b.contrib.protein_g.toFixed(1)}
-                        />
-                        <SmallStat
-                          label="Carbs"
-                          value={b.contrib.carbs_g.toFixed(1)}
-                        />
-                        <SmallStat
-                          label="Fat"
-                          value={b.contrib.fat_g.toFixed(1)}
-                        />
-                        <SmallStat
-                          label="Na"
-                          value={String(b.contrib.sodium_mg || 0)}
-                        />
-                      </div>
-                    </div>
-                  ))}
+            <Card>
+              <CardContent className="space-y-4">
+                <div>
+                  <div className="text-sm font-semibold">Choose size</div>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {SIZES.map((s) => (
+                      <Button
+                        key={s.ml}
+                        variant={sizeMl === s.ml ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => setSizeMl(s.ml)}
+                      >
+                        {s.label}
+                      </Button>
+                    ))}
+                  </div>
+                  <p className="mt-2 text-xs text-muted-foreground">
+                    Scales from base size {drink.base_size_ml ?? "default"} ml.
+                  </p>
                 </div>
-              )}
-            </section>
+
+                <div className="flex flex-wrap gap-2">
+                  <Button onClick={handleAddToCart}>
+                    Add to Cart
+                  </Button>
+                  <Button variant="secondary" onClick={onCustomize}>
+                    Customize
+                  </Button>
+                  <Button variant="outline" onClick={handleShareOrPrint}>
+                    Share / Print
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardContent>
+                <div className="text-sm font-semibold">
+                  Estimated Nutrition ({sizeMl} ml)
+                </div>
+                <div className="mt-3 grid grid-cols-4 gap-2 text-center text-xs">
+                  <Stat
+                    label="Kcal"
+                    value={
+                      showUnknown
+                        ? "--"
+                        : Math.round(totals.energy_kcal).toString()
+                    }
+                  />
+                  <Stat
+                    label="Protein"
+                    value={showUnknown ? "--" : `${totals.protein_g}g`}
+                  />
+                  <Stat
+                    label="Carbs"
+                    value={showUnknown ? "--" : `${totals.carbs_g}g`}
+                  />
+                  <Stat
+                    label="Fat"
+                    value={showUnknown ? "--" : `${totals.fat_g}g`}
+                  />
+                </div>
+                {showUnknown && (
+                  <div className="mt-2 text-[11px] text-amber-600">
+                    Nutrition data missing for one or more ingredients.
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+
+          <div className="space-y-5">
+            <Card>
+              <CardContent>
+                <div className="text-sm font-semibold">Ingredients</div>
+                {scaledLines.length === 0 ? (
+                  <div className="mt-2 text-sm text-muted-foreground">
+                    No recipe lines found.
+                  </div>
+                ) : (
+                  <ul className="mt-3 space-y-2 text-sm">
+                    {scaledLines.map((l, idx) => (
+                      <li
+                        key={idx}
+                        className="flex items-center justify-between gap-2"
+                      >
+                        <span className="truncate">
+                          {ingDict[l.ingredient_id]?.name || "Ingredient"}
+                        </span>
+                        <span className="text-muted-foreground">
+                          {l.amount.toFixed(
+                            l.unit === "scoop" || l.unit === "piece" ? 2 : 1
+                          )}{" "}
+                          {l.unit}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardContent>
+                <div className="text-sm font-semibold">Explain my math</div>
+                {breakdown.length === 0 ? (
+                  <div className="mt-2 text-sm text-muted-foreground">
+                    Nothing to show.
+                  </div>
+                ) : (
+                  <div className="mt-3 space-y-2">
+                    {breakdown.map((b) => (
+                      <div
+                        key={b.ingredient_id}
+                        className="rounded-2xl border p-3 text-xs"
+                      >
+                        <div className="mb-1 font-medium">{b.name}</div>
+                        <div className="text-muted-foreground">
+                          Input: {b.input.amount} {b.input.unit} - {b.grams_used} g
+                        </div>
+                        <div className="mt-2 grid grid-cols-5 gap-2 text-center">
+                          <SmallStat
+                            label="Kcal"
+                            value={b.contrib.energy_kcal.toFixed(0)}
+                          />
+                          <SmallStat
+                            label="Prot"
+                            value={b.contrib.protein_g.toFixed(1)}
+                          />
+                          <SmallStat
+                            label="Carbs"
+                            value={b.contrib.carbs_g.toFixed(1)}
+                          />
+                          <SmallStat
+                            label="Fat"
+                            value={b.contrib.fat_g.toFixed(1)}
+                          />
+                          <SmallStat
+                            label="Na"
+                            value={String(b.contrib.sodium_mg || 0)}
+                          />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
           </div>
         </div>
-      </div>
-    </div>
+      </SheetContent>
+    </Sheet>
   );
 }
 
 function Stat({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-lg border bg-white py-2">
-      <div className="text-[10px] uppercase tracking-wide text-gray-500">
+    <div className="rounded-xl border bg-white/70 py-2">
+      <div className="text-[10px] uppercase tracking-wide text-muted-foreground">
         {label}
       </div>
       <div className="mt-0.5 text-sm font-semibold">{value}</div>
@@ -426,8 +391,8 @@ function Stat({ label, value }: { label: string; value: string }) {
 
 function SmallStat({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded border bg-white py-1">
-      <div className="text-[10px] uppercase tracking-wide text-gray-500">
+    <div className="rounded-xl border bg-white py-1">
+      <div className="text-[10px] uppercase tracking-wide text-muted-foreground">
         {label}
       </div>
       <div className="text-[11px] font-medium">{value}</div>

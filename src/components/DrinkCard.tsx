@@ -2,6 +2,9 @@ import { useMemo } from "react";
 import { Link } from "react-router-dom";
 import type { Ingredient, IngredientNutrition, LineIngredient } from "@/types";
 import { totalsFor } from "@/utils/nutrition";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Card, CardContent } from "@/components/ui/card";
 
 export type DrinkRecord = {
   id: string;
@@ -10,7 +13,7 @@ export type DrinkRecord = {
   base_size_ml: number | null;
   price_cents: number;
   is_active: boolean;
-  image_url?: string | null; // 👈 allow image
+  image_url?: string | null;
 };
 
 export default function DrinkCard({
@@ -34,110 +37,99 @@ export default function DrinkCard({
   );
 
   return (
-    <div
-      className="group rounded-2xl border bg-white p-4 shadow-sm transition hover:shadow-md cursor-pointer"
+    <Card
+      className="group relative overflow-hidden border-transparent bg-white/80 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
       onClick={onOpen}
       role="button"
       tabIndex={0}
       onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && onOpen()}
     >
-      {/* IMAGE / HERO */}
-      <div className="h-40 w-full rounded-xl bg-gray-50 flex items-center justify-center overflow-hidden">
-        {drink.image_url ? (
-          <img
-            src={drink.image_url}
-            alt={drink.name}
-            className="max-h-full max-w-full object-contain transition group-hover:scale-[1.01]"
-          />
-        ) : (
-          <div
-            className="h-full w-full rounded-xl"
-            style={{
-              background:
-                "linear-gradient(135deg, rgba(89,145,144,0.15), rgba(210,110,61,0.15))",
-            }}
-          />
-        )}
-      </div>
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(226,188,120,0.35),_transparent_55%)]" />
+      <div className="absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-white via-white/70 to-transparent" />
 
-      <div className="mt-3 flex items-start justify-between gap-3">
-        <div>
-          <div className="font-semibold">{drink.name}</div>
-          <div className="text-sm text-gray-600 line-clamp-2">
-            {drink.description || "Signature protein smoothie."}
+      <CardContent className="relative p-4">
+        <div className="flex items-start justify-between gap-3">
+          <div className="space-y-1">
+            <div className="text-base font-semibold">{drink.name}</div>
+            <p className="text-sm text-muted-foreground line-clamp-2">
+              {drink.description || "Signature protein blend."}
+            </p>
+            {drink.base_size_ml ? (
+              <div className="text-xs text-muted-foreground">
+                {drink.base_size_ml} ml base size
+              </div>
+            ) : null}
           </div>
-          {drink.base_size_ml ? (
-            <div className="mt-1 text-xs text-gray-500">
-              {drink.base_size_ml} ml base size
-            </div>
-          ) : null}
+          <Badge variant="glow" className="text-xs">
+            PHP {(drink.price_cents / 100).toFixed(2)}
+          </Badge>
         </div>
 
-        <div
-          className="shrink-0 rounded-lg px-2.5 py-1 text-white text-xs font-medium"
-          style={{ background: "#599190" }}
-        >
-          ₱{(drink.price_cents / 100).toFixed(2)}
+        <div className="mt-4 aspect-[4/3] w-full overflow-hidden rounded-2xl border bg-white">
+          {drink.image_url ? (
+            <img
+              src={drink.image_url}
+              alt={drink.name}
+              className="h-full w-full object-contain transition-transform duration-300 group-hover:scale-[1.02]"
+            />
+          ) : (
+            <div className="h-full w-full bg-gradient-to-br from-[#FFE7C5] via-white to-[#D7EFEA]" />
+          )}
         </div>
-      </div>
 
-      {/* Macro teaser */}
-      <div className="mt-3 grid grid-cols-4 gap-2 text-center text-xs">
-        <CardStat
-          label="Kcal"
-          value={
-            Number.isFinite(totals.energy_kcal)
-              ? Math.round(totals.energy_kcal).toString()
-              : "—"
-          }
-        />
-        <CardStat
-          label="Protein"
-          value={
-            Number.isFinite(totals.protein_g) ? `${totals.protein_g}g` : "—"
-          }
-        />
-        <CardStat
-          label="Carbs"
-          value={Number.isFinite(totals.carbs_g) ? `${totals.carbs_g}g` : "—"}
-        />
-        <CardStat
-          label="Fat"
-          value={Number.isFinite(totals.fat_g) ? `${totals.fat_g}g` : "—"}
-        />
-      </div>
+        <div className="mt-4 grid grid-cols-4 gap-2 text-center text-xs">
+          <CardStat
+            label="Kcal"
+            value={
+              Number.isFinite(totals.energy_kcal)
+                ? Math.round(totals.energy_kcal).toString()
+                : "--"
+            }
+          />
+          <CardStat
+            label="Protein"
+            value={
+              Number.isFinite(totals.protein_g) ? `${totals.protein_g}g` : "--"
+            }
+          />
+          <CardStat
+            label="Carbs"
+            value={Number.isFinite(totals.carbs_g) ? `${totals.carbs_g}g` : "--"}
+          />
+          <CardStat
+            label="Fat"
+            value={Number.isFinite(totals.fat_g) ? `${totals.fat_g}g` : "--"}
+          />
+        </div>
 
-      {/* Actions */}
-      <div className="mt-3 flex gap-2">
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            onAdd();
-          }}
-          className="inline-flex items-center justify-center rounded-lg px-3 py-2 text-sm font-medium text-white hover:opacity-90"
-          style={{ background: "#D26E3D" }}
-          disabled={lines.length === 0}
-          title={lines.length === 0 ? "No recipe lines found" : "Add to cart"}
-        >
-          Add to Cart
-        </button>
-
-        <Link
-          to="/build"
-          onClick={(e) => e.stopPropagation()}
-          className="inline-flex items-center justify-center rounded-lg border px-3 py-2 text-sm font-medium hover:bg-gray-50"
-        >
-          Customize
-        </Link>
-      </div>
-    </div>
+        <div className="mt-4 flex gap-2">
+          <Button
+            onClick={(e) => {
+              e.stopPropagation();
+              onAdd();
+            }}
+            disabled={lines.length === 0}
+            title={lines.length === 0 ? "No recipe lines found" : "Add to cart"}
+          >
+            Add to Cart
+          </Button>
+          <Button
+            asChild
+            variant="secondary"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <Link to="/build">Customize</Link>
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 
 function CardStat({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-lg border bg-white py-2">
-      <div className="text-[10px] uppercase tracking-wide text-gray-500">
+    <div className="rounded-xl border bg-white/70 py-2">
+      <div className="text-[10px] uppercase tracking-wide text-muted-foreground">
         {label}
       </div>
       <div className="mt-0.5 text-sm font-semibold">{value}</div>

@@ -5,13 +5,9 @@ import { useCart } from "@/context/CartContext";
 import type { Ingredient, IngredientNutrition, LineIngredient } from "@/types";
 import DrinkDetailDrawer from "@/components/DrinkDetailDrawer";
 import DrinkCard, { type DrinkRecord } from "@/components/DrinkCard";
-
-const COLORS = {
-  redOrange: "#D26E3D",
-  yellow: "#EECB65",
-  cyan: "#599190",
-  bg: "#F6ECC6",
-};
+import { Button } from "@/components/ui/button";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
 
 type DrinkLineRow = {
   id: string;
@@ -148,80 +144,69 @@ export default function MenuPage() {
   }
 
   return (
-    <div className="min-h-screen" style={{ backgroundColor: COLORS.bg }}>
-      <div className="mx-auto max-w-7xl px-4 pt-8 space-y-4">
-        <div className="flex items-center justify-between">
-          <Link
-            to="/build"
-            className="rounded-lg px-4 py-2 text-white text-sm font-medium hover:opacity-90"
-            style={{ background: COLORS.redOrange }}
-          >
-            Build Your Own
-          </Link>
-          <Link
-            to="/cart"
-            className="rounded-lg border px-3 py-1.5 text-sm font-medium hover:bg-white/60"
-          >
-            View Cart
-          </Link>
+    <div className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(210,110,61,0.15),_transparent_55%),radial-gradient(circle_at_bottom,_rgba(89,145,144,0.12),_transparent_50%)]">
+      <div className="mx-auto max-w-7xl px-4 pt-10">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <Badge variant="secondary">DailyMacros Menu</Badge>
+            <h1 className="mt-3 text-3xl font-semibold">
+              Protein shakes with macros you can trust.
+            </h1>
+            <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
+              Tap a drink for nutrition details, or add it to your cart in one
+              click.
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button asChild>
+              <Link to="/build">Build Your Own</Link>
+            </Button>
+            <Button asChild variant="secondary">
+              <Link to="/cart">View Cart</Link>
+            </Button>
+          </div>
         </div>
 
-        <div>
-          <h1 className="mt-4 text-3xl font-extrabold tracking-tight">
-            Our Menu
-          </h1>
-          <p className="mt-2 text-gray-700">
-            Dietitian-crafted shakes. Transparent macros. Tap a card for details
-            or add to cart.
-          </p>
+        <div className="mt-6 space-y-3">
+          {err && (
+            <Alert variant="destructive">
+              <AlertTitle>We could not load the menu</AlertTitle>
+              <AlertDescription>{err}</AlertDescription>
+            </Alert>
+          )}
+
+          {uiErrors.length > 0 && (
+            <Alert variant="destructive">
+              <AlertTitle>Please check the following</AlertTitle>
+              <AlertDescription>
+                <ul className="list-disc space-y-0.5 pl-4">
+                  {uiErrors.map((msg, i) => (
+                    <li key={i}>{msg}</li>
+                  ))}
+                </ul>
+              </AlertDescription>
+            </Alert>
+          )}
+
+          {successMsg && (
+            <Alert>
+              <AlertTitle>Added to cart</AlertTitle>
+              <AlertDescription>{successMsg}</AlertDescription>
+            </Alert>
+          )}
         </div>
-
-        {err && (
-          <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700 flex gap-3">
-            <div className="mt-0.5">⚠️</div>
-            <div>
-              <div className="font-semibold mb-1">
-                There was a problem loading the menu.
-              </div>
-              <div>{err}</div>
-            </div>
-          </div>
-        )}
-
-        {uiErrors.length > 0 && (
-          <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 flex gap-3">
-            <div className="mt-0.5">⚠️</div>
-            <div>
-              <div className="font-semibold mb-1">
-                Please check the following:
-              </div>
-              <ul className="list-disc space-y-0.5 pl-4">
-                {uiErrors.map((msg, i) => (
-                  <li key={i}>{msg}</li>
-                ))}
-              </ul>
-            </div>
-          </div>
-        )}
-
-        {successMsg && (
-          <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700 flex gap-3">
-            <div className="mt-0.5">✅</div>
-            <div>{successMsg}</div>
-          </div>
-        )}
       </div>
 
-      <div className="mx-auto max-w-7xl px-4 py-8">
+      <div className="mx-auto max-w-7xl px-4 py-10">
         {loading ? (
-          <div className="text-sm text-gray-700">Loading menu…</div>
+          <div className="text-sm text-muted-foreground">Loading menu...</div>
         ) : !err && drinks.length === 0 ? (
-          <div className="text-sm text-gray-700">
+          <div className="text-sm text-muted-foreground">
             No active drinks yet. Please check back later.
           </div>
         ) : (
           !err && (
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
               {drinks.map((d) => (
                 <DrinkCard
                   key={d.id}
