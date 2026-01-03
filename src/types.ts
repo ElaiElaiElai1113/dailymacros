@@ -39,6 +39,7 @@ export type Drink = {
   description?: string | null;
   base_size_ml?: number | null;
   price_cents: number;
+  image_url?: string | null;
 };
 
 export type IngredientPricing = {
@@ -84,6 +85,7 @@ export type CartItem = {
   base_drink_name?: string;
   base_price_cents?: number;
   addons_price_cents?: number;
+  image_url?: string | null;
 };
 
 export type Order = {

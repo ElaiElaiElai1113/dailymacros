@@ -1,32 +1,24 @@
-// src/components/IngredientSelector.tsx
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import type { Ingredient } from "@/types";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
 
 type Props = {
   onAdd: (ing: Ingredient, amount: number, unit: string) => void;
-  /** Optional: compute price shown per row for (ingredient, amount, unit) in PHP */
   getPricePHP?: (
     ing: Ingredient,
     amount: number,
     unit: string
   ) => number | null | undefined;
-  /** IDs of ingredients already chosen as add-ons (for visual highlight) */
   selectedIngredientIds?: string[];
 };
 
 const HIGHLIGHT_CLASSES = [
-  // orange-ish
-  "ring-2 ring-[#D26E3D]/80 bg-[#FFF5EB]",
-  // yellow-ish
-  "ring-2 ring-[#EECB65]/80 bg-[#FFFBEB]",
-  // teal-ish
-  "ring-2 ring-[#599190]/80 bg-[#ECF6F5]",
+  "ring-2 ring-primary/60 bg-primary/10",
+  "ring-2 ring-[#EECB65]/70 bg-[#FFF6DD]",
+  "ring-2 ring-[#5E9CA2]/70 bg-[#EAF7F6]",
 ];
-
-const COLORS = {
-  redOrange: "#D26E3D",
-};
 
 export default function IngredientSelector({
   onAdd,
@@ -39,7 +31,7 @@ export default function IngredientSelector({
 
   const [search, setSearch] = useState("");
   const [amount, setAmount] = useState<number>(1);
-  const [unit, setUnit] = useState<string>("tablespoon"); // default to tablespoon since most add-ons are priced per tbsp
+  const [unit, setUnit] = useState<string>("tablespoon");
 
   useEffect(() => {
     (async () => {
@@ -79,24 +71,23 @@ export default function IngredientSelector({
 
   return (
     <div>
-      {/* Controls */}
       <div className="mb-3 grid grid-cols-1 gap-2 sm:grid-cols-12">
-        <input
-          className="sm:col-span-7 rounded-lg border px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[#D26E3D]/30"
-          placeholder="Search add-ons (e.g. chia, honey, cocoa)…"
+        <Input
+          className="sm:col-span-7"
+          placeholder="Search add-ons (chia, honey, cocoa)"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
-        <input
+        <Input
           type="number"
           min={0}
           step="any"
-          className="sm:col-span-2 rounded-lg border px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[#D26E3D]/30"
+          className="sm:col-span-2"
           value={amount}
           onChange={(e) => onChangeAmount(e.target.value)}
         />
         <select
-          className="sm:col-span-3 rounded-lg border px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[#D26E3D]/30"
+          className="sm:col-span-3 flex h-10 w-full rounded-xl border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
           value={unit}
           onChange={(e) => setUnit(e.target.value)}
         >
@@ -108,13 +99,12 @@ export default function IngredientSelector({
         </select>
       </div>
 
-      {/* Body */}
       {loading ? (
-        <div className="text-sm text-gray-600">Loading add-ons…</div>
+        <div className="text-sm text-muted-foreground">Loading add-ons...</div>
       ) : err ? (
-        <div className="text-sm text-rose-700">Error: {err}</div>
+        <div className="text-sm text-destructive">Error: {err}</div>
       ) : filtered.length === 0 ? (
-        <div className="text-sm text-gray-600">
+        <div className="text-sm text-muted-foreground">
           No add-ons match your search.
         </div>
       ) : (
@@ -131,13 +121,13 @@ export default function IngredientSelector({
               HIGHLIGHT_CLASSES[idx % HIGHLIGHT_CLASSES.length];
 
             const baseClasses =
-              "relative rounded-xl border bg-white p-3 text-left transition";
+              "relative rounded-2xl border bg-white p-3 text-left transition";
 
             const stateClasses = disabled
               ? "opacity-60 cursor-not-allowed"
               : isSelected
               ? highlightClass
-              : "hover:shadow-sm hover:border-[#EECB65]";
+              : "hover:shadow-sm hover:border-primary/40";
 
             return (
               <button
@@ -147,39 +137,33 @@ export default function IngredientSelector({
                 className={`${baseClasses} ${stateClasses}`}
                 title={
                   pricePHP !== undefined && pricePHP !== null
-                    ? `₱${pricePHP.toFixed(2)}`
+                    ? `PHP ${pricePHP.toFixed(2)}`
                     : undefined
                 }
               >
                 {isSelected && (
-                  <span
-                    className="absolute right-2 top-2 rounded-full px-2 py-0.5 text-[10px] font-semibold"
-                    style={{
-                      backgroundColor: COLORS.redOrange,
-                      color: "#FFFDF8",
-                    }}
-                  >
+                  <Badge className="absolute right-2 top-2 text-[10px]">
                     Added
-                  </span>
+                  </Badge>
                 )}
 
-                <div className="truncate font-semibold text-gray-800">
-                  {ing.name}
-                </div>
-                <div className="mt-0.5 text-xs text-gray-500">
+                <div className="truncate font-semibold">{ing.name}</div>
+                <div className="mt-0.5 text-xs text-muted-foreground">
                   {ing.category}
                 </div>
 
                 <div className="mt-2 flex items-center justify-between text-xs">
-                  <span className="rounded bg-gray-50 px-2 py-0.5 text-gray-700">
+                  <span className="rounded-full bg-muted px-2 py-0.5 text-foreground">
                     {amount || 0} {unit}
                   </span>
                   {pricePHP !== undefined && pricePHP !== null ? (
                     <span className="font-semibold text-emerald-700">
-                      ₱{pricePHP.toFixed(2)}
+                      PHP {pricePHP.toFixed(2)}
                     </span>
                   ) : (
-                    <span className="text-[11px] text-gray-400">no price</span>
+                    <span className="text-[11px] text-muted-foreground">
+                      no price
+                    </span>
                   )}
                 </div>
               </button>

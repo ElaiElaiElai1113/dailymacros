@@ -9,6 +9,9 @@ import {
 } from "react-router-dom";
 import logoUrl from "@/assets/dailymacroslogo.png";
 import RoleGate from "@/lib/auth/RoleGate";
+import { useCart } from "@/context/CartContext";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 
 import LandingPage from "./pages/LandingPage";
 import MenuPage from "./pages/MenuPage";
@@ -67,8 +70,10 @@ function SiteLayout() {
 
 function Navbar() {
   const [open, setOpen] = useState(false);
+  const { items } = useCart();
+  const cartCount = items.length;
   return (
-    <nav className="sticky top-0 z-50 bg-white/80 backdrop-blur border-b border-gray-100 shadow-sm print:hidden">
+    <nav className="sticky top-0 z-50 border-b border-border/60 bg-white/80 backdrop-blur print:hidden">
       <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3 md:py-4">
         <NavLink
           to="/"
@@ -96,23 +101,25 @@ function Navbar() {
           <NavItem to="/" label="Home" end />
           <NavItem to="/menu" label="Menu" />
           <NavItem to="/build" label="Build" />
-          <NavItem to="/cart" label="Cart" />
-          <Link
-            to="/menu"
-            className="ml-2 rounded-lg bg-[#D26E3D] px-4 py-2 text-sm text-white font-semibold shadow hover:opacity-90 transition"
-          >
-            Order Now
-          </Link>
+          <NavItem
+            to="/cart"
+            label="Cart"
+            badge={cartCount > 0 ? cartCount : undefined}
+          />
+          <Button asChild className="ml-2">
+            <Link to="/menu">Order Now</Link>
+          </Button>
         </div>
 
         <div className="flex items-center gap-2 md:hidden">
-          <Link
-            to="/cart"
-            aria-label="View cart"
-            className="rounded-full border border-[#D26E3D]/80 px-3 py-1.5 text-xs font-semibold text-[#D26E3D] shadow-sm active:scale-[0.98] transition"
-          >
-            Cart
-          </Link>
+          <Button asChild variant="outline" size="sm" className="relative">
+            <Link to="/cart" aria-label="View cart">
+              Cart
+              {cartCount > 0 && (
+                <Badge className="ml-2 px-2 py-0 text-[10px]">+{cartCount}</Badge>
+              )}
+            </Link>
+          </Button>
           <button
             className="rounded-lg border px-3 py-1.5 text-sm"
             aria-expanded={open}
@@ -131,15 +138,18 @@ function Navbar() {
             <NavItem to="/" label="Home" end onClick={() => setOpen(false)} />
             <NavItem to="/menu" label="Menu" onClick={() => setOpen(false)} />
             <NavItem to="/build" label="Build" onClick={() => setOpen(false)} />
-            <NavItem to="/cart" label="Cart" onClick={() => setOpen(false)} />
-
-            <Link
-              to="/menu"
+            <NavItem
+              to="/cart"
+              label="Cart"
+              badge={cartCount > 0 ? cartCount : undefined}
               onClick={() => setOpen(false)}
-              className="mt-1 rounded-lg bg-[#D26E3D] px-4 py-2 text-white font-semibold text-center"
-            >
-              Order Now
-            </Link>
+            />
+
+            <Button asChild className="mt-1">
+              <Link to="/menu" onClick={() => setOpen(false)}>
+                Order Now
+              </Link>
+            </Button>
           </div>
         </div>
       )}
@@ -153,12 +163,14 @@ function NavItem({
   accent,
   end,
   onClick,
+  badge,
 }: {
   to: string;
   label: string;
   accent?: string;
   end?: boolean;
   onClick?: () => void;
+  badge?: number;
 }) {
   return (
     <NavLink
@@ -171,7 +183,12 @@ function NavItem({
         } ${isActive ? "font-semibold text-[#D26E3D]" : "hover:text-[#D26E3D]"}`
       }
     >
-      {label}
+      <span className="inline-flex items-center gap-2">
+        {label}
+        {typeof badge === "number" && badge > 0 && (
+          <Badge className="px-2 py-0 text-[10px]">+{badge}</Badge>
+        )}
+      </span>
     </NavLink>
   );
 }

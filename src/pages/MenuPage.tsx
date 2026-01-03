@@ -129,7 +129,9 @@ export default function MenuPage() {
     }
     addItem({
       item_name: drink.name,
+      drink_id: drink.id,
       unit_price_cents: drink.price_cents,
+      image_url: drink.image_url ?? null,
       lines: drinkLines,
     });
     setUiErrors([]);
@@ -244,7 +246,9 @@ export default function MenuPage() {
           }
           addItem({
             item_name: selected.name,
+            drink_id: selected.id,
             unit_price_cents: selected.price_cents,
+            image_url: selected.image_url ?? null,
             lines: linesToUse,
           });
           setUiErrors([]);
