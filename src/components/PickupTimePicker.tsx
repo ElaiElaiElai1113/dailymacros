@@ -1,4 +1,6 @@
 import { useState } from "react";
+import { Input } from "@/components/ui/input";
+
 export default function PickupTimePicker({
   value,
   min,
@@ -10,8 +12,8 @@ export default function PickupTimePicker({
 }) {
   const [v, setV] = useState(value);
   return (
-    <div className="flex gap-2 items-center">
-      <input
+    <div className="flex w-full items-center gap-2">
+      <Input
         type="datetime-local"
         value={v}
         min={min}
@@ -19,11 +21,8 @@ export default function PickupTimePicker({
           setV(e.target.value);
           onChange(e.target.value);
         }}
-        className="border px-2 py-1 rounded"
+        className="w-full"
       />
-      <span className="text-xs text-gray-500">
-        Store hours enforced at backend
-      </span>
     </div>
   );
 }

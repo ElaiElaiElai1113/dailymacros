@@ -1,11 +1,18 @@
-﻿import { useCart } from "@/context/CartContext";
+import { useCart } from "@/context/CartContext";
 import PickupTimePicker from "@/components/PickupTimePicker";
 import { supabase } from "@/lib/supabaseClient";
 import { useEffect, useMemo, useState } from "react";
 import QRCode from "react-qr-code";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Badge } from "@/components/ui/badge";
 
 function Price({ cents }: { cents: number }) {
-  return <span>₱{(Number(cents || 0) / 100).toFixed(2)}</span>;
+  return <span>PHP {(Number(cents || 0) / 100).toFixed(2)}</span>;
 }
 
 type PaymentMethod = "cash" | "gcash" | "bank";
@@ -236,296 +243,276 @@ export default function CheckoutPage() {
   if (placed) {
     const trackUrl = `${window.location.origin}/track/${placed.tracking_code}`;
     return (
-      <div className="flex flex-col items-center justify-center py-12 space-y-6">
-        <div className="rounded-2xl border bg-white p-6 shadow-sm w-full max-w-md text-center">
-          <h1 className="text-2xl font-bold text-[#D26E3D] mb-2">
-            Order Placed 🎉
-          </h1>
-          <p className="text-gray-700 mb-4">
-            Thank you! We’ll start preparing your drink near your pickup time.
-          </p>
-          <p className="text-sm text-gray-600 mb-4">
-            Scan or share this QR to track your order in real time:
-          </p>
-          <div className="flex justify-center mb-4">
-            <QRCode value={trackUrl} size={180} />
-          </div>
-          <div className="text-sm font-medium break-all text-gray-700">
-            {trackUrl}
-          </div>
-          <button
-            onClick={() => navigator.clipboard.writeText(trackUrl)}
-            className="mt-4 w-full rounded-lg border px-3 py-2 text-sm hover:bg-gray-50"
-          >
-            Copy Tracking Link
-          </button>
-        </div>
+      <div className="min-h-[70vh] bg-[radial-gradient(circle_at_top,_rgba(210,110,61,0.15),_transparent_55%)] px-4 py-12">
+        <Card className="mx-auto max-w-md text-center">
+          <CardHeader>
+            <CardTitle className="text-2xl">Order placed</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              We will start preparing your drink near your pickup time.
+            </p>
+            <div className="flex justify-center">
+              <QRCode value={trackUrl} size={180} />
+            </div>
+            <div className="rounded-xl border bg-muted/30 px-3 py-2 text-xs">
+              {trackUrl}
+            </div>
+            <Button
+              variant="secondary"
+              className="w-full"
+              onClick={() => navigator.clipboard.writeText(trackUrl)}
+            >
+              Copy Tracking Link
+            </Button>
+          </CardContent>
+        </Card>
       </div>
     );
   }
 
   return (
-    <div className="space-y-5">
-      <h1 className="text-xl font-extrabold tracking-tight">Checkout</h1>
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <Badge variant="secondary">Checkout</Badge>
+          <h1 className="mt-2 text-2xl font-semibold">Finish your order</h1>
+        </div>
+        <Badge variant="glow">{items.length} item(s)</Badge>
+      </div>
 
       {errors.length > 0 && (
-        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 flex gap-3">
-          <div className="mt-0.5">⚠️</div>
-          <div>
-            <div className="font-semibold mb-1">
-              We need a few fixes before placing your order:
-            </div>
+        <Alert variant="destructive">
+          <AlertTitle>We need a few fixes</AlertTitle>
+          <AlertDescription>
             <ul className="list-disc space-y-0.5 pl-4">
               {errors.map((err, i) => (
                 <li key={i}>{err}</li>
               ))}
             </ul>
-          </div>
-        </div>
+          </AlertDescription>
+        </Alert>
       )}
 
-      <div className="grid gap-4 md:grid-cols-3">
-        <div className="md:col-span-2 space-y-4">
-          <div
-            className={`rounded-2xl border bg-white p-4 ${
-              fieldErrors.pickup ? "border-red-300" : ""
-            }`}
-          >
-            <div className="font-semibold">Pickup Time</div>
-            <div className="mt-2">
+      <div className="grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
+        <div className="space-y-4">
+          <Card className={fieldErrors.pickup ? "border-destructive/60" : ""}>
+            <CardHeader>
+              <CardTitle className="text-base">Pickup time</CardTitle>
+            </CardHeader>
+            <CardContent>
               <PickupTimePicker
                 value={pickup}
                 min={getMinPickup()}
                 onChange={setPickup}
               />
-            </div>
-            <p className="mt-1 text-xs text-gray-500">
-              Choose a time at least a few minutes from now.
-            </p>
-          </div>
+              <p className="mt-2 text-xs text-muted-foreground">
+                Choose a time at least a few minutes from now.
+              </p>
+            </CardContent>
+          </Card>
 
-          <div className="rounded-2xl border bg-white p-4">
-            <div className="font-semibold">Contact</div>
-            <div className="mt-3 grid gap-2 md:grid-cols-2">
-              <input
-                className={`rounded-lg border px-3 py-2 text-sm outline-none focus:ring-2 ${
-                  fieldErrors.name
-                    ? "border-red-300 focus:ring-red-300"
-                    : "focus:ring-[#D26E3D]/30"
-                }`}
-                placeholder="Full Name"
-                required
-                minLength={2}
-                maxLength={80}
-                autoComplete="name"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-              />
-              <input
-                className={`rounded-lg border px-3 py-2 text-sm outline-none focus:ring-2 ${
-                  fieldErrors.phone
-                    ? "border-red-300 focus:ring-red-300"
-                    : "focus:ring-[#D26E3D]/30"
-                }`}
-                placeholder="Phone Number"
-                required
-                inputMode="numeric"
-                autoComplete="tel"
-                maxLength={20}
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-              />
-            </div>
-          </div>
-
-          <div className="rounded-2xl border bg-white p-4 space-y-3">
-            <div className="font-semibold">Payment</div>
-            <div className="space-y-2">
-              <label className="flex items-center gap-2 text-sm">
-                <input
-                  type="radio"
-                  checked={paymentMethod === "cash"}
-                  onChange={() => setPaymentMethod("cash")}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Contact</CardTitle>
+            </CardHeader>
+            <CardContent className="grid gap-3 md:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="name">Full name</Label>
+                <Input
+                  id="name"
+                  placeholder="Jane Dela Cruz"
+                  required
+                  minLength={2}
+                  maxLength={80}
+                  autoComplete="name"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  className={fieldErrors.name ? "border-destructive/60" : ""}
                 />
-                Cash on pickup
-              </label>
-              <label className="flex items-center gap-2 text-sm">
-                <input
-                  type="radio"
-                  checked={paymentMethod === "gcash"}
-                  onChange={() => setPaymentMethod("gcash")}
-                />
-                GCash
-              </label>
-              <label className="flex items-center gap-2 text-sm">
-                <input
-                  type="radio"
-                  checked={paymentMethod === "bank"}
-                  onChange={() => setPaymentMethod("bank")}
-                />
-                Bank transfer (BPI)
-              </label>
-            </div>
-
-            {paymentMethod === "gcash" && (
-              <div className="mt-3 space-y-2 rounded-lg bg-gray-50 p-3 text-xs text-gray-700">
-                <div className="text-sm font-semibold">GCash Details</div>
-                <p>
-                  Send payment to:{" "}
-                  <span className="font-medium">09XX XXX XXXX</span>{" "}
-                  (DailyMacros)
-                </p>
-                <div className="mt-2 flex justify-center">
-                  <img
-                    src="/gcash-qr.png"
-                    alt="GCash QR Code"
-                    className="h-32 w-32 object-contain"
-                  />
-                </div>
               </div>
-            )}
-
-            {paymentMethod === "bank" && (
-              <div className="mt-3 space-y-2 rounded-lg bg-gray-50 p-3 text-xs text-gray-700">
-                <div className="text-sm font-semibold">BPI Bank Details</div>
-                <p>
-                  Account name: <span className="font-medium">DailyMacros</span>
-                  <br />
-                  Account number:{" "}
-                  <span className="font-medium">XXXX XXXX XXXX</span>
-                </p>
-                <div className="mt-2 flex justify-center">
-                  <img
-                    src="/bpi-qr.png"
-                    alt="BPI QR Code"
-                    className="h-32 w-32 object-contain"
-                  />
-                </div>
+              <div className="space-y-2">
+                <Label htmlFor="phone">Phone number</Label>
+                <Input
+                  id="phone"
+                  placeholder="09xx xxx xxxx"
+                  required
+                  inputMode="numeric"
+                  autoComplete="tel"
+                  maxLength={20}
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  className={fieldErrors.phone ? "border-destructive/60" : ""}
+                />
               </div>
-            )}
+            </CardContent>
+          </Card>
 
-            {(paymentMethod === "gcash" || paymentMethod === "bank") && (
-              <>
-                <div className="mt-3">
-                  <label
-                    className={`text-xs ${
-                      fieldErrors.paymentRef ? "text-red-600" : "text-gray-500"
-                    }`}
-                  >
-                    Reference No. / Sender name{" "}
-                    <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    value={paymentRef}
-                    onChange={(e) => setPaymentRef(e.target.value)}
-                    className={`mt-1 w-full rounded-lg border px-3 py-2 text-sm outline-none focus:ring-2 ${
-                      fieldErrors.paymentRef
-                        ? "border-red-300 focus:ring-red-300"
-                        : "focus:ring-[#D26E3D]/30"
-                    }`}
-                    placeholder="e.g. GCash Ref #1234 / Juan Dela Cruz"
-                  />
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Payment</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <RadioGroup
+                value={paymentMethod}
+                onValueChange={(value) =>
+                  setPaymentMethod(value as PaymentMethod)
+                }
+                className="grid gap-3"
+              >
+                <div className="flex items-center gap-2">
+                  <RadioGroupItem value="cash" id="cash" />
+                  <Label htmlFor="cash">Cash on pickup</Label>
                 </div>
-                <div className="mt-2">
-                  <label
-                    className={`text-xs ${
-                      fieldErrors.paymentProof
-                        ? "text-red-600"
-                        : "text-gray-500"
-                    }`}
-                  >
-                    Upload payment proof (screenshot){" "}
-                    <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={(e) => {
-                      const f = e.target.files?.[0] || null;
-                      setPaymentProofFile(f);
-
-                      setPaymentProofPreview((old) => {
-                        if (old) URL.revokeObjectURL(old);
-                        if (!f) return null;
-                        return URL.createObjectURL(f);
-                      });
-                    }}
-                    className={`mt-1 block w-full text-sm ${
-                      fieldErrors.paymentProof ? "text-red-700" : ""
-                    }`}
-                  />
-
-                  {paymentProofPreview && (
-                    <div className="mt-2 flex items-center gap-2">
-                      <img
-                        src={paymentProofPreview}
-                        alt="Payment proof preview"
-                        className="h-16 w-16 rounded border object-cover"
-                      />
-                      <span className="max-w-[140px] truncate text-[11px] text-gray-500">
-                        {paymentProofFile?.name}
-                      </span>
-                    </div>
-                  )}
+                <div className="flex items-center gap-2">
+                  <RadioGroupItem value="gcash" id="gcash" />
+                  <Label htmlFor="gcash">GCash</Label>
                 </div>
-              </>
-            )}
-          </div>
+                <div className="flex items-center gap-2">
+                  <RadioGroupItem value="bank" id="bank" />
+                  <Label htmlFor="bank">Bank transfer (BPI)</Label>
+                </div>
+              </RadioGroup>
+
+              {paymentMethod === "gcash" && (
+                <div className="rounded-2xl border bg-muted/40 p-4 text-sm">
+                  <div className="font-semibold">GCash details</div>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Send payment to 09XX XXX XXXX (DailyMacros).
+                  </p>
+                  <div className="mt-3 flex justify-center">
+                    <img
+                      src="/gcash-qr.png"
+                      alt="GCash QR Code"
+                      className="h-32 w-32 object-contain"
+                    />
+                  </div>
+                </div>
+              )}
+
+              {paymentMethod === "bank" && (
+                <div className="rounded-2xl border bg-muted/40 p-4 text-sm">
+                  <div className="font-semibold">BPI bank details</div>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Account name: DailyMacros
+                    <br />
+                    Account number: XXXX XXXX XXXX
+                  </p>
+                  <div className="mt-3 flex justify-center">
+                    <img
+                      src="/bpi-qr.png"
+                      alt="BPI QR Code"
+                      className="h-32 w-32 object-contain"
+                    />
+                  </div>
+                </div>
+              )}
+
+              {(paymentMethod === "gcash" || paymentMethod === "bank") && (
+                <div className="grid gap-3 md:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="paymentRef">
+                      Reference no. / Sender name
+                    </Label>
+                    <Input
+                      id="paymentRef"
+                      value={paymentRef}
+                      onChange={(e) => setPaymentRef(e.target.value)}
+                      placeholder="Ref #1234 / Juan Dela Cruz"
+                      className={
+                        fieldErrors.paymentRef ? "border-destructive/60" : ""
+                      }
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="proof">Upload payment proof</Label>
+                    <Input
+                      id="proof"
+                      type="file"
+                      accept="image/*"
+                      onChange={(e) => {
+                        const f = e.target.files?.[0] || null;
+                        setPaymentProofFile(f);
+
+                        setPaymentProofPreview((old) => {
+                          if (old) URL.revokeObjectURL(old);
+                          if (!f) return null;
+                          return URL.createObjectURL(f);
+                        });
+                      }}
+                      className={
+                        fieldErrors.paymentProof ? "border-destructive/60" : ""
+                      }
+                    />
+
+                    {paymentProofPreview && (
+                      <div className="flex items-center gap-2">
+                        <img
+                          src={paymentProofPreview}
+                          alt="Payment proof preview"
+                          className="h-14 w-14 rounded-xl border object-cover"
+                        />
+                        <span className="text-xs text-muted-foreground">
+                          {paymentProofFile?.name}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
         </div>
 
-        <aside className="md:col-span-1">
-          <div className="rounded-2xl border bg-white p-4">
-            <div className="mb-2 flex items-center justify-between">
-              <div className="font-semibold">Order Summary</div>
-              <div className="rounded bg-gray-50 px-2 py-0.5 text-xs text-gray-600">
-                {items.length} item{items.length > 1 ? "s" : ""}
-              </div>
-            </div>
-
-            <ul className="divide-y divide-gray-100 text-sm">
-              {items.map((it, i) => (
-                <li key={i} className="py-2">
-                  <div className="flex items-start justify-between gap-2">
+        <aside className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Order summary</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <ul className="space-y-3 text-sm">
+                {items.map((it, i) => (
+                  <li key={i} className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
                       <div className="truncate font-medium">
                         {it.base_drink_name
-                          ? `Custom — ${it.base_drink_name}`
+                          ? `Custom - ${it.base_drink_name}`
                           : it.item_name}
                       </div>
                       {typeof it.base_price_cents === "number" &&
                         typeof it.addons_price_cents === "number" && (
-                          <div className="mt-0.5 text-[11px] text-gray-500">
-                            Base <Price cents={it.base_price_cents} /> · Add-ons{" "}
+                          <div className="mt-1 text-xs text-muted-foreground">
+                            Base <Price cents={it.base_price_cents} /> + Add-ons{" "}
                             <Price cents={it.addons_price_cents} />
                           </div>
                         )}
                     </div>
-                    <div className="shrink-0">
+                    <div className="shrink-0 font-semibold">
                       <Price cents={it.unit_price_cents} />
                     </div>
-                  </div>
-                </li>
-              ))}
-            </ul>
+                  </li>
+                ))}
+              </ul>
 
-            <div className="mt-3 flex items-center justify-between text-base">
-              <div className="font-medium">Subtotal</div>
-              <div className="font-semibold">
-                <Price cents={subtotal} />
+              <div className="flex items-center justify-between text-base">
+                <div className="font-medium">Subtotal</div>
+                <div className="font-semibold">
+                  <Price cents={subtotal} />
+                </div>
               </div>
-            </div>
 
-            <button
-              disabled={loading || cartEmpty}
-              onClick={placeOrder}
-              className="mt-4 w-full rounded-lg bg-[#D26E3D] px-4 py-2 text-sm font-semibold text-white transition hover:opacity-90 disabled:opacity-50"
-            >
-              {loading ? "Placing…" : "Place Order"}
-            </button>
-            <p className="mt-2 text-[11px] text-gray-500 text-center">
-              You’ll receive a tracking QR and link after checkout.
-            </p>
-          </div>
+              <Button
+                disabled={loading || cartEmpty}
+                onClick={placeOrder}
+                className="w-full"
+              >
+                {loading ? "Placing..." : "Place Order"}
+              </Button>
+              <p className="text-[11px] text-muted-foreground">
+                You will receive a tracking QR and link after checkout.
+              </p>
+            </CardContent>
+          </Card>
         </aside>
       </div>
 
