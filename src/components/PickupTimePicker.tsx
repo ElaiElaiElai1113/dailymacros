@@ -1,9 +1,11 @@
 import { useState } from "react";
 export default function PickupTimePicker({
   value,
+  min,
   onChange,
 }: {
   value: string;
+  min?: string;
   onChange: (v: string) => void;
 }) {
   const [v, setV] = useState(value);
@@ -12,6 +14,7 @@ export default function PickupTimePicker({
       <input
         type="datetime-local"
         value={v}
+        min={min}
         onChange={(e) => {
           setV(e.target.value);
           onChange(e.target.value);

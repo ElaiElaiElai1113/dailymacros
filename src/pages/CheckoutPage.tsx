@@ -1,4 +1,4 @@
-import { useCart } from "@/context/CartContext";
+﻿import { useCart } from "@/context/CartContext";
 import PickupTimePicker from "@/components/PickupTimePicker";
 import { supabase } from "@/lib/supabaseClient";
 import { useEffect, useMemo, useState } from "react";
@@ -20,11 +20,13 @@ type FieldErrors = {
 
 export default function CheckoutPage() {
   const { items, clear } = useCart();
+  const [loadedAt] = useState(() => Date.now());
   const [pickup, setPickup] = useState(() =>
     new Date(Date.now() + 60 * 60 * 1000).toISOString().slice(0, 16)
   );
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
+  const [honeypot, setHoneypot] = useState("");
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("cash");
   const [paymentRef, setPaymentRef] = useState("");
   const [paymentProofFile, setPaymentProofFile] = useState<File | null>(null);
@@ -52,13 +54,16 @@ export default function CheckoutPage() {
     [items]
   );
 
+  function getMinPickup() {
+    return new Date(Date.now() + 5 * 60 * 1000).toISOString().slice(0, 16);
+  }
+
   function validatePickup(ts: string) {
     const dt = new Date(ts);
     return dt.getTime() > Date.now() + 5 * 60 * 1000;
   }
 
   function phoneLooksOk(v: string) {
-    if (!v) return true;
     const digits = v.replace(/\D/g, "");
     return digits.length >= 10 && digits.length <= 13;
   }
@@ -81,6 +86,14 @@ export default function CheckoutPage() {
       paymentProof: false,
     };
 
+    if (honeypot.trim()) {
+      newErrors.push("Unable to submit your order. Please try again.");
+    }
+
+    if (Date.now() - loadedAt < 3000) {
+      newErrors.push("Please wait a moment before submitting.");
+    }
+
     if (cartEmpty) {
       newErrors.push("Your cart is empty.");
     }
@@ -93,29 +106,16 @@ export default function CheckoutPage() {
     const trimmedName = name.trim();
     const trimmedPhone = phone.trim();
 
-    if (paymentMethod === "cash") {
-      if (!(trimmedName || trimmedPhone)) {
-        newErrors.push(
-          "For cash orders, please provide at least your name or phone number."
-        );
-        newFieldErrors.name = !trimmedName;
-        newFieldErrors.phone = !trimmedPhone;
-      }
-    } else {
-      if (!trimmedName) {
-        newErrors.push("For online payments, please provide your full name.");
-        newFieldErrors.name = true;
-      }
-      if (!trimmedPhone) {
-        newErrors.push(
-          "For online payments, please provide your phone number so we can contact you about your order."
-        );
-        newFieldErrors.phone = true;
-      }
+    if (!trimmedName || trimmedName.length < 2) {
+      newErrors.push("Please enter your full name.");
+      newFieldErrors.name = true;
     }
 
-    if (trimmedPhone && !phoneLooksOk(trimmedPhone)) {
-      newErrors.push("Enter a valid phone number (10–13 digits).");
+    if (!trimmedPhone) {
+      newErrors.push("Please enter your phone number.");
+      newFieldErrors.phone = true;
+    } else if (!phoneLooksOk(trimmedPhone)) {
+      newErrors.push("Enter a valid phone number (10-13 digits).");
       newFieldErrors.phone = true;
     }
 
@@ -293,7 +293,11 @@ export default function CheckoutPage() {
           >
             <div className="font-semibold">Pickup Time</div>
             <div className="mt-2">
-              <PickupTimePicker value={pickup} onChange={setPickup} />
+              <PickupTimePicker
+                value={pickup}
+                min={getMinPickup()}
+                onChange={setPickup}
+              />
             </div>
             <p className="mt-1 text-xs text-gray-500">
               Choose a time at least a few minutes from now.
@@ -302,11 +306,6 @@ export default function CheckoutPage() {
 
           <div className="rounded-2xl border bg-white p-4">
             <div className="font-semibold">Contact</div>
-            <p className="mt-1 text-xs text-gray-500">
-              For cash orders, provide at least your name or phone. For online
-              payments, we require both your name and phone number so we can
-              contact you about your order.
-            </p>
             <div className="mt-3 grid gap-2 md:grid-cols-2">
               <input
                 className={`rounded-lg border px-3 py-2 text-sm outline-none focus:ring-2 ${
@@ -314,7 +313,11 @@ export default function CheckoutPage() {
                     ? "border-red-300 focus:ring-red-300"
                     : "focus:ring-[#D26E3D]/30"
                 }`}
-                placeholder="Your Name"
+                placeholder="Full Name"
+                required
+                minLength={2}
+                maxLength={80}
+                autoComplete="name"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
               />
@@ -325,6 +328,10 @@ export default function CheckoutPage() {
                     : "focus:ring-[#D26E3D]/30"
                 }`}
                 placeholder="Phone Number"
+                required
+                inputMode="numeric"
+                autoComplete="tel"
+                maxLength={20}
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
               />
@@ -333,10 +340,6 @@ export default function CheckoutPage() {
 
           <div className="rounded-2xl border bg-white p-4 space-y-3">
             <div className="font-semibold">Payment</div>
-            <p className="text-xs text-gray-500">
-              Pay in cash on pickup, or send via GCash/bank and upload your
-              payment screenshot for verification.
-            </p>
             <div className="space-y-2">
               <label className="flex items-center gap-2 text-sm">
                 <input
@@ -525,6 +528,17 @@ export default function CheckoutPage() {
           </div>
         </aside>
       </div>
+
+      <input
+        type="text"
+        name="company"
+        tabIndex={-1}
+        autoComplete="off"
+        value={honeypot}
+        onChange={(e) => setHoneypot(e.target.value)}
+        className="absolute left-[-9999px] h-px w-px opacity-0"
+        aria-hidden="true"
+      />
     </div>
   );
 }
