@@ -1,3 +1,55 @@
+@import url("https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap");
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 46 78% 96%;
+    --foreground: 18 20% 16%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 18 20% 16%;
+
+    --primary: 18 65% 50%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 46 70% 88%;
+    --secondary-foreground: 18 20% 16%;
+
+    --muted: 30 30% 92%;
+    --muted-foreground: 18 10% 40%;
+
+    --accent: 176 30% 40%;
+    --accent-foreground: 0 0% 100%;
+
+    --destructive: 0 70% 45%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 18 18% 85%;
+    --input: 18 18% 85%;
+    --ring: 18 65% 50%;
+
+    --radius: 14px;
+
+    --font-sans: "Plus Jakarta Sans";
+    --font-display: "Space Grotesk";
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-family: var(--font-sans), system-ui, sans-serif;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4 {
+    font-family: var(--font-display), system-ui, sans-serif;
+  }
+}
