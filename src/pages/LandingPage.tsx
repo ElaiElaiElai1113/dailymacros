@@ -1,6 +1,9 @@
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { supabase } from "@/lib/supabaseClient";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Card, CardContent } from "@/components/ui/card";
 
 type Drink = {
   id: string;
@@ -9,44 +12,6 @@ type Drink = {
   price_php: number;
   image_url?: string | null;
 };
-
-const COLORS = {
-  redOrange: "#D26E3D",
-  yellow: "#EECB65",
-  cyan: "#599190",
-  bg: "#FFF9EE",
-};
-
-function isPublicImage(url?: string | null) {
-  if (!url) return false;
-  return url.includes("/storage/v1/object/public/");
-}
-
-// 👇 helper component to actually show errors
-function DebugImage({ src, alt }: { src: string; alt: string }) {
-  const [errored, setErrored] = useState(false);
-  return (
-    <div className="w-full h-full flex items-center justify-center bg-white">
-      {!errored ? (
-        <img
-          src={src}
-          alt={alt}
-          className="max-h-full max-w-full object-contain"
-          onError={() => {
-            console.error("Image failed to load:", src);
-            setErrored(true);
-          }}
-        />
-      ) : (
-        <div className="text-[10px] text-red-500 p-2 break-all text-center">
-          image failed:
-          <br />
-          {src}
-        </div>
-      )}
-    </div>
-  );
-}
 
 export default function LandingPage() {
   const [drinks, setDrinks] = useState<Drink[]>([]);
@@ -64,233 +29,172 @@ export default function LandingPage() {
 
       if (!error) {
         setDrinks((data as Drink[]) || []);
-      } else {
-        console.error("supabase error in landing page:", error);
       }
       setLoading(false);
     })();
   }, []);
 
-  // pick the first drink as the featured hero drink
   const featured = useMemo<Drink | null>(
     () => (drinks.length > 0 ? drinks[0] : null),
     [drinks]
   );
 
   return (
-    <div
-      style={{
-        background: `linear-gradient(180deg, ${COLORS.bg}, #FFFFFF)`,
-      }}
-      className="min-h-screen text-gray-900"
-    >
-      {/* HERO SECTION */}
-      <section className="relative mx-auto max-w-7xl grid items-center gap-10 px-4 py-16 md:grid-cols-2">
-        {/* hero text */}
-        <div className="z-10">
-          <h1 className="text-5xl font-extrabold leading-tight text-gray-900 md:text-6xl">
-            Fuel your day with{" "}
-            <span style={{ color: COLORS.cyan }}>macro-perfect</span> shakes.
-          </h1>
-          <p className="mt-4 text-gray-700 md:text-lg">
-            Hand-crafted by dietitians. Customize your ingredients, track your
-            macros, and order seamlessly — no login needed.
-          </p>
-          <div className="mt-6 flex flex-wrap gap-3">
-            <Link
-              to="/menu"
-              className="rounded-xl px-6 py-3 font-semibold text-white shadow hover:opacity-90"
-              style={{ background: COLORS.redOrange }}
-            >
-              Order Now
-            </Link>
-            <Link
-              to="/build"
-              className="rounded-xl px-6 py-3 font-semibold border text-gray-700 hover:bg-gray-50"
-            >
-              Build Your Own
-            </Link>
-          </div>
-        </div>
-
-        {/* HERO IMAGE / MOCKUP */}
-        <div className="relative mx-auto max-w-md">
-          {/* glow */}
-          <div
-            className="absolute -inset-3 rounded-3xl blur-2xl opacity-60"
-            style={{
-              background: `linear-gradient(135deg, ${COLORS.cyan}, ${COLORS.yellow})`,
-            }}
-          />
-          <div className="relative rounded-3xl border bg-white p-6 shadow-xl">
-            {/* image slot */}
-            <div className="h-48 rounded-2xl bg-gray-50 flex items-center justify-center overflow-hidden">
-              {featured &&
-              featured.image_url &&
-              isPublicImage(featured.image_url) ? (
-                <DebugImage src={featured.image_url} alt={featured.name} />
-              ) : (
-                <div className="h-full w-full rounded-2xl bg-gradient-to-tr from-[#D26E3D33] to-[#59919033]" />
-              )}
-            </div>
-
-            {/* featured meta */}
-            <div className="mt-4 flex items-start justify-between">
-              <div>
-                <div className="text-sm font-medium text-[#599190]">
-                  Featured
-                </div>
-                <div className="text-lg font-semibold">
-                  {featured ? featured.name : "Berry Oat Smoothie"}
-                </div>
-              </div>
-              <div className="rounded-md bg-[#EECB65aa] px-3 py-1 text-xs font-semibold text-[#5a4200]">
-                ₱{featured ? featured.price_php.toFixed(0) : "200"}
-              </div>
-            </div>
-
-            <p className="mt-2 text-sm text-gray-600">
-              {featured?.description ||
-                "Mixed berries, oats, Greek yogurt & whey protein. Balanced, delicious, and transparent."}
+    <div className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(210,110,61,0.15),_transparent_55%),radial-gradient(circle_at_bottom,_rgba(89,145,144,0.12),_transparent_50%)]">
+      <section className="relative mx-auto max-w-7xl px-4 py-16">
+        <div className="grid items-center gap-10 lg:grid-cols-[1.1fr_0.9fr]">
+          <div className="space-y-5">
+            <Badge variant="secondary">DailyMacros</Badge>
+            <h1 className="text-4xl font-semibold leading-tight md:text-5xl">
+              Protein shakes with macros you can trust.
+            </h1>
+            <p className="max-w-xl text-sm text-muted-foreground md:text-base">
+              Dietitian-crafted blends, clear macro breakdowns, and a fast
+              checkout built for busy days.
             </p>
-
-            <div className="mt-4 grid grid-cols-4 gap-2 text-center text-xs">
-              <Stat label="Kcal" value="~350" />
-              <Stat label="Protein" value="~25g" />
-              <Stat label="Carbs" value="~40g" />
-              <Stat label="Fat" value="~8g" />
+            <div className="flex flex-wrap gap-3">
+              <Button asChild>
+                <Link to="/menu">Order Now</Link>
+              </Button>
+              <Button asChild variant="secondary">
+                <Link to="/build">Build Your Own</Link>
+              </Button>
             </div>
           </div>
+
+          <Card className="relative overflow-hidden">
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(226,188,120,0.35),_transparent_60%)]" />
+            <CardContent className="relative space-y-4 p-6">
+              <div className="flex items-center justify-between">
+                <Badge variant="glow">Featured</Badge>
+                <span className="text-xs text-muted-foreground">
+                  Ready in minutes
+                </span>
+              </div>
+              <div className="aspect-[4/3] w-full overflow-hidden rounded-3xl border bg-white">
+                {featured?.image_url ? (
+                  <img
+                    src={featured.image_url}
+                    alt={featured.name}
+                    className="h-full w-full object-contain"
+                  />
+                ) : (
+                  <div className="h-full w-full bg-gradient-to-br from-[#FFE7C5] via-white to-[#D7EFEA]" />
+                )}
+              </div>
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <div className="text-lg font-semibold">
+                    {featured?.name || "Berry Oat Shake"}
+                  </div>
+                  <p className="text-sm text-muted-foreground">
+                    {featured?.description ||
+                      "Balanced flavor with fiber, protein, and clean energy."}
+                  </p>
+                </div>
+                <Badge variant="secondary">
+                  PHP {featured ? featured.price_php.toFixed(0) : "200"}
+                </Badge>
+              </div>
+              <div className="grid grid-cols-4 gap-2 text-center text-xs">
+                <MiniStat label="Kcal" value="~350" />
+                <MiniStat label="Protein" value="~25g" />
+                <MiniStat label="Carbs" value="~40g" />
+                <MiniStat label="Fat" value="~8g" />
+              </div>
+            </CardContent>
+          </Card>
         </div>
       </section>
 
-      {/* MENU PREVIEW */}
-      <section className="mx-auto max-w-7xl px-4 py-16">
-        <div className="mb-8 flex items-center justify-between">
-          <h2 className="text-3xl font-extrabold">Popular on the Menu</h2>
-          <Link
-            to="/menu"
-            className="text-sm font-semibold hover:opacity-80"
-            style={{ color: COLORS.redOrange }}
-          >
-            View All →
-          </Link>
+      <section className="mx-auto max-w-7xl px-4 pb-16">
+        <div className="mb-6 flex items-center justify-between">
+          <h2 className="text-2xl font-semibold">Popular blends</h2>
+          <Button asChild variant="link">
+            <Link to="/menu">View all</Link>
+          </Button>
         </div>
 
         {loading ? (
-          <div className="text-gray-600 text-sm">Loading popular drinks...</div>
+          <div className="text-sm text-muted-foreground">
+            Loading popular drinks...
+          </div>
         ) : drinks.length === 0 ? (
-          <div className="text-gray-600 text-sm">
+          <div className="text-sm text-muted-foreground">
             No drinks yet. Add some in the admin panel.
           </div>
         ) : (
-          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {drinks.map((d) => (
-              <DrinkCard key={d.id} drink={d} colors={COLORS} />
+              <MiniDrinkCard key={d.id} drink={d} />
             ))}
           </div>
         )}
       </section>
 
-      {/* CTA + FOOTER same as before ... */}
-      <section className="bg-gradient-to-r from-[#EECB65] to-[#D26E3D] text-white py-16">
-        <div className="mx-auto max-w-6xl flex flex-col items-center text-center gap-6">
-          <h3 className="text-3xl font-bold">Ready to power your day?</h3>
-          <p className="text-white/90 max-w-xl">
+      <section className="bg-gradient-to-r from-[#EECB65] to-[#D26E3D] py-14 text-white">
+        <div className="mx-auto max-w-6xl px-4 text-center">
+          <h3 className="text-3xl font-semibold">Ready to power your day?</h3>
+          <p className="mx-auto mt-3 max-w-xl text-white/90">
             Order your favorite protein shake or build your own blend.
           </p>
-          <div className="flex flex-wrap gap-4 justify-center">
-            <Link
-              to="/menu"
-              className="rounded-xl bg-white px-6 py-3 font-semibold text-[#D26E3D] hover:opacity-90"
-            >
-              Order Now
-            </Link>
-            <Link
-              to="/build"
-              className="rounded-xl border border-white px-6 py-3 font-semibold text-white hover:bg-white/10"
-            >
-              Build Your Own
-            </Link>
+          <div className="mt-6 flex flex-wrap justify-center gap-3">
+            <Button asChild variant="secondary">
+              <Link to="/menu">Order Now</Link>
+            </Button>
+            <Button asChild variant="outline" className="border-white text-white">
+              <Link to="/build">Build Your Own</Link>
+            </Button>
           </div>
         </div>
       </section>
 
-      <footer className="border-t bg-white text-gray-600 text-sm">
-        <div className="mx-auto max-w-7xl px-4 py-6 flex flex-col md:flex-row items-center justify-between">
-          <div className="flex items-center gap-2">
-            <img
-              src="/logo-placeholder.svg"
-              alt="DailyMacros logo"
-              className="h-6 w-6 bg-gray-100 rounded"
-            />
-            <span>© {new Date().getFullYear()} DailyMacros</span>
-          </div>
-          <p className="mt-2 md:mt-0 text-gray-500">
-            Designed for nutrition, built for performance.
-          </p>
+      <footer className="border-t border-border/60 bg-white">
+        <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-2 px-4 py-6 text-sm text-muted-foreground md:flex-row">
+          <div>Ac {new Date().getFullYear()} DailyMacros</div>
+          <div>Designed for nutrition, built for performance.</div>
         </div>
       </footer>
     </div>
   );
 }
 
-/* ------------------------- COMPONENTS -------------------------- */
-
-function DrinkCard({ drink, colors }: { drink: Drink; colors: typeof COLORS }) {
-  const showImage = isPublicImage(drink.image_url);
-
+function MiniDrinkCard({ drink }: { drink: Drink }) {
   return (
-    <div className="group rounded-2xl border bg-white p-4 shadow-sm hover:shadow-md transition flex flex-col gap-3">
-      <div className="h-36 w-full rounded-xl bg-gray-50 flex items-center justify-center overflow-hidden">
-        {showImage ? (
-          <DebugImage src={drink.image_url!} alt={drink.name} />
-        ) : (
-          <div
-            className="h-full w-full rounded-xl"
-            style={{
-              background: `linear-gradient(135deg, ${colors.cyan}22, ${colors.redOrange}22)`,
-            }}
-          />
-        )}
-      </div>
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <div className="font-semibold">{drink.name}</div>
-          <div className="text-sm text-gray-600 line-clamp-2">
-            {drink.description || "Signature protein smoothie."}
+    <Card className="overflow-hidden">
+      <CardContent className="space-y-3 p-4">
+        <div className="aspect-[4/3] w-full overflow-hidden rounded-2xl border bg-white">
+          {drink.image_url ? (
+            <img
+              src={drink.image_url}
+              alt={drink.name}
+              className="h-full w-full object-contain"
+            />
+          ) : (
+            <div className="h-full w-full bg-gradient-to-br from-[#FFE7C5] via-white to-[#D7EFEA]" />
+          )}
+        </div>
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <div className="text-base font-semibold">{drink.name}</div>
+            <p className="text-sm text-muted-foreground line-clamp-2">
+              {drink.description || "Signature protein blend."}
+            </p>
           </div>
+          <Badge variant="secondary">PHP {drink.price_php.toFixed(0)}</Badge>
         </div>
-        <div
-          className="rounded-md px-2.5 py-1 text-xs font-medium text-white"
-          style={{ background: colors.cyan }}
-        >
-          ₱{drink.price_php.toFixed(2)}
-        </div>
-      </div>
-      <div className="mt-auto flex gap-2">
-        <Link
-          to="/menu"
-          className="flex-1 rounded-lg border px-3 py-2 text-sm font-medium hover:bg-gray-50 text-center"
-        >
-          View
-        </Link>
-        <Link
-          to="/menu"
-          className="flex-1 rounded-lg px-3 py-2 text-sm font-medium text-white text-center hover:opacity-90"
-          style={{ background: colors.redOrange }}
-        >
-          Order
-        </Link>
-      </div>
-    </div>
+        <Button asChild variant="secondary" className="w-full">
+          <Link to="/menu">View details</Link>
+        </Button>
+      </CardContent>
+    </Card>
   );
 }
 
-function Stat({ label, value }: { label: string; value: string }) {
+function MiniStat({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-lg border bg-white py-2">
-      <div className="text-[10px] uppercase tracking-wide text-gray-500">
+    <div className="rounded-xl border bg-white/70 py-2">
+      <div className="text-[10px] uppercase tracking-wide text-muted-foreground">
         {label}
       </div>
       <div className="mt-0.5 text-sm font-semibold">{value}</div>

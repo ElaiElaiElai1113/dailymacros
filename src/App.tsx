@@ -6,6 +6,7 @@ import {
   useLocation,
   Link,
   Outlet,
+  Navigate,
 } from "react-router-dom";
 import logoUrl from "@/assets/dailymacroslogo.png";
 import RoleGate from "@/lib/auth/RoleGate";
@@ -21,6 +22,7 @@ import CheckoutPage from "./pages/CheckoutPage";
 import OrdersPage from "./pages/OrdersPage";
 import StaffDashboard from "./pages/StaffDashboard";
 import AdminPage from "./pages/admin/AdminPage";
+import AdminLayout from "./layouts/AdminLayout";
 import LoginPage from "./pages/LoginPage";
 import PrintLabelPage from "./pages/PrintLabelPage";
 import TrackOrderPage from "./pages/TrackOrderPage";
@@ -224,38 +226,45 @@ export default function App() {
           />
 
           <Route
-            path="/admin"
-            element={
-              <RoleGate allow={["admin"]}>
-                <AdminPage />
-              </RoleGate>
-            }
-          />
-
-          <Route
-            path="/admin/drinks"
-            element={
-              <RoleGate allow={["admin"]}>
-                <DrinksAdminPage />
-              </RoleGate>
-            }
-          />
-          <Route
-            path="/admin/addons"
-            element={
-              <RoleGate allow={["admin"]}>
-                <AddonsAdminPage />
-              </RoleGate>
-            }
-          />
-          <Route
-            path="/admin/orders"
+            path="/ops"
             element={
               <RoleGate allow={["admin", "staff"]}>
-                <OrdersAdminPage />
+                <AdminLayout />
               </RoleGate>
             }
-          />
+          >
+            <Route
+              index
+              element={
+                <RoleGate allow={["admin"]}>
+                  <AdminPage />
+                </RoleGate>
+              }
+            />
+            <Route
+              path="drinks"
+              element={
+                <RoleGate allow={["admin"]}>
+                  <DrinksAdminPage />
+                </RoleGate>
+              }
+            />
+            <Route
+              path="addons"
+              element={
+                <RoleGate allow={["admin"]}>
+                  <AddonsAdminPage />
+                </RoleGate>
+              }
+            />
+            <Route
+              path="orders"
+              element={
+                <OrdersAdminPage />
+              }
+            />
+          </Route>
+          <Route path="/admin/*" element={<Navigate to="/ops" replace />} />
 
           <Route
             path="*"
