@@ -57,15 +57,17 @@ export default function DrinkDetailDrawer({
 }) {
   if (!drink) return null;
 
-  const [sizeMl, setSizeMl] = useState<number>(() => drink.base_size_ml ?? 473);
+  const [sizeMl, setSizeMl] = useState<number>(
+    () => drink?.base_size_ml ?? 473
+  );
 
   useEffect(() => {
-    if (drink.base_size_ml) setSizeMl(drink.base_size_ml);
-  }, [drink.id, drink.base_size_ml]);
+    if (drink?.base_size_ml) setSizeMl(drink.base_size_ml);
+  }, [drink?.id, drink?.base_size_ml]);
 
   const scaledLines = useMemo(
-    () => scaleLines(lines, drink.base_size_ml, sizeMl),
-    [lines, drink.base_size_ml, sizeMl]
+    () => scaleLines(lines, drink?.base_size_ml ?? null, sizeMl),
+    [lines, drink?.base_size_ml, sizeMl]
   );
 
   const { totals } = useMemo(
@@ -81,12 +83,15 @@ export default function DrinkDetailDrawer({
   const showUnknown =
     !Number.isFinite(totals.energy_kcal) || totals.energy_kcal <= 0;
 
+  const activeDrink = drink;
+  if (!activeDrink) return null;
+
   function handleAddToCart() {
     onAddToCart(scaledLines);
   }
 
   async function handleShareOrPrint() {
-    const price = `PHP ${(drink.price_cents / 100).toFixed(2)}`;
+    const price = `PHP ${(activeDrink.price_cents / 100).toFixed(2)}`;
     const ingList = scaledLines
       .map(
         (l) =>
@@ -96,7 +101,7 @@ export default function DrinkDetailDrawer({
       )
       .join("\n");
 
-    const summary = `DailyMacros - ${drink.name}
+    const summary = `DailyMacros - ${activeDrink.name}
 Size: ${sizeMl} ml - Price: ${price}
 
 Ingredients:
@@ -111,7 +116,7 @@ Nutrition (est.):
     if (navigator.share && navigator.canShare?.({ text: summary })) {
       try {
         await navigator.share({
-          title: `${drink.name} - Nutrition`,
+          title: `${activeDrink.name} - Nutrition`,
           text: summary,
         });
         return;
@@ -125,7 +130,7 @@ Nutrition (est.):
 <html>
 <head>
 <meta charset="utf-8" />
-<title>${escapeHtml(drink.name)} - Nutrition Label</title>
+<title>${escapeHtml(activeDrink.name)} - Nutrition Label</title>
 <style>
   body { font-family: system-ui, -apple-system, Segoe UI, sans-serif; margin: 24px; }
   .card { width: 360px; border: 1px solid #ddd; border-radius: 12px; padding: 16px; }
@@ -143,7 +148,7 @@ Nutrition (est.):
 </head>
 <body>
   <div class="card">
-    <div class="title">DailyMacros - ${escapeHtml(drink.name)}</div>
+    <div class="title">DailyMacros - ${escapeHtml(activeDrink.name)}</div>
     <div class="muted">Size: ${sizeMl} ml - Price: ${price}</div>
 
     <div class="section">
@@ -191,18 +196,18 @@ Nutrition (est.):
         <SheetHeader className="mt-4">
           <div className="flex items-start justify-between gap-4">
             <div>
-              <SheetTitle>{drink.name}</SheetTitle>
+              <SheetTitle>{activeDrink.name}</SheetTitle>
               <SheetDescription>
-                {drink.description || "Signature protein blend."}
+                {activeDrink.description || "Signature protein blend."}
               </SheetDescription>
               <div className="mt-2 flex flex-wrap items-center gap-2">
-                {drink.base_size_ml ? (
+                {activeDrink.base_size_ml ? (
                   <Badge variant="secondary">
-                    Base {drink.base_size_ml} ml
+                    Base {activeDrink.base_size_ml} ml
                   </Badge>
                 ) : null}
                 <Badge variant="glow">
-                  PHP {(drink.price_cents / 100).toFixed(2)}
+                  PHP {(activeDrink.price_cents / 100).toFixed(2)}
                 </Badge>
               </div>
             </div>
@@ -212,10 +217,10 @@ Nutrition (est.):
         <div className="mt-6 grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
           <div className="space-y-5">
             <div className="aspect-[16/10] w-full overflow-hidden rounded-3xl border bg-white">
-              {drink.image_url ? (
+              {activeDrink.image_url ? (
                 <img
-                  src={drink.image_url}
-                  alt={drink.name}
+                  src={activeDrink.image_url}
+                  alt={activeDrink.name}
                   className="h-full w-full object-contain"
                 />
               ) : (
@@ -240,7 +245,7 @@ Nutrition (est.):
                     ))}
                   </div>
                   <p className="mt-2 text-xs text-muted-foreground">
-                    Scales from base size {drink.base_size_ml ?? "default"} ml.
+                    Scales from base size {activeDrink.base_size_ml ?? "default"} ml.
                   </p>
                 </div>
 
