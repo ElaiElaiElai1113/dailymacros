@@ -39,9 +39,17 @@ function Loading() {
   );
 }
 
-function Container({ children }: { children: React.ReactNode }) {
+function Container({
+  children,
+  className,
+}: {
+  children: React.ReactNode;
+  className?: string;
+}) {
   return (
-    <main className="flex-1 min-h-0 w-full max-w-7xl mx-auto p-4 overflow-y-auto overflow-x-hidden">
+    <main
+      className={`flex-1 min-h-0 w-full max-w-7xl mx-auto p-4 overflow-y-auto ${className ?? ""}`}
+    >
       {children}
     </main>
   );
@@ -55,6 +63,10 @@ function SiteLayout() {
     () => location.pathname.startsWith("/print-label"),
     [location.pathname]
   );
+  const isOps = useMemo(
+    () => location.pathname.startsWith("/ops"),
+    [location.pathname]
+  );
 
   return (
     <div className="min-h-screen min-w-0 flex flex-col bg-[#FFFDF8] print:bg-white">
@@ -62,7 +74,7 @@ function SiteLayout() {
       {isPrint ? (
         <Outlet />
       ) : (
-        <Container>
+        <Container className={isOps ? "overflow-x-auto" : "overflow-x-hidden"}>
           <Outlet />
         </Container>
       )}

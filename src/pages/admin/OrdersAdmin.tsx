@@ -1,4 +1,4 @@
-// src/pages/OrdersAdminPage.tsx
+﻿// src/pages/OrdersAdminPage.tsx
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { supabase } from "@/lib/supabaseClient";
 
@@ -359,7 +359,7 @@ export default function OrdersAdminPage() {
       </div>
 
       <div className="overflow-x-auto rounded-2xl border bg-white shadow-sm">
-        <table className="min-w-full text-sm">
+        <table className="min-w-[1100px] text-sm">
           <thead className="bg-gray-50 text-left text-xs uppercase text-gray-600">
             <tr>
               <th className="px-3 py-2">Order</th>
@@ -707,3 +707,4 @@ function RowSkeleton() {
     </tr>
   );
 }
+
