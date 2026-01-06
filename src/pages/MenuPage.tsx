@@ -256,6 +256,7 @@ export default function MenuPage() {
           setDrawerOpen(false);
         }}
         onCustomize={() => {
+          if (!selected) return;
           setDrawerOpen(false);
           navigate(`/order?base=${selected.id}`);
         }}
