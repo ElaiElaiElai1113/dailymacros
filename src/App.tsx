@@ -17,6 +17,7 @@ import { Badge } from "@/components/ui/badge";
 import LandingPage from "./pages/LandingPage";
 import MenuPage from "./pages/MenuPage";
 import BuildYourOwnPage from "./pages/BuildYourOwnPage";
+import OrderFlowPage from "./pages/OrderFlowPage";
 import CartPage from "./pages/CartPage";
 import CheckoutPage from "./pages/CheckoutPage";
 import OrdersPage from "./pages/OrdersPage";
@@ -114,14 +115,14 @@ function Navbar() {
         <div className="hidden md:flex items-center gap-4 text-sm font-medium">
           <NavItem to="/" label="Home" end />
           <NavItem to="/menu" label="Menu" />
-          <NavItem to="/build" label="Build" />
+          <NavItem to="/order" label="Order" />
           <NavItem
             to="/cart"
             label="Cart"
             badge={cartCount > 0 ? cartCount : undefined}
           />
           <Button asChild className="ml-2">
-            <Link to="/menu">Order Now</Link>
+            <Link to="/order">Order Now</Link>
           </Button>
         </div>
 
@@ -151,7 +152,7 @@ function Navbar() {
           <div className="mx-auto max-w-7xl px-4 py-3 grid gap-2 text-sm">
             <NavItem to="/" label="Home" end onClick={() => setOpen(false)} />
             <NavItem to="/menu" label="Menu" onClick={() => setOpen(false)} />
-            <NavItem to="/build" label="Build" onClick={() => setOpen(false)} />
+            <NavItem to="/order" label="Order" onClick={() => setOpen(false)} />
             <NavItem
               to="/cart"
               label="Cart"
@@ -160,7 +161,7 @@ function Navbar() {
             />
 
             <Button asChild className="mt-1">
-              <Link to="/menu" onClick={() => setOpen(false)}>
+              <Link to="/order" onClick={() => setOpen(false)}>
                 Order Now
               </Link>
             </Button>
@@ -221,6 +222,7 @@ export default function App() {
         >
           <Route path="/" element={<LandingPage />} />
           <Route path="/menu" element={<MenuPage />} />
+          <Route path="/order" element={<OrderFlowPage />} />
           <Route path="/build" element={<BuildYourOwnPage />} />
           <Route path="/cart" element={<CartPage />} />
           <Route path="/checkout" element={<CheckoutPage />} />

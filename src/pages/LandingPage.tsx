@@ -54,10 +54,10 @@ export default function LandingPage() {
             </p>
             <div className="flex flex-wrap gap-3">
               <Button asChild>
-                <Link to="/menu">Order Now</Link>
+                <Link to="/order">Order Now</Link>
               </Button>
               <Button asChild variant="secondary">
-                <Link to="/build">Build Your Own</Link>
+                <Link to="/order">Build Your Own</Link>
               </Button>
             </div>
           </div>
@@ -140,10 +140,10 @@ export default function LandingPage() {
           </p>
           <div className="mt-6 flex flex-wrap justify-center gap-3">
             <Button asChild variant="secondary">
-              <Link to="/menu">Order Now</Link>
+              <Link to="/order">Order Now</Link>
             </Button>
             <Button asChild variant="outline" className="border-white text-white">
-              <Link to="/build">Build Your Own</Link>
+              <Link to="/order">Build Your Own</Link>
             </Button>
           </div>
         </div>

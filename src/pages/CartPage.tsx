@@ -100,7 +100,7 @@ export default function CartPage() {
                 <Link to="/menu">Browse Menu</Link>
               </Button>
               <Button asChild variant="secondary">
-                <Link to="/build">Build Your Own</Link>
+                <Link to="/order">Build Your Own</Link>
               </Button>
             </div>
           </CardContent>
@@ -209,7 +209,7 @@ function CartItemCard({
             <div className="mt-2 flex flex-wrap items-center justify-end gap-2">
               {item.drink_id && (
                 <Button asChild variant="outline" size="sm">
-                  <Link to={`/build?base=${item.drink_id}`}>Edit</Link>
+                  <Link to={`/order?base=${item.drink_id}`}>Edit</Link>
                 </Button>
               )}
               <Button

@@ -161,7 +161,7 @@ export default function MenuPage() {
           </div>
           <div className="flex flex-wrap gap-2">
             <Button asChild>
-              <Link to="/build">Build Your Own</Link>
+              <Link to="/order">Start Order</Link>
             </Button>
             <Button asChild variant="secondary">
               <Link to="/cart">View Cart</Link>
@@ -257,7 +257,7 @@ export default function MenuPage() {
         }}
         onCustomize={() => {
           setDrawerOpen(false);
-          navigate("/build");
+          navigate(`/order?base=${selected.id}`);
         }}
       />
     </div>
