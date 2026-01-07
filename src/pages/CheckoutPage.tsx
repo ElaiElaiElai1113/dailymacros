@@ -10,6 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Badge } from "@/components/ui/badge";
+import { Hash, Phone, User } from "lucide-react";
 
 function Price({ cents }: { cents: number }) {
   return <span>PHP {(Number(cents || 0) / 100).toFixed(2)}</span>;
@@ -319,31 +320,37 @@ export default function CheckoutPage() {
             <CardContent className="grid gap-3 md:grid-cols-2">
               <div className="space-y-2">
                 <Label htmlFor="name">Full name</Label>
-                <Input
-                  id="name"
-                  placeholder="Jane Dela Cruz"
-                  required
-                  minLength={2}
-                  maxLength={80}
-                  autoComplete="name"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  className={fieldErrors.name ? "border-destructive/60" : ""}
-                />
+                <div className="relative">
+                  <User className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    id="name"
+                    placeholder="Jane Dela Cruz"
+                    required
+                    minLength={2}
+                    maxLength={80}
+                    autoComplete="name"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    className={`pl-9 ${fieldErrors.name ? "border-destructive/60" : ""}`}
+                  />
+                </div>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="phone">Phone number</Label>
-                <Input
-                  id="phone"
-                  placeholder="09xx xxx xxxx"
-                  required
-                  inputMode="numeric"
-                  autoComplete="tel"
-                  maxLength={20}
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
-                  className={fieldErrors.phone ? "border-destructive/60" : ""}
-                />
+                <div className="relative">
+                  <Phone className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    id="phone"
+                    placeholder="09xx xxx xxxx"
+                    required
+                    inputMode="numeric"
+                    autoComplete="tel"
+                    maxLength={20}
+                    value={phone}
+                    onChange={(e) => setPhone(e.target.value)}
+                    className={`pl-9 ${fieldErrors.phone ? "border-destructive/60" : ""}`}
+                  />
+                </div>
               </div>
             </CardContent>
           </Card>
@@ -414,15 +421,16 @@ export default function CheckoutPage() {
                     <Label htmlFor="paymentRef">
                       Reference no. / Sender name
                     </Label>
-                    <Input
-                      id="paymentRef"
-                      value={paymentRef}
-                      onChange={(e) => setPaymentRef(e.target.value)}
-                      placeholder="Ref #1234 / Juan Dela Cruz"
-                      className={
-                        fieldErrors.paymentRef ? "border-destructive/60" : ""
-                      }
-                    />
+                    <div className="relative">
+                      <Hash className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                      <Input
+                        id="paymentRef"
+                        value={paymentRef}
+                        onChange={(e) => setPaymentRef(e.target.value)}
+                        placeholder="Ref #1234 / Juan Dela Cruz"
+                        className={`pl-9 ${fieldErrors.paymentRef ? "border-destructive/60" : ""}`}
+                      />
+                    </div>
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="proof">Upload payment proof</Label>

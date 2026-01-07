@@ -13,6 +13,8 @@ import RoleGate from "@/lib/auth/RoleGate";
 import { useCart } from "@/context/CartContext";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Toaster } from "@/components/ui/toaster";
+import { ToastGlobalListener } from "@/hooks/use-toast";
 
 import LandingPage from "./pages/LandingPage";
 import MenuPage from "./pages/MenuPage";
@@ -71,6 +73,7 @@ function SiteLayout() {
 
   return (
     <div className="min-h-screen min-w-0 flex flex-col bg-[#FFFDF8] print:bg-white">
+      <ToastGlobalListener />
       {!isPrint && <Navbar />}
       {isPrint ? (
         <Outlet />
@@ -79,6 +82,7 @@ function SiteLayout() {
           <Outlet />
         </Container>
       )}
+      <Toaster />
     </div>
   );
 }

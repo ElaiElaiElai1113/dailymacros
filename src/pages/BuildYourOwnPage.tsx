@@ -16,6 +16,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { toast } from "@/hooks/use-toast";
 
 import type {
   CartItem,
@@ -161,7 +162,11 @@ export default function BuildYourOwnPage() {
     unit: string
   ) {
     if (!selectedBaseId) {
-      alert("Pick a base drink first.");
+      toast({
+        title: "Choose a base drink",
+        description: "Pick a base before adding extras.",
+        variant: "destructive",
+      });
       return;
     }
 
@@ -222,7 +227,10 @@ export default function BuildYourOwnPage() {
     };
     addItem(cartItem);
     setExtraLines([]);
-    alert("Added to cart.");
+    toast({
+      title: "Added to cart",
+      description: selectedBase.name,
+    });
   }
 
   return (

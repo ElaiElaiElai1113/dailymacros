@@ -3,6 +3,7 @@ import { supabase } from "@/lib/supabaseClient";
 import type { Ingredient } from "@/types";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Search } from "lucide-react";
 
 type Props = {
   onAdd: (ing: Ingredient, amount: number, unit: string) => void;
@@ -72,12 +73,15 @@ export default function IngredientSelector({
   return (
     <div>
       <div className="mb-3 grid grid-cols-1 gap-2 sm:grid-cols-12">
-        <Input
-          className="sm:col-span-7"
-          placeholder="Search add-ons (chia, honey, cocoa)"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-        />
+        <div className="relative sm:col-span-7">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            className="pl-9"
+            placeholder="Search add-ons (chia, honey, cocoa)"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+        </div>
         <Input
           type="number"
           min={0}

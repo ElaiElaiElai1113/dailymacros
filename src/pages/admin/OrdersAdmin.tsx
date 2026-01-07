@@ -1,6 +1,8 @@
-ï»¿// src/pages/OrdersAdminPage.tsx
+// src/pages/OrdersAdminPage.tsx
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { supabase } from "@/lib/supabaseClient";
+import { toast } from "@/hooks/use-toast";
+import { Search } from "lucide-react";
 
 const STATUS_OPTIONS = [
   "pending",
@@ -68,7 +70,7 @@ const PAYMENT_TONE: Record<string, string> = {
 };
 
 const Peso = ({ cents }: { cents?: number | null }) => (
-  <span>â‚±{((cents || 0) / 100).toFixed(2)}</span>
+  <span>?{((cents || 0) / 100).toFixed(2)}</span>
 );
 
 const Badge = ({ status }: { status: StatusValue }) => (
@@ -89,15 +91,6 @@ const timeAgo = (iso: string) => {
   if (h < 24) return `${h}h ago`;
   const days = Math.floor(h / 24);
   return `${days}d ago`;
-};
-
-const toast = (msg: string) => {
-  const t = document.createElement("div");
-  t.textContent = msg;
-  t.className =
-    "fixed bottom-4 right-4 z-50 rounded bg-black/80 px-3 py-1.5 text-xs text-white";
-  document.body.appendChild(t);
-  setTimeout(() => t.remove(), 1400);
 };
 
 export default function OrdersAdminPage() {
@@ -271,7 +264,10 @@ export default function OrdersAdminPage() {
         setOrders(prev);
         alert(error.message);
       } else {
-        toast(`Order updated: ${STATUS_LABEL[next]}`);
+        toast({
+          title: "Order updated",
+          description: STATUS_LABEL[next],
+        });
       }
     },
     [orders]
@@ -307,7 +303,10 @@ export default function OrdersAdminPage() {
     if (error) {
       alert(error.message);
     } else {
-      toast("Payment marked as paid");
+      toast({
+        title: "Payment marked as paid",
+        description: "Order is now verified.",
+      });
       load();
     }
   };
@@ -317,11 +316,14 @@ export default function OrdersAdminPage() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-lg font-bold text-gray-900">Orders</h1>
         <div className="flex items-center gap-2">
-          <input
-            className="w-64 rounded-lg border px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-indigo-200"
-            placeholder="Search name / phone / IDâ€¦"
-            onChange={(e) => debouncedSetSearch(e.target.value)}
-          />
+          <div className="relative">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <input
+              className="w-64 rounded-lg border px-3 py-1.5 pl-9 text-sm outline-none focus:ring-2 focus:ring-indigo-200"
+              placeholder="Search name / phone / ID"
+              onChange={(e) => debouncedSetSearch(e.target.value)}
+            />
+          </div>
           <label className="ml-2 flex items-center gap-2 text-sm text-gray-700">
             <input
               type="checkbox"
@@ -416,7 +418,7 @@ export default function OrdersAdminPage() {
                         })}
                       </div>
                       <div className="text-xs text-gray-500">
-                        {o.id.slice(0, 8)} â€¢ {timeAgo(o.created_at)}
+                        {o.id.slice(0, 8)} • {timeAgo(o.created_at)}
                       </div>
                     </td>
                     <td className="px-3 py-3">
@@ -432,7 +434,7 @@ export default function OrdersAdminPage() {
                           </div>
                         </>
                       ) : (
-                        "â€”"
+                        "—"
                       )}
                     </td>
                     <td className="px-3 py-3">
@@ -440,7 +442,7 @@ export default function OrdersAdminPage() {
                         {o.guest_name || "Guest"}
                       </div>
                       <div className="text-xs text-gray-500">
-                        {o.guest_phone || "â€”"}
+                        {o.guest_phone || "—"}
                       </div>
                     </td>
                     <td className="px-3 py-3">
@@ -485,7 +487,7 @@ export default function OrdersAdminPage() {
                                       {base
                                         .map(
                                           (l) =>
-                                            `${l.ingredient_name} â€” ${l.amount} ${l.unit}`
+                                            `${l.ingredient_name} — ${l.amount} ${l.unit}`
                                         )
                                         .join("; ")}
                                     </div>
@@ -498,7 +500,7 @@ export default function OrdersAdminPage() {
                                       {extras
                                         .map(
                                           (l) =>
-                                            `${l.ingredient_name} â€” ${l.amount} ${l.unit}`
+                                            `${l.ingredient_name} — ${l.amount} ${l.unit}`
                                         )
                                         .join("; ")}
                                     </div>
@@ -602,7 +604,7 @@ export default function OrdersAdminPage() {
                           disabled={paySavingId === o.id}
                           className="rounded-lg bg-[#D26E3D] px-3 py-1.5 text-xs font-semibold text-white hover:opacity-90 disabled:opacity-50"
                         >
-                          {paySavingId === o.id ? "Savingâ€¦" : "Mark as Paid"}
+                          {paySavingId === o.id ? "Saving…" : "Mark as Paid"}
                         </button>
                       </div>
                     </td>
@@ -613,7 +615,10 @@ export default function OrdersAdminPage() {
                         className="rounded-lg border px-2 py-1 text-xs hover:bg-gray-50"
                         onClick={() => {
                           navigator.clipboard.writeText(o.id);
-                          toast("Order ID copied");
+                          toast({
+                            title: "Order ID copied",
+                            description: o.id.slice(0, 8),
+                          });
                         }}
                       >
                         Copy ID
@@ -639,8 +644,8 @@ export default function OrdersAdminPage() {
                         }
                       >
                         {canAdvance && paymentIsVerified
-                          ? `â†’ ${STATUS_LABEL[next]}`
-                          : "â€”"}
+                          ? `? ${STATUS_LABEL[next]}`
+                          : "—"}
                       </button>
                       <button
                         className="rounded border px-2 py-1 text-xs hover:bg-gray-50"
