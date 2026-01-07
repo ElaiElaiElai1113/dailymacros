@@ -65,6 +65,7 @@ export default function OrderFlowPage() {
   const [loadingBase, setLoadingBase] = useState(false);
   const [step, setStep] = useState(1);
   const [added, setAdded] = useState(false);
+  const hasBase = !!selectedBaseId;
 
   useEffect(() => {
     (async () => {
@@ -247,9 +248,33 @@ export default function OrderFlowPage() {
     navigate("/checkout");
   }
 
+  function goNext() {
+    if (step === 1 && hasBase) {
+      setStep(2);
+      return;
+    }
+    if (step === 2 && hasBase) {
+      setStep(3);
+      return;
+    }
+    if (step === 3 && hasBase) {
+      proceedToCheckout();
+    }
+  }
+
+  function goBack() {
+    if (step === 3) {
+      setStep(2);
+      return;
+    }
+    if (step === 2) {
+      setStep(1);
+    }
+  }
+
   return (
     <div className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(210,110,61,0.12),_transparent_55%),radial-gradient(circle_at_bottom,_rgba(89,145,144,0.12),_transparent_45%)]">
-      <div className="mx-auto max-w-7xl px-4 py-8">
+      <div className="mx-auto max-w-7xl px-4 py-8 pb-24 lg:pb-8">
         <header className="mb-6 space-y-2">
           <Badge variant="secondary">Guided Order</Badge>
           <h1 className="text-2xl font-semibold">Build your perfect shake</h1>
@@ -266,6 +291,7 @@ export default function OrderFlowPage() {
                   key={s.id}
                   variant={step === s.id ? "default" : "outline"}
                   size="sm"
+                  disabled={!hasBase && s.id > 1}
                   onClick={() => setStep(s.id)}
                 >
                   {s.id}. {s.label}
@@ -428,6 +454,14 @@ export default function OrderFlowPage() {
                         )}
                       </CardContent>
                     </Card>
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <Button variant="outline" onClick={goBack}>
+                        Back to base
+                      </Button>
+                      <Button onClick={() => setStep(3)}>
+                        Review order
+                      </Button>
+                    </div>
                   </>
                 )}
               </div>
@@ -489,6 +523,9 @@ export default function OrderFlowPage() {
                         <Button variant="secondary" onClick={proceedToCheckout}>
                           Proceed to Checkout
                         </Button>
+                        <Button variant="outline" onClick={goBack}>
+                          Back to customize
+                        </Button>
                       </div>
                     </>
                   )}
@@ -543,6 +580,31 @@ export default function OrderFlowPage() {
               </CardContent>
             </Card>
           </aside>
+        </div>
+
+        <div className="fixed inset-x-0 bottom-0 z-20 border-t bg-background/95 px-4 py-3 backdrop-blur lg:hidden">
+          <div className="mx-auto flex max-w-7xl items-center justify-between gap-3">
+            <div>
+              <div className="text-xs text-muted-foreground">Total</div>
+              <div className="text-base font-semibold">
+                PHP {(total_price_cents / 100).toFixed(2)}
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              {step > 1 && (
+                <Button variant="outline" size="sm" onClick={goBack}>
+                  Back
+                </Button>
+              )}
+              <Button
+                size="sm"
+                onClick={goNext}
+                disabled={!hasBase && step < 3}
+              >
+                {step === 3 ? "Checkout" : "Next"}
+              </Button>
+            </div>
+          </div>
         </div>
       </div>
     </div>
