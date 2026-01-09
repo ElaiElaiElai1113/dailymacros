@@ -16,19 +16,19 @@ import { Badge } from "@/components/ui/badge";
 import { Toaster } from "@/components/ui/toaster";
 import { ToastGlobalListener } from "@/hooks/use-toast";
 
-import LandingPage from "./pages/LandingPage";
-import MenuPage from "./pages/MenuPage";
-import BuildYourOwnPage from "./pages/BuildYourOwnPage";
-import OrderFlowPage from "./pages/OrderFlowPage";
-import CartPage from "./pages/CartPage";
-import CheckoutPage from "./pages/CheckoutPage";
-import OrdersPage from "./pages/OrdersPage";
-import StaffDashboard from "./pages/StaffDashboard";
-import AdminPage from "./pages/admin/AdminPage";
-import AdminLayout from "./layouts/AdminLayout";
-import LoginPage from "./pages/LoginPage";
-import PrintLabelPage from "./pages/PrintLabelPage";
-import TrackOrderPage from "./pages/TrackOrderPage";
+const LandingPage = lazy(() => import("./pages/LandingPage"));
+const MenuPage = lazy(() => import("./pages/MenuPage"));
+const BuildYourOwnPage = lazy(() => import("./pages/BuildYourOwnPage"));
+const OrderFlowPage = lazy(() => import("./pages/OrderFlowPage"));
+const CartPage = lazy(() => import("./pages/CartPage"));
+const CheckoutPage = lazy(() => import("./pages/CheckoutPage"));
+const OrdersPage = lazy(() => import("./pages/OrdersPage"));
+const StaffDashboard = lazy(() => import("./pages/StaffDashboard"));
+const AdminPage = lazy(() => import("./pages/admin/AdminPage"));
+const AdminLayout = lazy(() => import("./layouts/AdminLayout"));
+const LoginPage = lazy(() => import("./pages/LoginPage"));
+const PrintLabelPage = lazy(() => import("./pages/PrintLabelPage"));
+const TrackOrderPage = lazy(() => import("./pages/TrackOrderPage"));
 
 const DrinksAdminPage = lazy(() => import("@/pages/admin/DrinksAdmin"));
 const AddonsAdminPage = lazy(() => import("@/pages/admin/AddonsAdmin"));
@@ -302,7 +302,14 @@ export default function App() {
           />
         </Route>
 
-        <Route path="/print-label/:orderItemId" element={<PrintLabelPage />} />
+        <Route
+          path="/print-label/:orderItemId"
+          element={
+            <Suspense fallback={<Loading />}>
+              <PrintLabelPage />
+            </Suspense>
+          }
+        />
       </Route>
     </Routes>
   );
