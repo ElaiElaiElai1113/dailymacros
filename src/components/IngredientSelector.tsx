@@ -3,6 +3,7 @@ import { supabase } from "@/lib/supabaseClient";
 import type { Ingredient } from "@/types";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Search } from "lucide-react";
 
 type Props = {
@@ -104,7 +105,18 @@ export default function IngredientSelector({
       </div>
 
       {loading ? (
-        <div className="text-sm text-muted-foreground">Loading add-ons...</div>
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <div
+              key={`addon-skel-${i}`}
+              className="rounded-2xl border border-border/60 bg-white p-3"
+            >
+              <Skeleton className="h-4 w-2/3" />
+              <Skeleton className="mt-2 h-3 w-1/2" />
+              <Skeleton className="mt-4 h-6 w-full" />
+            </div>
+          ))}
+        </div>
       ) : err ? (
         <div className="text-sm text-destructive">Error: {err}</div>
       ) : filtered.length === 0 ? (

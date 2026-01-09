@@ -4,6 +4,7 @@ import { supabase } from "@/lib/supabaseClient";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 
 type Drink = {
   id: string;
@@ -116,8 +117,19 @@ export default function LandingPage() {
         </div>
 
         {loading ? (
-          <div className="text-sm text-muted-foreground">
-            Loading popular drinks...
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {Array.from({ length: 3 }).map((_, i) => (
+              <Card key={`popular-skel-${i}`} className="overflow-hidden">
+                <CardContent className="space-y-3 p-4">
+                  <Skeleton className="aspect-[4/3] w-full rounded-2xl" />
+                  <div className="space-y-2">
+                    <Skeleton className="h-4 w-2/3" />
+                    <Skeleton className="h-3 w-full" />
+                  </div>
+                  <Skeleton className="h-10 w-full" />
+                </CardContent>
+              </Card>
+            ))}
           </div>
         ) : drinks.length === 0 ? (
           <div className="text-sm text-muted-foreground">

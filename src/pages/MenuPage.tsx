@@ -8,6 +8,7 @@ import DrinkCard, { type DrinkRecord } from "@/components/DrinkCard";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
 
 type DrinkLineRow = {
   id: string;
@@ -201,7 +202,25 @@ export default function MenuPage() {
 
       <div className="mx-auto max-w-7xl px-4 py-10">
         {loading ? (
-          <div className="text-sm text-muted-foreground">Loading menu...</div>
+          <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <div
+                key={`menu-skel-${i}`}
+                className="rounded-2xl border border-border/60 bg-white p-4 shadow-sm"
+              >
+                <Skeleton className="h-36 w-full rounded-2xl" />
+                <div className="mt-4 space-y-2">
+                  <Skeleton className="h-4 w-2/3" />
+                  <Skeleton className="h-3 w-full" />
+                  <Skeleton className="h-3 w-1/2" />
+                </div>
+                <div className="mt-4 flex gap-2">
+                  <Skeleton className="h-10 w-full" />
+                  <Skeleton className="h-10 w-full" />
+                </div>
+              </div>
+            ))}
+          </div>
         ) : !err && drinks.length === 0 ? (
           <div className="text-sm text-muted-foreground">
             No active drinks yet. Please check back later.

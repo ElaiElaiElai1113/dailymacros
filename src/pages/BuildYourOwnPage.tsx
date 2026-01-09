@@ -17,6 +17,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { toast } from "@/hooks/use-toast";
+import { Skeleton } from "@/components/ui/skeleton";
 
 import type {
   CartItem,
@@ -270,8 +271,20 @@ export default function BuildYourOwnPage() {
               </CardHeader>
               <CardContent>
                 {loadingAll ? (
-                  <div className="text-sm text-muted-foreground">
-                    Loading drinks...
+                  <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                    {Array.from({ length: 6 }).map((_, i) => (
+                      <div
+                        key={`base-skel-${i}`}
+                        className="rounded-2xl border border-border/60 bg-white p-3 shadow-sm"
+                      >
+                        <Skeleton className="h-28 w-full rounded-xl" />
+                        <div className="mt-3 space-y-2">
+                          <Skeleton className="h-4 w-2/3" />
+                          <Skeleton className="h-3 w-full" />
+                          <Skeleton className="h-3 w-1/2" />
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 ) : baseDrinks.length === 0 ? (
                   <Alert>
