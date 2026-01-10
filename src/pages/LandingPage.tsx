@@ -154,7 +154,11 @@ export default function LandingPage() {
             <Button asChild variant="secondary">
               <Link to="/order">Order Now</Link>
             </Button>
-            <Button asChild variant="outline" className="border-white text-white">
+            <Button
+              asChild
+              variant="outline"
+              className="border-white/80 text-white hover:bg-white/20"
+            >
               <Link to="/order">Build Your Own</Link>
             </Button>
           </div>
