@@ -119,6 +119,7 @@ If your schema differs, adjust the queries in `src/pages` and `src/utils`.
 - `/login` login
 - `/staff` staff dashboard
 - `/ops` admin home
+- `/ops/ingredients` manage ingredients
 - `/ops/drinks` manage drinks
 - `/ops/addons` manage addons
 - `/ops/orders` manage orders

@@ -31,6 +31,9 @@ const PrintLabelPage = lazy(() => import("./pages/PrintLabelPage"));
 const TrackOrderPage = lazy(() => import("./pages/TrackOrderPage"));
 
 const DrinksAdminPage = lazy(() => import("@/pages/admin/DrinksAdmin"));
+const IngredientsAdminPage = lazy(
+  () => import("@/pages/admin/IngredientsAdmin")
+);
 const AddonsAdminPage = lazy(() => import("@/pages/admin/AddonsAdmin"));
 const OrdersAdminPage = lazy(() => import("@/pages/admin/OrdersAdmin"));
 
@@ -256,6 +259,14 @@ export default function App() {
               element={
                 <RoleGate allow={["admin"]}>
                   <AdminPage />
+                </RoleGate>
+              }
+            />
+            <Route
+              path="ingredients"
+              element={
+                <RoleGate allow={["admin"]}>
+                  <IngredientsAdminPage />
                 </RoleGate>
               }
             />

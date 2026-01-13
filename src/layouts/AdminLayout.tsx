@@ -5,6 +5,7 @@ import { Card } from "@/components/ui/card";
 const navItems = [
   { to: "/ops", label: "Overview" },
   { to: "/ops/orders", label: "Orders" },
+  { to: "/ops/ingredients", label: "Ingredients" },
   { to: "/ops/drinks", label: "Drinks" },
   { to: "/ops/addons", label: "Add-ons" },
   { to: "/staff", label: "Staff" },
@@ -20,7 +21,7 @@ export default function AdminLayout() {
               <Badge variant="secondary">Operations</Badge>
               <h2 className="text-lg font-semibold">Admin Console</h2>
               <p className="text-xs text-muted-foreground">
-                Manage drinks, add-ons, and daily orders.
+                Manage ingredients, drinks, add-ons, and daily orders.
               </p>
             </div>
             <nav className="flex flex-col gap-1 text-sm">

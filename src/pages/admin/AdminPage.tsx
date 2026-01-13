@@ -24,6 +24,9 @@ export default function AdminPage() {
           <Button asChild variant="secondary">
             <Link to="/ops/orders">Orders</Link>
           </Button>
+          <Button asChild variant="secondary">
+            <Link to="/ops/ingredients">Ingredients</Link>
+          </Button>
           <Button asChild>
             <Link to="/ops/drinks">Drinks</Link>
           </Button>
@@ -39,6 +42,17 @@ export default function AdminPage() {
             Track current orders, update status, and print labels.
             <Button asChild variant="outline" size="sm">
               <Link to="/ops/orders">Go to Orders</Link>
+            </Button>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Ingredients</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3 text-sm text-muted-foreground">
+            Update ingredient nutrition, allergens, and activity status.
+            <Button asChild variant="outline" size="sm">
+              <Link to="/ops/ingredients">Go to Ingredients</Link>
             </Button>
           </CardContent>
         </Card>

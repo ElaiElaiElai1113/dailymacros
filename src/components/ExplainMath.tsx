@@ -40,7 +40,7 @@ export default function ExplainMath({
     (async () => {
       const [{ data: ii = [] }, { data: nn = [] }] = await Promise.all([
         supabase.from("ingredients").select("*").eq("is_active", true),
-        supabase.from("ingredient_nutrition").select("*"),
+        supabase.from("ingredient_nutrition_v100").select("*"),
       ]);
       setIng(Object.fromEntries((ii as Ingredient[]).map((x) => [x.id, x])));
       setNutr(
