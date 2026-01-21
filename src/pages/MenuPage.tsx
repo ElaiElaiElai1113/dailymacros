@@ -18,9 +18,27 @@ type DrinkLineRow = {
   unit: string;
 };
 
+type DrinkSizeRow = {
+  id: string;
+  drink_id: string;
+  size_label: string | null;
+  display_name: string | null;
+  size_ml: number;
+  is_active: boolean;
+};
+
+type DrinkSizeLineRow = {
+  drink_size_id: string;
+  ingredient_id: string;
+  amount: number;
+  unit: string;
+};
+
 export default function MenuPage() {
   const [drinks, setDrinks] = useState<DrinkRecord[]>([]);
   const [lines, setLines] = useState<DrinkLineRow[]>([]);
+  const [drinkSizes, setDrinkSizes] = useState<DrinkSizeRow[]>([]);
+  const [sizeLines, setSizeLines] = useState<DrinkSizeLineRow[]>([]);
   const [ingDict, setIngDict] = useState<Record<string, Ingredient>>({});
   const [nutrDict, setNutrDict] = useState<Record<string, IngredientNutrition>>(
     {}
@@ -78,6 +96,29 @@ export default function MenuPage() {
           );
         if (le) throw le;
 
+        const { data: ds, error: dse } = await supabase
+          .from("drink_sizes")
+          .select("id,drink_id,size_label,display_name,size_ml,is_active")
+          .in(
+            "drink_id",
+            drinkIds.length
+              ? drinkIds
+              : ["00000000-0000-0000-0000-000000000000"]
+          );
+        if (dse) throw dse;
+
+        const drinkSizeIds = (ds || []).map((s) => s.id);
+        const { data: sl, error: se } = await supabase
+          .from("drink_size_lines")
+          .select("drink_size_id,ingredient_id,amount,unit")
+          .in(
+            "drink_size_id",
+            drinkSizeIds.length
+              ? drinkSizeIds
+              : ["00000000-0000-0000-0000-000000000000"]
+          );
+        if (se) throw se;
+
         const [{ data: ii, error: ie }, { data: nn, error: ne }] =
           await Promise.all([
             supabase.from("ingredients").select("*"),
@@ -88,6 +129,8 @@ export default function MenuPage() {
 
         setDrinks(normalized as any);
         setLines((ll || []) as any);
+        setDrinkSizes((ds || []) as any);
+        setSizeLines((sl || []) as any);
         setIngDict(
           Object.fromEntries(((ii || []) as Ingredient[]).map((x) => [x.id, x]))
         );
@@ -118,6 +161,25 @@ export default function MenuPage() {
     }
     return map;
   }, [lines]);
+
+  const drinkSizeLinesMap = useMemo(() => {
+    const map: Record<string, Record<string, LineIngredient[]>> = {};
+    const sizeById = new Map(
+      drinkSizes.map((s) => [s.id, s] as const)
+    );
+    for (const r of sizeLines) {
+      const size = sizeById.get(r.drink_size_id);
+      if (!size) continue;
+      const sizeKey = String(size.size_ml);
+      if (!map[size.drink_id]) map[size.drink_id] = {};
+      (map[size.drink_id][sizeKey] ||= []).push({
+        ingredient_id: r.ingredient_id,
+        amount: Number(r.amount),
+        unit: r.unit,
+      });
+    }
+    return map;
+  }, [sizeLines, drinkSizes]);
 
   function handleAddToCart(drink: DrinkRecord) {
     const drinkLines = drinkLinesMap[drink.id] || [];
@@ -249,6 +311,7 @@ export default function MenuPage() {
         onClose={() => setDrawerOpen(false)}
         drink={selected}
         lines={selected ? drinkLinesMap[selected.id] || [] : []}
+        sizeLines={selected ? drinkSizeLinesMap[selected.id] : undefined}
         ingDict={ingDict}
         nutrDict={nutrDict}
         onAddToCart={(scaledLines) => {

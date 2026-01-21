@@ -8,6 +8,7 @@ const navItems = [
   { to: "/ops/ingredients", label: "Ingredients" },
   { to: "/ops/drinks", label: "Drinks" },
   { to: "/ops/addons", label: "Add-ons" },
+  { to: "/ops/audit", label: "Audit" },
   { to: "/staff", label: "Staff" },
 ];
 

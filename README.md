@@ -122,6 +122,7 @@ If your schema differs, adjust the queries in `src/pages` and `src/utils`.
 - `/ops/ingredients` manage ingredients
 - `/ops/drinks` manage drinks
 - `/ops/addons` manage addons
+- `/ops/audit` audit log
 - `/ops/orders` manage orders
 - `/print-label/:orderItemId` print label
 

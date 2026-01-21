@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
+import { logAudit } from "@/utils/audit";
 
 type NutritionRow = {
   ingredient_id: string;
@@ -83,6 +84,12 @@ export default function NutritionEditor({
       .upsert(payload, { onConflict: "ingredient_id" });
     setSaving(false);
     if (error) return alert(error.message);
+    await logAudit({
+      action: "ingredient_nutrition.upserted",
+      entity_type: "ingredient",
+      entity_id: ingredientId,
+      metadata: payload,
+    });
     onSaved?.();
   }
 

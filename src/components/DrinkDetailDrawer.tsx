@@ -41,6 +41,7 @@ export default function DrinkDetailDrawer({
   onClose,
   drink,
   lines,
+  sizeLines,
   ingDict,
   nutrDict,
   onAddToCart,
@@ -50,6 +51,7 @@ export default function DrinkDetailDrawer({
   onClose: () => void;
   drink: Drink | null;
   lines: LineIngredient[];
+  sizeLines?: Record<string, LineIngredient[]>;
   ingDict: Record<string, Ingredient>;
   nutrDict: Record<string, IngredientNutrition>;
   onAddToCart: (scaledLines?: LineIngredient[]) => void;
@@ -70,14 +72,22 @@ export default function DrinkDetailDrawer({
     [lines, drink?.base_size_ml, sizeMl]
   );
 
+  const sizeLinesForSelection = useMemo(
+    () => sizeLines?.[String(sizeMl)] ?? [],
+    [sizeLines, sizeMl]
+  );
+
+  const effectiveLines =
+    sizeLinesForSelection.length > 0 ? sizeLinesForSelection : scaledLines;
+
   const { totals } = useMemo(
-    () => totalsFor(scaledLines, ingDict, nutrDict),
-    [scaledLines, ingDict, nutrDict]
+    () => totalsFor(effectiveLines, ingDict, nutrDict),
+    [effectiveLines, ingDict, nutrDict]
   );
 
   const breakdown = useMemo(
-    () => breakdownFor(scaledLines, ingDict, nutrDict),
-    [scaledLines, ingDict, nutrDict]
+    () => breakdownFor(effectiveLines, ingDict, nutrDict),
+    [effectiveLines, ingDict, nutrDict]
   );
 
   const showUnknown =
@@ -87,12 +97,12 @@ export default function DrinkDetailDrawer({
   if (!activeDrink) return null;
 
   function handleAddToCart() {
-    onAddToCart(scaledLines);
+    onAddToCart(effectiveLines);
   }
 
   async function handleShareOrPrint() {
     const price = `PHP ${(activeDrink.price_cents / 100).toFixed(2)}`;
-    const ingList = scaledLines
+    const ingList = effectiveLines
       .map(
         (l) =>
           `${ingDict[l.ingredient_id]?.name || "Ingredient"} - ${l.amount.toFixed(
@@ -245,7 +255,9 @@ Nutrition (est.):
                     ))}
                   </div>
                   <p className="mt-2 text-xs text-muted-foreground">
-                    Scales from base size {activeDrink.base_size_ml ?? "default"} ml.
+                    {sizeLinesForSelection.length > 0
+                      ? "Uses the saved recipe for this size."
+                      : `Scales from base size ${activeDrink.base_size_ml ?? "default"} ml.`}
                   </p>
                 </div>
 
@@ -303,13 +315,13 @@ Nutrition (est.):
             <Card>
               <CardContent>
                 <div className="text-sm font-semibold">Ingredients</div>
-                {scaledLines.length === 0 ? (
+                {effectiveLines.length === 0 ? (
                   <div className="mt-2 text-sm text-muted-foreground">
                     No recipe lines found.
                   </div>
                 ) : (
                   <ul className="mt-3 space-y-2 text-sm">
-                    {scaledLines.map((l, idx) => (
+                    {effectiveLines.map((l, idx) => (
                       <li
                         key={idx}
                         className="flex items-center justify-between gap-2"

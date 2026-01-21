@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import PricingEditor from "@/components/PricingEditor";
 import NutritionEditor from "@/components/NutritionEditor";
 import { supabase } from "@/lib/supabaseClient";
+import { logAudit } from "@/utils/audit";
 import {
   Dialog,
   DialogContent,
@@ -20,6 +21,7 @@ export type IngredientCardRow = {
   density_g_per_ml: number | null;
   allergen_tags: string[] | null;
   is_active: boolean;
+  is_addon?: boolean;
   ingredient_nutrition_base?: {
     ingredient_id: string;
     per_100g_energy_kcal: number;
@@ -121,29 +123,36 @@ export default function IngredientCard({
 
   async function saveBasics() {
     if (!form.name.trim()) return alert("Name is required.");
+    const payload = {
+      name: form.name.trim(),
+      category: form.category.trim(),
+      unit_default: form.unit_default,
+      grams_per_unit: needsGramsPerUnit
+        ? numberOrNull(form.grams_per_unit)
+        : null,
+      density_g_per_ml: needsDensity
+        ? numberOrNull(form.density_g_per_ml)
+        : null,
+      allergen_tags: form.allergen_tags
+        ? form.allergen_tags
+            .split(",")
+            .map((t) => t.trim())
+            .filter(Boolean)
+        : [],
+    };
     setSaving(true);
     const { error } = await supabase
       .from("ingredients")
-      .update({
-        name: form.name.trim(),
-        category: form.category.trim(),
-        unit_default: form.unit_default,
-        grams_per_unit: needsGramsPerUnit
-          ? numberOrNull(form.grams_per_unit)
-          : null,
-        density_g_per_ml: needsDensity
-          ? numberOrNull(form.density_g_per_ml)
-          : null,
-        allergen_tags: form.allergen_tags
-          ? form.allergen_tags
-              .split(",")
-              .map((t) => t.trim())
-              .filter(Boolean)
-          : [],
-      })
+      .update(payload)
       .eq("id", ing.id);
     setSaving(false);
     if (error) return alert(error.message);
+    await logAudit({
+      action: "ingredient.updated",
+      entity_type: "ingredient",
+      entity_id: ing.id,
+      metadata: { ...payload, is_addon: ing.is_addon ?? false },
+    });
     reload();
   }
 

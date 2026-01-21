@@ -2,6 +2,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import type { IngredientPricing } from "@/types";
+import { logAudit } from "@/utils/audit";
 
 type Mode = IngredientPricing["pricing_mode"];
 const TABS: Mode[] = ["flat", "per_gram", "per_ml", "per_unit"];
@@ -203,6 +204,12 @@ export default function PricingEditor({
       alert(error.message);
       return;
     }
+    await logAudit({
+      action: "ingredient_pricing.upserted",
+      entity_type: "ingredient",
+      entity_id: ingredientId,
+      metadata: payload,
+    });
     load();
   }
 

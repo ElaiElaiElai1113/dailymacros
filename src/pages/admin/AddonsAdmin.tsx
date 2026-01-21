@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import IngredientCard from "@/components/IngredientCard";
+import { logAudit } from "@/utils/audit";
 
 /* Helpers */
 const numberOrNull = (v: string) => {
@@ -76,6 +77,25 @@ function NewAddonForm({ onSaved }: { onSaved: () => void }) {
     });
     setSaving(false);
     if (error) return alert(error.message);
+    await logAudit({
+      action: "ingredient.created",
+      entity_type: "ingredient",
+      entity_id: null,
+      metadata: {
+        name: name.trim(),
+        category,
+        unit_default: unitDefault,
+        grams_per_unit: needsGramsPerUnit ? numberOrNull(gramsPerUnit) : null,
+        density_g_per_ml: needsDensity ? numberOrNull(density) : null,
+        allergen_tags: allergens
+          ? allergens
+              .split(",")
+              .map((t) => t.trim())
+              .filter(Boolean)
+          : [],
+        is_addon: true,
+      },
+    });
     // reset
     setName("");
     setCategory("addon");
@@ -211,6 +231,12 @@ export default function AddonsAdminPage() {
       .update({ is_active: next })
       .eq("id", id);
     if (error) return alert(error.message);
+    await logAudit({
+      action: next ? "ingredient.activated" : "ingredient.deactivated",
+      entity_type: "ingredient",
+      entity_id: id,
+      metadata: { is_addon: true },
+    });
     load();
   }
 

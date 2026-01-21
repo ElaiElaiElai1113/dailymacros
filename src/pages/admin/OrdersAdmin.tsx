@@ -2,6 +2,7 @@
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { toast } from "@/hooks/use-toast";
+import { logAudit } from "@/utils/audit";
 import { Search } from "lucide-react";
 
 const STATUS_OPTIONS = [
@@ -264,6 +265,12 @@ export default function OrdersAdminPage() {
         setOrders(prev);
         alert(error.message);
       } else {
+        await logAudit({
+          action: "order.status_updated",
+          entity_type: "order",
+          entity_id: orderId,
+          metadata: { status: next },
+        });
         toast({
           title: "Order updated",
           description: STATUS_LABEL[next],
@@ -303,6 +310,12 @@ export default function OrdersAdminPage() {
     if (error) {
       alert(error.message);
     } else {
+      await logAudit({
+        action: "order.payment_marked_paid",
+        entity_type: "order",
+        entity_id: orderId,
+        metadata: { method, reference },
+      });
       toast({
         title: "Payment marked as paid",
         description: "Order is now verified.",

@@ -78,6 +78,17 @@ export default function AdminPage() {
             </Button>
           </CardContent>
         </Card>
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Audit log</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3 text-sm text-muted-foreground">
+            Review recent admin actions across ingredients, drinks, and orders.
+            <Button asChild variant="outline" size="sm">
+              <Link to="/ops/audit">Go to Audit</Link>
+            </Button>
+          </CardContent>
+        </Card>
       </div>
 
       <Card>

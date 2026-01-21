@@ -36,6 +36,7 @@ const IngredientsAdminPage = lazy(
 );
 const AddonsAdminPage = lazy(() => import("@/pages/admin/AddonsAdmin"));
 const OrdersAdminPage = lazy(() => import("@/pages/admin/OrdersAdmin"));
+const AuditLogPage = lazy(() => import("@/pages/admin/AuditLogPage"));
 
 function Loading() {
   return (
@@ -283,6 +284,14 @@ export default function App() {
               element={
                 <RoleGate allow={["admin"]}>
                   <AddonsAdminPage />
+                </RoleGate>
+              }
+            />
+            <Route
+              path="audit"
+              element={
+                <RoleGate allow={["admin", "staff"]}>
+                  <AuditLogPage />
                 </RoleGate>
               }
             />
