@@ -1,6 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { logAudit } from "@/utils/audit";
+import { toast } from "@/hooks/use-toast";
+import { Check, X, Image as ImageIcon, Package, Search, Plus, Loader2, Upload, ChevronDown, ChevronUp } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 type DrinkRow = {
   id: string;
@@ -47,24 +50,368 @@ function Field({
   onChange,
   type = "text",
   placeholder,
+  error,
+  required = false,
 }: {
   label: string;
   value: string | number | undefined | null;
   onChange: (v: string) => void;
   type?: "text" | "number";
   placeholder?: string;
+  error?: string;
+  required?: boolean;
 }) {
   return (
     <label className="space-y-1 text-sm">
-      <span className="text-xs font-medium text-gray-600">{label}</span>
+      <span className="text-xs font-medium text-gray-600">
+        {label}
+        {required && <span className="text-red-500 ml-1">*</span>}
+      </span>
       <input
-        className="w-full rounded-lg border px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[#D26E3D]/30"
+        className={cn(
+          "w-full rounded-lg border px-3 py-2 text-sm outline-none transition-all",
+          "focus:ring-2 focus:ring-[#D26E3D]/30",
+          error
+            ? "border-red-300 focus:border-red-500"
+            : "border-gray-200 focus:border-[#D26E3D]"
+        )}
         type={type}
         value={value ?? ""}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
       />
+      {error && <span className="text-xs text-red-500">{error}</span>}
     </label>
+  );
+}
+
+// Loading skeleton component
+function DrinkCardSkeleton() {
+  return (
+    <div className="flex flex-col gap-3 rounded-2xl border border-gray-100 bg-white p-4 shadow-sm animate-pulse">
+      <div className="h-48 w-full rounded-xl bg-gray-200" />
+      <div className="space-y-3 px-1">
+        <div className="h-4 w-3/4 rounded bg-gray-200" />
+        <div className="h-3 w-1/2 rounded bg-gray-200" />
+        <div className="grid grid-cols-2 gap-3">
+          <div className="h-10 rounded bg-gray-200" />
+          <div className="h-10 rounded bg-gray-200" />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Empty state component
+function EmptyState({
+  icon: Icon,
+  title,
+  description,
+  action,
+}: {
+  icon: any;
+  title: string;
+  description: string;
+  action?: { label: string; onClick: () => void };
+}) {
+  return (
+    <div className="flex flex-col items-center justify-center py-12 text-center">
+      <div className="flex h-16 w-16 items-center justify-center rounded-full bg-gray-100 mb-4">
+        <Icon className="h-8 w-8 text-gray-400" />
+      </div>
+      <h3 className="text-sm font-semibold text-gray-700 mb-1">{title}</h3>
+      <p className="text-xs text-gray-500 mb-4 max-w-xs">{description}</p>
+      {action && (
+        <button
+          onClick={action.onClick}
+          className="rounded-lg bg-[#D26E3D] px-4 py-2 text-sm font-semibold text-white hover:bg-[#B85C2E] transition-colors"
+        >
+          {action.label}
+        </button>
+      )}
+    </div>
+  );
+}
+
+// Status badge component
+function StatusBadge({ active }: { active: boolean }) {
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium",
+        active
+          ? "bg-green-50 text-green-700 border border-green-200"
+          : "bg-gray-100 text-gray-500 border border-gray-200"
+      )}
+    >
+      <span
+        className={cn("h-1.5 w-1.5 rounded-full", active ? "bg-green-500" : "bg-gray-400")}
+      />
+      {active ? "Active" : "Inactive"}
+    </span>
+  );
+}
+
+// Success animation component
+function SaveSuccess({ show }: { show: boolean }) {
+  if (!show) return null;
+  return (
+    <div className="flex items-center gap-1 text-green-600 text-xs font-medium animate-in fade-in slide-in-from-top-1 duration-300">
+      <Check className="h-3.5 w-3.5" />
+      Saved!
+    </div>
+  );
+}
+
+// Image upload zone component
+function ImageUploadZone({
+  imageUrl,
+  drinkName,
+  onUpload,
+  uploading,
+}: {
+  imageUrl: string | null | undefined;
+  drinkName: string;
+  onUpload: (file: File) => void;
+  uploading: boolean;
+}) {
+  const [dragActive, setDragActive] = useState(false);
+
+  const handleDrag = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.type === "dragenter" || e.type === "dragover") {
+      setDragActive(true);
+    } else if (e.type === "dragleave") {
+      setDragActive(false);
+    }
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragActive(false);
+
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+      onUpload(e.dataTransfer.files[0]);
+    }
+  };
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    e.preventDefault();
+    if (e.target.files && e.target.files[0]) {
+      onUpload(e.target.files[0]);
+    }
+  };
+
+  return (
+    <div className="space-y-2">
+      <div
+        className={cn(
+          "relative h-48 w-full rounded-2xl border-2 border-dashed overflow-hidden transition-all duration-200",
+          dragActive
+            ? "border-[#D26E3D] bg-[#D26E3D]/5"
+            : "border-gray-200 hover:border-gray-300",
+          imageUrl && "border-0"
+        )}
+        onDragEnter={handleDrag}
+        onDragLeave={handleDrag}
+        onDragOver={handleDrag}
+        onDrop={handleDrop}
+      >
+        {imageUrl ? (
+          <img
+            src={imageUrl}
+            alt={drinkName}
+            className="h-full w-full object-contain"
+          />
+        ) : (
+          <div className="flex h-full flex-col items-center justify-center text-gray-400">
+            <ImageIcon className="h-10 w-10 mb-2" />
+            <span className="text-xs">No image</span>
+          </div>
+        )}
+
+        {uploading && (
+          <div className="absolute inset-0 flex items-center justify-center bg-white/80 backdrop-blur-sm">
+            <Loader2 className="h-8 w-8 animate-spin text-[#D26E3D]" />
+          </div>
+        )}
+
+        <label className="absolute bottom-2 right-2 flex cursor-pointer items-center gap-2 rounded-lg bg-white/95 px-3 py-2 text-xs font-medium text-gray-700 shadow-md hover:bg-white transition-colors">
+          <Upload className="h-3.5 w-3.5" />
+          {uploading ? "Uploading..." : "Change"}
+          <input
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={handleChange}
+            disabled={uploading}
+          />
+        </label>
+      </div>
+      <p className="text-[11px] text-gray-500 text-center">
+        Drag & drop or click to upload
+      </p>
+    </div>
+  );
+}
+
+// Collapsible recipe section
+function CollapsibleRecipeSection({
+  title,
+  description,
+  lines,
+  ingredients,
+  ingredientById,
+  onAddLine,
+  onUpdateLine,
+  onRemoveLine,
+  onSave,
+  saving,
+  emptyMessage,
+}: {
+  title: string;
+  description?: string;
+  lines: RecipeLine[];
+  ingredients: IngredientRow[];
+  ingredientById: Map<string, IngredientRow>;
+  onAddLine: () => void;
+  onUpdateLine: (idx: number, patch: Partial<RecipeLine>) => void;
+  onRemoveLine: (idx: number) => void;
+  onSave: () => void;
+  saving: boolean;
+  emptyMessage: string;
+}) {
+  const [isCollapsed, setIsCollapsed] = useState(false);
+
+  return (
+    <div className="rounded-xl border border-gray-200 bg-gray-50/60 overflow-hidden">
+      <button
+        onClick={() => setIsCollapsed(!isCollapsed)}
+        className="w-full flex items-center justify-between p-3 text-left hover:bg-gray-100/50 transition-colors"
+      >
+        <div>
+          <div className="text-xs font-semibold text-gray-700">{title}</div>
+          {description && (
+            <div className="text-[11px] text-gray-500 mt-0.5">{description}</div>
+          )}
+        </div>
+        {isCollapsed ? (
+          <ChevronDown className="h-4 w-4 text-gray-400" />
+        ) : (
+          <ChevronUp className="h-4 w-4 text-gray-400" />
+        )}
+      </button>
+
+      {!isCollapsed && (
+        <div className="p-3 pt-0 border-t border-gray-200/50">
+          {lines.length === 0 ? (
+            <div className="py-6 text-center">
+              <p className="text-xs text-gray-500 mb-3">{emptyMessage}</p>
+              <button
+                onClick={onAddLine}
+                className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#D26E3D] hover:text-[#B85C2E] transition-colors"
+              >
+                <Plus className="h-3.5 w-3.5" />
+                Add first ingredient
+              </button>
+            </div>
+          ) : (
+            <div className="space-y-2 mt-3">
+              {lines.map((line, idx) => (
+                <div
+                  key={`line-${idx}`}
+                  className="grid grid-cols-12 gap-2 items-center"
+                >
+                  <select
+                    className="col-span-6 rounded-lg border border-gray-200 px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-[#D26E3D]/30 focus:border-[#D26E3D]"
+                    value={line.ingredient_id}
+                    onChange={(e) => {
+                      const nextId = e.target.value;
+                      const nextIng = ingredientById.get(nextId);
+                      onUpdateLine(idx, {
+                        ingredient_id: nextId,
+                        unit: nextIng?.unit_default || line.unit,
+                      });
+                    }}
+                  >
+                    {ingredients.map((ingOpt) => (
+                      <option key={ingOpt.id} value={ingOpt.id}>
+                        {ingOpt.name}
+                      </option>
+                    ))}
+                  </select>
+                  <input
+                    className="col-span-3 rounded-lg border border-gray-200 px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-[#D26E3D]/30 focus:border-[#D26E3D]"
+                    type="number"
+                    placeholder="Amount"
+                    value={line.amount || ""}
+                    onChange={(e) =>
+                      onUpdateLine(idx, {
+                        amount: Number(e.target.value || 0),
+                      })
+                    }
+                  />
+                  <select
+                    className="col-span-2 rounded-lg border border-gray-200 px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-[#D26E3D]/30 focus:border-[#D26E3D]"
+                    value={line.unit}
+                    onChange={(e) =>
+                      onUpdateLine(idx, {
+                        unit: e.target.value,
+                      })
+                    }
+                  >
+                    <option value="g">g</option>
+                    <option value="ml">ml</option>
+                    <option value="scoop">scoop</option>
+                    <option value="piece">piece</option>
+                  </select>
+                  <button
+                    type="button"
+                    onClick={() => onRemoveLine(idx)}
+                    className="col-span-1 flex items-center justify-center text-gray-400 hover:text-red-600 transition-colors"
+                    title="Remove line"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              ))}
+
+              <button
+                onClick={onAddLine}
+                className="mt-2 text-xs font-semibold text-[#D26E3D] hover:text-[#B85C2E] transition-colors flex items-center gap-1"
+              >
+                <Plus className="h-3.5 w-3.5" />
+                Add another ingredient
+              </button>
+            </div>
+          )}
+
+          <div className="mt-3 pt-3 border-t border-gray-200">
+            <button
+              onClick={onSave}
+              disabled={saving}
+              className={cn(
+                "w-full rounded-lg px-3 py-2 text-xs font-semibold transition-all",
+                saving
+                  ? "bg-gray-100 text-gray-400 cursor-not-allowed"
+                  : "bg-white border border-gray-200 text-gray-700 hover:bg-gray-50 hover:border-gray-300"
+              )}
+            >
+              {saving ? (
+                <span className="flex items-center justify-center gap-2">
+                  <Loader2 className="h-3 w-3.5 animate-spin" />
+                  Saving...
+                </span>
+              ) : (
+                "Save recipe"
+              )}
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -82,9 +429,12 @@ export default function DrinksAdminPage() {
   const [sizeRecipeSavingKey, setSizeRecipeSavingKey] = useState<string | null>(
     null
   );
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [uploadingId, setUploadingId] = useState<string | null>(null);
+  const [saveSuccessId, setSaveSuccessId] = useState<string | null>(null);
   const [q, setQ] = useState("");
   const [creating, setCreating] = useState(false);
+  const [formErrors, setFormErrors] = useState<Record<string, string>>({});
   const [newDrink, setNewDrink] = useState<Partial<DrinkRow>>({
     name: "",
     description: "",
@@ -100,7 +450,14 @@ export default function DrinksAdminPage() {
       .select("id,name,description,base_size_ml,price_php,is_active,image_url")
       .order("name", { ascending: true });
     setLoading(false);
-    if (error) return alert(error.message);
+    if (error) {
+      toast({
+        variant: "destructive",
+        title: "Failed to load drinks",
+        description: error.message,
+      });
+      return;
+    }
     setRows((data || []) as DrinkRow[]);
   }
 
@@ -110,7 +467,14 @@ export default function DrinksAdminPage() {
       .select("id,name,unit_default,is_active")
       .eq("is_active", true)
       .order("name");
-    if (error) return alert(error.message);
+    if (error) {
+      toast({
+        variant: "destructive",
+        title: "Failed to load ingredients",
+        description: error.message,
+      });
+      return;
+    }
     setIngredients((data || []) as IngredientRow[]);
   }
 
@@ -119,7 +483,14 @@ export default function DrinksAdminPage() {
       .from("drink_sizes")
       .select("id,drink_id,size_label,display_name,size_ml,is_active")
       .order("size_ml", { ascending: true });
-    if (error) return alert(error.message);
+    if (error) {
+      toast({
+        variant: "destructive",
+        title: "Failed to load drink sizes",
+        description: error.message,
+      });
+      return;
+    }
     setDrinkSizes((data || []) as DrinkSizeRow[]);
   }
 
@@ -132,7 +503,14 @@ export default function DrinksAdminPage() {
       .from("drink_lines")
       .select("drink_id,ingredient_id,amount,unit")
       .in("drink_id", drinkIds);
-    if (error) return alert(error.message);
+    if (error) {
+      toast({
+        variant: "destructive",
+        title: "Failed to load recipes",
+        description: error.message,
+      });
+      return;
+    }
     const map: Record<string, RecipeLine[]> = {};
     (data || []).forEach((row) => {
       const r = row as DrinkLineRow;
@@ -170,7 +548,14 @@ export default function DrinksAdminPage() {
         .from("drink_size_lines")
         .select("drink_size_id,ingredient_id,amount,unit")
         .in("drink_size_id", sizeIds);
-      if (error) return alert(error.message);
+      if (error) {
+        toast({
+          variant: "destructive",
+          title: "Failed to load size recipes",
+          description: error.message,
+        });
+        return;
+      }
       const map: Record<string, RecipeLine[]> = {};
       (data || []).forEach((row) => {
         const r = row as {
@@ -190,7 +575,23 @@ export default function DrinksAdminPage() {
   }, [drinkSizes]);
 
   async function createDrink() {
-    if (!newDrink.name?.trim()) return alert("Name is required.");
+    const errors: Record<string, string> = {};
+
+    if (!newDrink.name?.trim()) {
+      errors.name = "Name is required";
+    }
+
+    if (Object.keys(errors).length > 0) {
+      setFormErrors(errors);
+      toast({
+        variant: "destructive",
+        title: "Please fix the errors",
+        description: "Some fields are missing or invalid",
+      });
+      return;
+    }
+
+    setFormErrors({});
     setCreating(true);
     const { error } = await supabase.from("drinks").insert({
       name: newDrink.name?.trim(),
@@ -200,7 +601,14 @@ export default function DrinksAdminPage() {
       is_active: !!newDrink.is_active,
     });
     setCreating(false);
-    if (error) return alert(error.message);
+    if (error) {
+      toast({
+        variant: "destructive",
+        title: "Failed to create drink",
+        description: error.message,
+      });
+      return;
+    }
     await logAudit({
       action: "drink.created",
       entity_type: "drink",
@@ -211,6 +619,10 @@ export default function DrinksAdminPage() {
         price_php: Number(newDrink.price_php || 0),
         is_active: !!newDrink.is_active,
       },
+    });
+    toast({
+      title: "Drink created",
+      description: `${newDrink.name} has been added successfully`,
     });
     setNewDrink({
       name: "",
@@ -234,22 +646,36 @@ export default function DrinksAdminPage() {
         image_url: d.image_url ?? null,
       })
       .eq("id", d.id);
-    if (error) alert(error.message);
-    else {
-      await logAudit({
-        action: "drink.updated",
-        entity_type: "drink",
-        entity_id: d.id,
-        metadata: {
-          name: d.name,
-          base_size_ml: d.base_size_ml ?? null,
-          price_php: d.price_php ?? 0,
-          is_active: d.is_active,
-          image_url: d.image_url ?? null,
-        },
+    if (error) {
+      toast({
+        variant: "destructive",
+        title: "Failed to save drink",
+        description: error.message,
       });
-      load();
+      return;
     }
+    await logAudit({
+      action: "drink.updated",
+      entity_type: "drink",
+      entity_id: d.id,
+      metadata: {
+        name: d.name,
+        base_size_ml: d.base_size_ml ?? null,
+        price_php: d.price_php ?? 0,
+        is_active: d.is_active,
+        image_url: d.image_url ?? null,
+      },
+    });
+
+    // Show success animation
+    setSaveSuccessId(d.id);
+    setTimeout(() => setSaveSuccessId(null), 2000);
+
+    toast({
+      title: "Changes saved",
+      description: `${d.name} has been updated successfully`,
+    });
+    load();
   }
 
   async function saveRecipe(drinkId: string) {
@@ -268,7 +694,12 @@ export default function DrinksAdminPage() {
       .eq("drink_id", drinkId);
     if (delErr) {
       setRecipeSavingId(null);
-      return alert(delErr.message);
+      toast({
+        variant: "destructive",
+        title: "Failed to save recipe",
+        description: delErr.message,
+      });
+      return;
     }
     if (cleaned.length > 0) {
       const { error: insErr } = await supabase.from("drink_lines").insert(
@@ -281,7 +712,12 @@ export default function DrinksAdminPage() {
       );
       if (insErr) {
         setRecipeSavingId(null);
-        return alert(insErr.message);
+        toast({
+          variant: "destructive",
+          title: "Failed to save recipe",
+          description: insErr.message,
+        });
+        return;
       }
     }
     await logAudit({
@@ -291,6 +727,10 @@ export default function DrinksAdminPage() {
       metadata: { recipe_updated: true, line_count: cleaned.length },
     });
     setRecipeSavingId(null);
+    toast({
+      title: "Recipe saved",
+      description: `${cleaned.length} ingredient${cleaned.length !== 1 ? "s" : ""} saved`,
+    });
     loadLines([drinkId]);
   }
 
@@ -311,7 +751,12 @@ export default function DrinksAdminPage() {
       .eq("drink_size_id", drinkSizeId);
     if (delErr) {
       setSizeRecipeSavingKey(null);
-      return alert(delErr.message);
+      toast({
+        variant: "destructive",
+        title: "Failed to save recipe",
+        description: delErr.message,
+      });
+      return;
     }
     if (cleaned.length > 0) {
       const { error: insErr } = await supabase.from("drink_size_lines").insert(
@@ -324,7 +769,12 @@ export default function DrinksAdminPage() {
       );
       if (insErr) {
         setSizeRecipeSavingKey(null);
-        return alert(insErr.message);
+        toast({
+          variant: "destructive",
+          title: "Failed to save recipe",
+          description: insErr.message,
+        });
+        return;
       }
     }
     await logAudit({
@@ -338,13 +788,26 @@ export default function DrinksAdminPage() {
       },
     });
     setSizeRecipeSavingKey(null);
+    toast({
+      title: "Recipe saved",
+      description: `${cleaned.length} ingredient${cleaned.length !== 1 ? "s" : ""} saved`,
+    });
+
+    // Reload size recipe lines
     const sizeIds = drinkSizes.map((s) => s.id);
     if (sizeIds.length === 0) return;
     const { data, error } = await supabase
       .from("drink_size_lines")
       .select("drink_size_id,ingredient_id,amount,unit")
       .in("drink_size_id", sizeIds);
-    if (error) return alert(error.message);
+    if (error) {
+      toast({
+        variant: "destructive",
+        title: "Failed to reload recipes",
+        description: error.message,
+      });
+      return;
+    }
     const map: Record<string, RecipeLine[]> = {};
     (data || []).forEach((row) => {
       const r = row as {
@@ -396,7 +859,14 @@ export default function DrinksAdminPage() {
 
   function addRecipeLine(drinkId: string) {
     const fallback = ingredients[0];
-    if (!fallback) return;
+    if (!fallback) {
+      toast({
+        variant: "destructive",
+        title: "No ingredients available",
+        description: "Please create ingredients first",
+      });
+      return;
+    }
     setRecipeLines((prev) => {
       const next = { ...prev };
       const lines = [...(next[drinkId] || [])];
@@ -412,7 +882,14 @@ export default function DrinksAdminPage() {
 
   function addSizeRecipeLine(drinkSizeId: string) {
     const fallback = ingredients[0];
-    if (!fallback) return;
+    if (!fallback) {
+      toast({
+        variant: "destructive",
+        title: "No ingredients available",
+        description: "Please create ingredients first",
+      });
+      return;
+    }
     setSizeRecipeLines((prev) => {
       const next = { ...prev };
       const lines = [...(next[drinkSizeId] || [])];
@@ -446,8 +923,26 @@ export default function DrinksAdminPage() {
     });
   }
 
-  // upload handler (assuming you already added this to your version)
   async function handleUpload(drinkId: string, file: File) {
+    if (!file.type.startsWith("image/")) {
+      toast({
+        variant: "destructive",
+        title: "Invalid file type",
+        description: "Please upload an image file",
+      });
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      toast({
+        variant: "destructive",
+        title: "File too large",
+        description: "Please upload an image smaller than 5MB",
+      });
+      return;
+    }
+
+    setUploadingId(drinkId);
     const ext = file.name.split(".").pop() || "png";
     const path = `${drinkId}.${ext}`;
 
@@ -457,12 +952,15 @@ export default function DrinksAdminPage() {
     });
 
     if (error) {
-      console.error("upload error", error);
-      alert(error.message);
+      setUploadingId(null);
+      toast({
+        variant: "destructive",
+        title: "Upload failed",
+        description: error.message,
+      });
       return;
     }
 
-    // build public URL
     const publicUrl = `${
       import.meta.env.VITE_SUPABASE_URL
     }/storage/v1/object/public/drinks/${path}`;
@@ -472,10 +970,22 @@ export default function DrinksAdminPage() {
       .update({ image_url: publicUrl })
       .eq("id", drinkId);
 
+    setUploadingId(null);
+
     if (updErr) {
-      console.error("db update error", updErr);
-      alert(updErr.message);
+      toast({
+        variant: "destructive",
+        title: "Failed to update drink",
+        description: updErr.message,
+      });
+      return;
     }
+
+    toast({
+      title: "Image uploaded",
+      description: "Drink image has been updated",
+    });
+    load();
   }
 
   const filtered = useMemo(
@@ -500,24 +1010,40 @@ export default function DrinksAdminPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between gap-3">
-        <h1 className="text-lg font-bold text-gray-800">Drinks Admin</h1>
-        <input
-          className="w-72 rounded-lg border px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-[#D26E3D]/30"
-          placeholder="Search drinks…"
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-        />
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+        <div>
+          <h1 className="text-xl font-bold text-gray-900">Drinks Admin</h1>
+          <p className="text-sm text-gray-500 mt-0.5">
+            Manage your drink menu and recipes
+          </p>
+        </div>
+        <div className="relative w-full sm:w-72">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+          <input
+            className="w-full rounded-lg border border-gray-200 pl-9 pr-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[#D26E3D]/30 focus:border-[#D26E3D] transition-all"
+            placeholder="Search drinks…"
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+          />
+        </div>
       </div>
 
       {/* Create new */}
-      <section className="rounded-2xl border bg-white p-4 shadow-sm">
-        <div className="text-sm font-semibold text-gray-800">Add New Drink</div>
-        <div className="mt-3 grid gap-3 md:grid-cols-2">
+      <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
+        <div className="flex items-center gap-2 mb-4">
+          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#D26E3D]/10">
+            <Plus className="h-4 w-4 text-[#D26E3D]" />
+          </div>
+          <h2 className="text-sm font-semibold text-gray-800">Add New Drink</h2>
+        </div>
+        <div className="grid gap-4 md:grid-cols-2">
           <Field
             label="Name"
             value={newDrink.name}
             onChange={(v) => setNewDrink((p) => ({ ...p, name: v }))}
+            error={formErrors.name}
+            required
+            placeholder="e.g., Mango Smoothie"
           />
           <Field
             label="Price (₱)"
@@ -526,6 +1052,7 @@ export default function DrinksAdminPage() {
             onChange={(v) =>
               setNewDrink((p) => ({ ...p, price_php: Number(v || 0) }))
             }
+            placeholder="0"
           />
           <Field
             label="Base Size (ml)"
@@ -534,80 +1061,97 @@ export default function DrinksAdminPage() {
             onChange={(v) =>
               setNewDrink((p) => ({ ...p, base_size_ml: Number(v || 0) }))
             }
+            placeholder="350"
           />
           <Field
             label="Description"
             value={newDrink.description}
             onChange={(v) => setNewDrink((p) => ({ ...p, description: v }))}
             placeholder="(optional)"
+            type="text"
           />
-          <label className="flex items-center gap-2 text-sm">
+          <label className="flex items-center gap-2 text-sm rounded-lg border border-gray-200 px-3 py-2 cursor-pointer hover:bg-gray-50 transition-colors">
             <input
               type="checkbox"
               checked={!!newDrink.is_active}
               onChange={(e) =>
                 setNewDrink((p) => ({ ...p, is_active: e.target.checked }))
               }
+              className="rounded border-gray-300 text-[#D26E3D] focus:ring-[#D26E3D]"
             />
-            Active
+            <span className="text-gray-700">Active</span>
           </label>
         </div>
-        <div className="mt-3">
+        <div className="mt-4">
           <button
             onClick={createDrink}
             disabled={creating}
-            className="rounded-lg bg-[#D26E3D] px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
+            className="rounded-lg bg-[#D26E3D] px-5 py-2.5 text-sm font-semibold text-white hover:bg-[#B85C2E] disabled:opacity-60 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
           >
-            {creating ? "Creating…" : "Create Drink"}
+            {creating ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Creating…
+              </>
+            ) : (
+              <>
+                <Plus className="h-4 w-4" />
+                Create Drink
+              </>
+            )}
           </button>
         </div>
       </section>
 
       {/* List + edit */}
-      <section className="rounded-2xl border bg-white p-4 shadow-sm">
-        <div className="text-sm font-semibold text-gray-800 mb-3">
-          All Drinks
+      <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
+        <div className="flex items-center gap-2 mb-4">
+          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gray-100">
+            <Package className="h-4 w-4 text-gray-600" />
+          </div>
+          <h2 className="text-sm font-semibold text-gray-800">All Drinks</h2>
+          <span className="text-xs text-gray-500">({filtered.length})</span>
         </div>
+
         {loading ? (
-          <div className="text-sm text-gray-500">Loading…</div>
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+            {[...Array(6)].map((_, i) => (
+              <DrinkCardSkeleton key={i} />
+            ))}
+          </div>
         ) : filtered.length === 0 ? (
-          <div className="text-sm text-gray-500">No drinks found.</div>
+          <EmptyState
+            icon={Package}
+            title="No drinks found"
+            description={
+              q
+                ? `No drinks match "${q}"`
+                : "Get started by creating your first drink"
+            }
+          />
         ) : (
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
             {filtered.map((d) => (
               <div
                 key={d.id}
-                className="flex flex-col gap-3 rounded-2xl border border-gray-100 bg-white shadow-sm"
+                className="flex flex-col rounded-2xl border border-gray-200 bg-white shadow-sm overflow-hidden hover:shadow-md transition-shadow"
               >
-                {/* image header */}
-                <div className="h-48 w-full rounded-t-2xl bg-gray-50 flex items-center justify-center overflow-hidden">
-                  {d.image_url ? (
-                    <img
-                      src={d.image_url}
-                      alt={d.name}
-                      className="max-h-full max-w-full object-contain"
-                    />
-                  ) : (
-                    <div className="flex h-full items-center justify-center text-xs text-gray-400">
-                      No image
-                    </div>
-                  )}
+                {/* Image upload */}
+                <div className="p-4 pb-2">
+                  <ImageUploadZone
+                    imageUrl={d.image_url}
+                    drinkName={d.name}
+                    onUpload={(file) => handleUpload(d.id, file)}
+                    uploading={uploadingId === d.id}
+                  />
                 </div>
 
                 <div className="px-4 pb-4 space-y-3">
-                  {/* file input */}
-                  <label className="text-xs text-gray-600">
-                    Change image
-                    <input
-                      type="file"
-                      accept="image/*"
-                      className="mt-1 block text-sm"
-                      onChange={(e) => {
-                        const file = e.target.files?.[0];
-                        if (file) handleUpload(d.id, file);
-                      }}
-                    />
-                  </label>
+                  {/* Status badge */}
+                  <div className="flex items-center justify-between">
+                    <StatusBadge active={d.is_active} />
+                    <SaveSuccess show={saveSuccessId === d.id} />
+                  </div>
 
                   <Field
                     label="Name"
@@ -617,6 +1161,7 @@ export default function DrinksAdminPage() {
                         prev.map((x) => (x.id === d.id ? { ...x, name: v } : x))
                       )
                     }
+                    placeholder="Drink name"
                   />
                   <Field
                     label="Description"
@@ -628,6 +1173,7 @@ export default function DrinksAdminPage() {
                         )
                       )
                     }
+                    placeholder="Description (optional)"
                   />
                   <div className="grid grid-cols-2 gap-3">
                     <Field
@@ -659,7 +1205,7 @@ export default function DrinksAdminPage() {
                       }
                     />
                   </div>
-                  <label className="flex items-center gap-2 text-xs">
+                  <label className="flex items-center gap-2 text-sm rounded-lg border border-gray-200 px-3 py-2 cursor-pointer hover:bg-gray-50 transition-colors">
                     <input
                       type="checkbox"
                       checked={d.is_active}
@@ -672,238 +1218,70 @@ export default function DrinksAdminPage() {
                           )
                         )
                       }
+                      className="rounded border-gray-300 text-[#D26E3D] focus:ring-[#D26E3D]"
                     />
-                    Active
+                    <span className="text-gray-700">Active</span>
                   </label>
 
                   <div className="pt-1">
                     <button
                       onClick={() => saveDrink(d)}
-                      className="w-full rounded-lg border px-3 py-1.5 text-sm font-medium hover:bg-gray-50"
+                      className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 hover:border-gray-300 transition-all"
                     >
-                      Save
+                      Save details
                     </button>
                   </div>
 
-                  <div className="rounded-xl border bg-gray-50/60 p-3">
-                    <div className="mb-2 flex items-center justify-between">
-                      <div className="text-xs font-semibold text-gray-700">
-                        Recipe (base)
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => addRecipeLine(d.id)}
-                        className="text-xs font-semibold text-[#D26E3D]"
-                      >
-                        + Add ingredient
-                      </button>
-                    </div>
+                  {/* Base Recipe */}
+                  <CollapsibleRecipeSection
+                    title="Base Recipe"
+                    lines={recipeLines[d.id] || []}
+                    ingredients={ingredients}
+                    ingredientById={ingredientById}
+                    onAddLine={() => addRecipeLine(d.id)}
+                    onUpdateLine={(idx, patch) => updateRecipeLine(d.id, idx, patch)}
+                    onRemoveLine={(idx) => removeRecipeLine(d.id, idx)}
+                    onSave={() => saveRecipe(d.id)}
+                    saving={recipeSavingId === d.id}
+                    emptyMessage="No ingredients in the base recipe yet"
+                  />
 
-                    {(recipeLines[d.id] || []).length === 0 ? (
-                      <div className="text-xs text-gray-500">
-                        No recipe lines yet.
+                  {/* Size Recipes */}
+                  <div className="space-y-3">
+                    <div className="text-xs font-semibold text-gray-700 px-1">
+                      Size-Specific Recipes
+                    </div>
+                    {(drinkSizesByDrink[d.id] || []).length === 0 ? (
+                      <div className="rounded-lg border border-dashed border-gray-200 p-4 text-center">
+                        <p className="text-xs text-gray-500">
+                          No sizes configured for this drink
+                        </p>
                       </div>
                     ) : (
-                      <div className="space-y-2">
-                        {(recipeLines[d.id] || []).map((line, idx) => {
-                          return (
-                            <div
-                              key={`${d.id}-line-${idx}`}
-                              className="grid grid-cols-12 gap-2"
-                            >
-                              <select
-                                className="col-span-6 rounded-lg border px-2 py-1 text-xs"
-                                value={line.ingredient_id}
-                                onChange={(e) => {
-                                  const nextId = e.target.value;
-                                  const nextIng = ingredientById.get(nextId);
-                                  updateRecipeLine(d.id, idx, {
-                                    ingredient_id: nextId,
-                                    unit: nextIng?.unit_default || line.unit,
-                                  });
-                                }}
-                              >
-                                {ingredients.map((ingOpt) => (
-                                  <option key={ingOpt.id} value={ingOpt.id}>
-                                    {ingOpt.name}
-                                  </option>
-                                ))}
-                              </select>
-                              <input
-                                className="col-span-3 rounded-lg border px-2 py-1 text-xs"
-                                type="number"
-                                value={line.amount}
-                                onChange={(e) =>
-                                  updateRecipeLine(d.id, idx, {
-                                    amount: Number(e.target.value || 0),
-                                  })
-                                }
-                              />
-                              <select
-                                className="col-span-2 rounded-lg border px-2 py-1 text-xs"
-                                value={line.unit}
-                                onChange={(e) =>
-                                  updateRecipeLine(d.id, idx, {
-                                    unit: e.target.value,
-                                  })
-                                }
-                              >
-                                <option value="g">g</option>
-                                <option value="ml">ml</option>
-                                <option value="scoop">scoop</option>
-                                <option value="piece">piece</option>
-                              </select>
-                              <button
-                                type="button"
-                                onClick={() => removeRecipeLine(d.id, idx)}
-                                className="col-span-1 text-xs text-red-600"
-                                title="Remove line"
-                              >
-                                ✕
-                              </button>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
-
-                    <div className="mt-3">
-                      <button
-                        onClick={() => saveRecipe(d.id)}
-                        disabled={recipeSavingId === d.id}
-                        className="w-full rounded-lg border px-3 py-1.5 text-xs font-semibold hover:bg-gray-50 disabled:opacity-60"
-                      >
-                        {recipeSavingId === d.id
-                          ? "Saving recipe…"
-                          : "Save recipe"}
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="rounded-xl border bg-gray-50/60 p-3">
-                    <div className="mb-2 text-xs font-semibold text-gray-700">
-                      Size recipes
-                    </div>
-                    <div className="text-[11px] text-gray-500">
-                      If a size recipe is empty, the app scales the base recipe.
-                    </div>
-                    <div className="mt-3 space-y-3">
-                      {(drinkSizesByDrink[d.id] || []).length === 0 ? (
-                        <div className="text-xs text-gray-500">
-                          No sizes configured for this drink.
-                        </div>
-                      ) : (
-                        (drinkSizesByDrink[d.id] || []).map((size) => {
-                          const sizeLines = sizeRecipeLines[size.id] || [];
-                          const label =
-                            size.display_name ||
-                            size.size_label ||
-                            `${size.size_ml} ml`;
-                          const savingKey = size.id;
+                      (drinkSizesByDrink[d.id] || []).map((size) => {
+                        const sizeLines = sizeRecipeLines[size.id] || [];
+                        const label =
+                          size.display_name ||
+                          size.size_label ||
+                          `${size.size_ml} ml`;
                         return (
-                          <div
-                            key={`${d.id}-size-${size.id}`}
-                            className="rounded-lg border bg-white p-2"
-                          >
-                            <div className="mb-2 flex items-center justify-between">
-                              <div className="text-xs font-semibold text-gray-700">
-                                {label}
-                              </div>
-                              <button
-                                type="button"
-                                onClick={() => addSizeRecipeLine(size.id)}
-                                className="text-xs font-semibold text-[#D26E3D]"
-                              >
-                                + Add ingredient
-                              </button>
-                            </div>
-
-                            {sizeLines.length === 0 ? (
-                              <div className="text-xs text-gray-500">
-                                No size-specific lines.
-                              </div>
-                            ) : (
-                              <div className="space-y-2">
-                                {sizeLines.map((line, idx) => {
-                                  return (
-                                    <div
-                                      key={`${d.id}-size-${size.id}-${idx}`}
-                                      className="grid grid-cols-12 gap-2"
-                                    >
-                                      <select
-                                        className="col-span-6 rounded-lg border px-2 py-1 text-xs"
-                                        value={line.ingredient_id}
-                                        onChange={(e) => {
-                                          const nextId = e.target.value;
-                                          const nextIng = ingredientById.get(
-                                            nextId
-                                          );
-                                          updateSizeRecipeLine(size.id, idx, {
-                                            ingredient_id: nextId,
-                                            unit:
-                                              nextIng?.unit_default || line.unit,
-                                          });
-                                        }}
-                                      >
-                                        {ingredients.map((ingOpt) => (
-                                          <option key={ingOpt.id} value={ingOpt.id}>
-                                            {ingOpt.name}
-                                          </option>
-                                        ))}
-                                      </select>
-                                      <input
-                                        className="col-span-3 rounded-lg border px-2 py-1 text-xs"
-                                        type="number"
-                                        value={line.amount}
-                                        onChange={(e) =>
-                                          updateSizeRecipeLine(size.id, idx, {
-                                            amount: Number(e.target.value || 0),
-                                          })
-                                        }
-                                      />
-                                      <select
-                                        className="col-span-2 rounded-lg border px-2 py-1 text-xs"
-                                        value={line.unit}
-                                        onChange={(e) =>
-                                          updateSizeRecipeLine(size.id, idx, {
-                                            unit: e.target.value,
-                                          })
-                                        }
-                                      >
-                                        <option value="g">g</option>
-                                        <option value="ml">ml</option>
-                                        <option value="scoop">scoop</option>
-                                        <option value="piece">piece</option>
-                                      </select>
-                                      <button
-                                        type="button"
-                                        onClick={() => removeSizeRecipeLine(size.id, idx)}
-                                        className="col-span-1 text-xs text-red-600"
-                                        title="Remove line"
-                                      >
-                                        ✕
-                                      </button>
-                                    </div>
-                                  );
-                                })}
-                              </div>
-                            )}
-
-                            <div className="mt-2">
-                              <button
-                                onClick={() => saveSizeRecipe(size.id)}
-                                disabled={sizeRecipeSavingKey === savingKey}
-                                className="w-full rounded-lg border px-3 py-1.5 text-xs font-semibold hover:bg-gray-50 disabled:opacity-60"
-                              >
-                                {sizeRecipeSavingKey === savingKey
-                                  ? "Saving size recipe…"
-                                  : `Save ${label} recipe`}
-                              </button>
-                            </div>
-                          </div>
+                          <CollapsibleRecipeSection
+                            key={size.id}
+                            title={label}
+                            description="Custom recipe for this size"
+                            lines={sizeLines}
+                            ingredients={ingredients}
+                            ingredientById={ingredientById}
+                            onAddLine={() => addSizeRecipeLine(size.id)}
+                            onUpdateLine={(idx, patch) => updateSizeRecipeLine(size.id, idx, patch)}
+                            onRemoveLine={(idx) => removeSizeRecipeLine(size.id, idx)}
+                            onSave={() => saveSizeRecipe(size.id)}
+                            saving={sizeRecipeSavingKey === size.id}
+                            emptyMessage="Uses base recipe"
+                          />
                         );
-                      }))}
-                    </div>
+                      })
+                    )}
                   </div>
                 </div>
               </div>
