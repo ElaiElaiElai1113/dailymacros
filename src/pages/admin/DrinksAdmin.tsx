@@ -706,7 +706,6 @@ export default function DrinksAdminPage() {
                     ) : (
                       <div className="space-y-2">
                         {(recipeLines[d.id] || []).map((line, idx) => {
-                          const ing = ingredientById.get(line.ingredient_id);
                           return (
                             <div
                               key={`${d.id}-line-${idx}`}
@@ -826,9 +825,6 @@ export default function DrinksAdminPage() {
                             ) : (
                               <div className="space-y-2">
                                 {sizeLines.map((line, idx) => {
-                                  const ing = ingredientById.get(
-                                    line.ingredient_id
-                                  );
                                   return (
                                     <div
                                       key={`${d.id}-size-${size.id}-${idx}`}
