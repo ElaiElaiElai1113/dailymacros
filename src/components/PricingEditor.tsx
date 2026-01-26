@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import type { IngredientPricing } from "@/types";
 import { logAudit } from "@/utils/audit";
+import { toast } from "@/hooks/use-toast";
 
 type Mode = IngredientPricing["pricing_mode"];
 const TABS: Mode[] = ["flat", "per_gram", "per_ml", "per_unit"];
@@ -201,7 +202,11 @@ export default function PricingEditor({
         onConflict: "ingredient_id,pricing_mode,unit_label_norm",
       });
     if (error) {
-      alert(error.message);
+      toast({
+        variant: "destructive",
+        title: "Failed to save pricing",
+        description: error.message,
+      });
       return;
     }
     await logAudit({

@@ -263,7 +263,11 @@ export default function OrdersAdminPage() {
         .eq("id", orderId);
       if (error) {
         setOrders(prev);
-        alert(error.message);
+        toast({
+          variant: "destructive",
+          title: "Failed to update order status",
+          description: error.message,
+        });
       } else {
         await logAudit({
           action: "order.status_updated",
@@ -308,7 +312,11 @@ export default function OrdersAdminPage() {
       .eq("id", orderId);
     setPaySavingId(null);
     if (error) {
-      alert(error.message);
+      toast({
+        variant: "destructive",
+        title: "Failed to mark as paid",
+        description: error.message,
+      });
     } else {
       await logAudit({
         action: "order.payment_marked_paid",
@@ -431,7 +439,7 @@ export default function OrdersAdminPage() {
                         })}
                       </div>
                       <div className="text-xs text-gray-500">
-                        {o.id.slice(0, 8)} • {timeAgo(o.created_at)}
+                        {o.id.slice(0, 8)} ï¿½ {timeAgo(o.created_at)}
                       </div>
                     </td>
                     <td className="px-3 py-3">
@@ -447,7 +455,7 @@ export default function OrdersAdminPage() {
                           </div>
                         </>
                       ) : (
-                        "—"
+                        "ï¿½"
                       )}
                     </td>
                     <td className="px-3 py-3">
@@ -455,7 +463,7 @@ export default function OrdersAdminPage() {
                         {o.guest_name || "Guest"}
                       </div>
                       <div className="text-xs text-gray-500">
-                        {o.guest_phone || "—"}
+                        {o.guest_phone || "ï¿½"}
                       </div>
                     </td>
                     <td className="px-3 py-3">
@@ -500,7 +508,7 @@ export default function OrdersAdminPage() {
                                       {base
                                         .map(
                                           (l) =>
-                                            `${l.ingredient_name} — ${l.amount} ${l.unit}`
+                                            `${l.ingredient_name} ï¿½ ${l.amount} ${l.unit}`
                                         )
                                         .join("; ")}
                                     </div>
@@ -513,7 +521,7 @@ export default function OrdersAdminPage() {
                                       {extras
                                         .map(
                                           (l) =>
-                                            `${l.ingredient_name} — ${l.amount} ${l.unit}`
+                                            `${l.ingredient_name} ï¿½ ${l.amount} ${l.unit}`
                                         )
                                         .join("; ")}
                                     </div>
@@ -617,7 +625,7 @@ export default function OrdersAdminPage() {
                           disabled={paySavingId === o.id}
                           className="rounded-lg bg-[#D26E3D] px-3 py-1.5 text-xs font-semibold text-white hover:opacity-90 disabled:opacity-50"
                         >
-                          {paySavingId === o.id ? "Saving…" : "Mark as Paid"}
+                          {paySavingId === o.id ? "Savingï¿½" : "Mark as Paid"}
                         </button>
                       </div>
                     </td>
@@ -658,7 +666,7 @@ export default function OrdersAdminPage() {
                       >
                         {canAdvance && paymentIsVerified
                           ? `? ${STATUS_LABEL[next]}`
-                          : "—"}
+                          : "ï¿½"}
                       </button>
                       <button
                         className="rounded border px-2 py-1 text-xs hover:bg-gray-50"

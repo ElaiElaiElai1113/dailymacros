@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Toaster } from "@/components/ui/toaster";
 import { ToastGlobalListener } from "@/hooks/use-toast";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 
 const LandingPage = lazy(() => import("./pages/LandingPage"));
 const MenuPage = lazy(() => import("./pages/MenuPage"));
@@ -219,7 +220,8 @@ function NavItem({
 /* ------------------------------- App ------------------------------- */
 export default function App() {
   return (
-    <Routes>
+    <ErrorBoundary>
+      <Routes>
       <Route element={<SiteLayout />}>
         <Route
           element={
@@ -332,5 +334,6 @@ export default function App() {
         />
       </Route>
     </Routes>
+    </ErrorBoundary>
   );
 }

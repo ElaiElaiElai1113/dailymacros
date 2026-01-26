@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { logAudit } from "@/utils/audit";
+import { toast } from "@/hooks/use-toast";
 
 type NutritionRow = {
   ingredient_id: string;
@@ -49,7 +50,14 @@ export default function NutritionEditor({
       .eq("ingredient_id", ingredientId)
       .maybeSingle();
     setLoading(false);
-    if (error) return alert(error.message);
+    if (error) {
+      toast({
+        variant: "destructive",
+        title: "Failed to load nutrition data",
+        description: error.message,
+      });
+      return;
+    }
     if (!data) return;
     const row = data as NutritionRow;
     setVals({
@@ -83,7 +91,14 @@ export default function NutritionEditor({
       .from("ingredient_nutrition_base")
       .upsert(payload, { onConflict: "ingredient_id" });
     setSaving(false);
-    if (error) return alert(error.message);
+    if (error) {
+      toast({
+        variant: "destructive",
+        title: "Failed to save nutrition data",
+        description: error.message,
+      });
+      return;
+    }
     await logAudit({
       action: "ingredient_nutrition.upserted",
       entity_type: "ingredient",

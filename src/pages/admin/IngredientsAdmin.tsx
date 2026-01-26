@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import IngredientCard from "@/components/IngredientCard";
 import { logAudit } from "@/utils/audit";
+import { toast } from "@/hooks/use-toast";
 
 /* Helpers */
 const numberOrNull = (v: string) => {
@@ -106,7 +107,14 @@ function NewIngredientForm({ onSaved }: { onSaved: () => void }) {
   const needsDensity = unitDefault === "ml";
 
   async function save() {
-    if (!name.trim()) return alert("Name is required.");
+    if (!name.trim()) {
+      toast({
+        variant: "destructive",
+        title: "Name is required",
+        description: "Please enter an ingredient name",
+      });
+      return;
+    }
     setSaving(true);
     const { error } = await supabase.from("ingredients").insert({
       name: name.trim(),
@@ -124,7 +132,14 @@ function NewIngredientForm({ onSaved }: { onSaved: () => void }) {
       is_addon: false,
     });
     setSaving(false);
-    if (error) return alert(error.message);
+    if (error) {
+      toast({
+        variant: "destructive",
+        title: "Failed to create ingredient",
+        description: error.message,
+      });
+      return;
+    }
     await logAudit({
       action: "ingredient.created",
       entity_type: "ingredient",
@@ -266,7 +281,14 @@ export default function IngredientsAdminPage() {
       .eq("is_addon", false)
       .order("name");
     setLoading(false);
-    if (error) return alert(error.message);
+    if (error) {
+      toast({
+        variant: "destructive",
+        title: "Failed to load ingredients",
+        description: error.message,
+      });
+      return;
+    }
     setIngs((data || []) as IngredientRow[]);
   }
 
@@ -279,7 +301,14 @@ export default function IngredientsAdminPage() {
       .from("ingredients")
       .update({ is_active: next })
       .eq("id", id);
-    if (error) return alert(error.message);
+    if (error) {
+      toast({
+        variant: "destructive",
+        title: "Failed to update ingredient",
+        description: error.message,
+      });
+      return;
+    }
     await logAudit({
       action: next ? "ingredient.activated" : "ingredient.deactivated",
       entity_type: "ingredient",

@@ -3,6 +3,7 @@ import PricingEditor from "@/components/PricingEditor";
 import NutritionEditor from "@/components/NutritionEditor";
 import { supabase } from "@/lib/supabaseClient";
 import { logAudit } from "@/utils/audit";
+import { toast } from "@/hooks/use-toast";
 import {
   Dialog,
   DialogContent,
@@ -122,7 +123,14 @@ export default function IngredientCard({
   };
 
   async function saveBasics() {
-    if (!form.name.trim()) return alert("Name is required.");
+    if (!form.name.trim()) {
+      toast({
+        variant: "destructive",
+        title: "Name is required",
+        description: "Please enter an ingredient name",
+      });
+      return;
+    }
     const payload = {
       name: form.name.trim(),
       category: form.category.trim(),
@@ -146,7 +154,14 @@ export default function IngredientCard({
       .update(payload)
       .eq("id", ing.id);
     setSaving(false);
-    if (error) return alert(error.message);
+    if (error) {
+      toast({
+        variant: "destructive",
+        title: "Failed to save ingredient",
+        description: error.message,
+      });
+      return;
+    }
     await logAudit({
       action: "ingredient.updated",
       entity_type: "ingredient",
