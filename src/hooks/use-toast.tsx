@@ -63,6 +63,19 @@ export function toast(t: Omit<ToastState, "id">) {
   window.dispatchEvent(event);
 }
 
+// Helper functions for common toast patterns
+export function toastError(title: string, description?: string) {
+  toast({ title, description, variant: "destructive" });
+}
+
+export function toastSuccess(title: string, description?: string) {
+  toast({ title, description, variant: "default" });
+}
+
+export function toastInfo(title: string, description?: string) {
+  toast({ title, description, variant: "default" });
+}
+
 export function ToastGlobalListener() {
   const { toast: enqueue } = useToast();
 
