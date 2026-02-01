@@ -2,8 +2,11 @@ import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { logAudit } from "@/utils/audit";
 import { toast } from "@/hooks/use-toast";
-import { Check, X, Image as ImageIcon, Package, Search, Plus, Loader2, Upload, ChevronDown, ChevronUp } from "lucide-react";
+import { Check, X, Package, Search, Plus, Loader2, ChevronDown, ChevronUp } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { ScaleIn } from "@/components/ui/animations";
+import { ImageDropzone } from "@/components/ui/ImageDropzone";
+import { triggerSuccessConfetti } from "@/components/ui/confetti";
 
 type DrinkRow = {
   id: string;
@@ -159,100 +162,6 @@ function SaveSuccess({ show }: { show: boolean }) {
     <div className="flex items-center gap-1 text-green-600 text-xs font-medium animate-in fade-in slide-in-from-top-1 duration-300">
       <Check className="h-3.5 w-3.5" />
       Saved!
-    </div>
-  );
-}
-
-// Image upload zone component
-function ImageUploadZone({
-  imageUrl,
-  drinkName,
-  onUpload,
-  uploading,
-}: {
-  imageUrl: string | null | undefined;
-  drinkName: string;
-  onUpload: (file: File) => void;
-  uploading: boolean;
-}) {
-  const [dragActive, setDragActive] = useState(false);
-
-  const handleDrag = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (e.type === "dragenter" || e.type === "dragover") {
-      setDragActive(true);
-    } else if (e.type === "dragleave") {
-      setDragActive(false);
-    }
-  };
-
-  const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setDragActive(false);
-
-    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-      onUpload(e.dataTransfer.files[0]);
-    }
-  };
-
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    e.preventDefault();
-    if (e.target.files && e.target.files[0]) {
-      onUpload(e.target.files[0]);
-    }
-  };
-
-  return (
-    <div className="space-y-2">
-      <div
-        className={cn(
-          "relative h-48 w-full rounded-2xl border-2 border-dashed overflow-hidden transition-all duration-200",
-          dragActive
-            ? "border-[#D26E3D] bg-[#D26E3D]/5"
-            : "border-gray-200 hover:border-gray-300",
-          imageUrl && "border-0"
-        )}
-        onDragEnter={handleDrag}
-        onDragLeave={handleDrag}
-        onDragOver={handleDrag}
-        onDrop={handleDrop}
-      >
-        {imageUrl ? (
-          <img
-            src={imageUrl}
-            alt={drinkName}
-            className="h-full w-full object-contain"
-          />
-        ) : (
-          <div className="flex h-full flex-col items-center justify-center text-gray-400">
-            <ImageIcon className="h-10 w-10 mb-2" />
-            <span className="text-xs">No image</span>
-          </div>
-        )}
-
-        {uploading && (
-          <div className="absolute inset-0 flex items-center justify-center bg-white/80 backdrop-blur-sm">
-            <Loader2 className="h-8 w-8 animate-spin text-[#D26E3D]" />
-          </div>
-        )}
-
-        <label className="absolute bottom-2 right-2 flex cursor-pointer items-center gap-2 rounded-lg bg-white/95 px-3 py-2 text-xs font-medium text-gray-700 shadow-md hover:bg-white transition-colors">
-          <Upload className="h-3.5 w-3.5" />
-          {uploading ? "Uploading..." : "Change"}
-          <input
-            type="file"
-            accept="image/*"
-            className="hidden"
-            onChange={handleChange}
-            disabled={uploading}
-          />
-        </label>
-      </div>
-      <p className="text-[11px] text-gray-500 text-center">
-        Drag & drop or click to upload
-      </p>
     </div>
   );
 }
@@ -430,7 +339,6 @@ export default function DrinksAdminPage() {
     null
   );
   const [loading, setLoading] = useState(true);
-  const [uploadingId, setUploadingId] = useState<string | null>(null);
   const [saveSuccessId, setSaveSuccessId] = useState<string | null>(null);
   const [q, setQ] = useState("");
   const [creating, setCreating] = useState(false);
@@ -624,6 +532,7 @@ export default function DrinksAdminPage() {
       title: "Drink created",
       description: `${newDrink.name} has been added successfully`,
     });
+    triggerSuccessConfetti();
     setNewDrink({
       name: "",
       description: "",
@@ -675,6 +584,7 @@ export default function DrinksAdminPage() {
       title: "Changes saved",
       description: `${d.name} has been updated successfully`,
     });
+    triggerSuccessConfetti();
     load();
   }
 
@@ -942,7 +852,6 @@ export default function DrinksAdminPage() {
       return;
     }
 
-    setUploadingId(drinkId);
     const ext = file.name.split(".").pop() || "png";
     const path = `${drinkId}.${ext}`;
 
@@ -952,7 +861,6 @@ export default function DrinksAdminPage() {
     });
 
     if (error) {
-      setUploadingId(null);
       toast({
         variant: "destructive",
         title: "Upload failed",
@@ -969,8 +877,6 @@ export default function DrinksAdminPage() {
       .from("drinks")
       .update({ image_url: publicUrl })
       .eq("id", drinkId);
-
-    setUploadingId(null);
 
     if (updErr) {
       toast({
@@ -1131,18 +1037,14 @@ export default function DrinksAdminPage() {
           />
         ) : (
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-            {filtered.map((d) => (
-              <div
-                key={d.id}
-                className="flex flex-col rounded-2xl border border-gray-200 bg-white shadow-sm overflow-hidden hover:shadow-md transition-shadow"
-              >
+            {filtered.map((d, index) => (
+              <ScaleIn key={d.id} delay={index * 0.05}>
+                <div className="flex flex-col rounded-2xl border border-gray-200 bg-white shadow-sm overflow-hidden hover:shadow-md transition-shadow">
                 {/* Image upload */}
                 <div className="p-4 pb-2">
-                  <ImageUploadZone
-                    imageUrl={d.image_url}
-                    drinkName={d.name}
-                    onUpload={(file) => handleUpload(d.id, file)}
-                    uploading={uploadingId === d.id}
+                  <ImageDropzone
+                    currentImage={d.image_url}
+                    onUpload={async (file) => await handleUpload(d.id, file)}
                   />
                 </div>
 
@@ -1285,6 +1187,7 @@ export default function DrinksAdminPage() {
                   </div>
                 </div>
               </div>
+              </ScaleIn>
             ))}
           </div>
         )}
