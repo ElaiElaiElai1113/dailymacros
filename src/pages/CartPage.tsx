@@ -187,6 +187,7 @@ function CartItemCard({
                 <img
                   src={item.image_url}
                   alt={item.base_drink_name ?? item.item_name}
+                  loading="lazy"
                   className="h-full w-full object-contain"
                 />
               ) : (

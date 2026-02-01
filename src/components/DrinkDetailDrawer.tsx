@@ -231,6 +231,7 @@ Nutrition (est.):
                 <img
                   src={activeDrink.image_url}
                   alt={activeDrink.name}
+                  loading="lazy"
                   className="h-full w-full object-contain"
                 />
               ) : (

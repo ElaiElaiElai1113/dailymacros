@@ -363,6 +363,7 @@ export default function OrderFlowPage() {
                                 <img
                                   src={d.image_url}
                                   alt={d.name}
+                                  loading="lazy"
                                   className="max-h-full max-w-full object-contain transition group-hover:scale-[1.01]"
                                 />
                               </div>

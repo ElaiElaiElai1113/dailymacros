@@ -70,6 +70,7 @@ export default function DrinkCard({
             <img
               src={drink.image_url}
               alt={drink.name}
+              loading="lazy"
               className="h-full w-full object-contain transition-transform duration-300 group-hover:scale-[1.02]"
             />
           ) : (

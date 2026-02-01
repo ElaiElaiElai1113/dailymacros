@@ -184,6 +184,7 @@ function MiniDrinkCard({ drink }: { drink: Drink }) {
             <img
               src={drink.image_url}
               alt={drink.name}
+              loading="lazy"
               className="h-full w-full object-contain"
             />
           ) : (
