@@ -295,18 +295,53 @@ export default function OrderFlowPage() {
 
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1.2fr_0.8fr]">
           <div className="space-y-6">
-            <div className="flex flex-wrap gap-2">
-              {steps.map((s) => (
-                <Button
-                  key={s.id}
-                  variant={step === s.id ? "default" : "outline"}
-                  size="sm"
-                  disabled={!hasBase && s.id > 1}
-                  onClick={() => setStep(s.id)}
-                >
-                  {s.id}. {s.label}
-                </Button>
-              ))}
+            {/* Progress Stepper */}
+            <div className="overflow-hidden">
+              <div className="flex items-center justify-between">
+                {steps.map((s, idx) => (
+                  <div key={s.id} className="flex items-center flex-1">
+                    <div className="flex flex-col items-center flex-1">
+                      <div
+                        className={`flex h-10 w-10 items-center justify-center rounded-full border-2 text-sm font-semibold transition-all ${
+                          step === s.id
+                            ? "border-[#D26E3D] bg-[#D26E3D] text-white"
+                            : step > s.id
+                            ? "border-[#D26E3D] bg-[#D26E3D] text-white"
+                            : hasBase || s.id === 1
+                            ? "border-muted-300 bg-white text-muted-500"
+                            : "border-muted-200 bg-muted-100 text-muted-400"
+                        }`}
+                      >
+                        {step > s.id ? (
+                          <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                          </svg>
+                        ) : (
+                          s.id
+                        )}
+                      </div>
+                      <span
+                        className={`mt-2 text-xs font-medium transition-colors ${
+                          step === s.id
+                            ? "text-[#D26E3D]"
+                            : step > s.id
+                            ? "text-[#D26E3D]"
+                            : "text-muted-500"
+                        }`}
+                      >
+                        {s.label}
+                      </span>
+                    </div>
+                    {idx < steps.length - 1 && (
+                      <div
+                        className={`h-0.5 flex-1 transition-colors ${
+                          step > s.id ? "bg-[#D26E3D]" : "bg-muted-200"
+                        }`}
+                      />
+                    )}
+                  </div>
+                ))}
+              </div>
             </div>
 
             {step === 1 && (

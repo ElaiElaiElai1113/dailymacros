@@ -5,6 +5,7 @@ import { supabase } from "@/lib/supabaseClient";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { ShoppingBasket, UtensilsCrossed } from "lucide-react";
 
 type CartLine = {
   ingredient_id: string;
@@ -90,16 +91,23 @@ export default function CartPage() {
       </div>
 
       {items.length === 0 ? (
-        <Card>
-          <CardContent className="flex flex-col gap-3 py-8 text-center">
-            <div className="text-sm text-muted-foreground">
-              Your cart is empty. Start with the menu or build your own shake.
+        <Card className="border-dashed">
+          <CardContent className="flex flex-col items-center justify-center py-16 px-4 text-center">
+            <div className="flex h-20 w-20 items-center justify-center rounded-full bg-gradient-to-br from-[#FFE7C5] to-[#D7EFEA] mb-4">
+              <ShoppingBasket className="h-10 w-10 text-[#D26E3D]" />
             </div>
-            <div className="flex flex-wrap justify-center gap-2">
-              <Button asChild>
-                <Link to="/menu">Browse Menu</Link>
+            <h2 className="text-xl font-semibold mb-2">Your cart is empty</h2>
+            <p className="text-sm text-muted-foreground max-w-sm mb-6">
+              Ready to fuel your day? Browse our menu of healthy protein shakes or build your own custom blend.
+            </p>
+            <div className="flex flex-col sm:flex-row gap-3">
+              <Button asChild size="lg">
+                <Link to="/menu">
+                  <UtensilsCrossed className="h-4 w-4 mr-2" />
+                  Browse Menu
+                </Link>
               </Button>
-              <Button asChild variant="secondary">
+              <Button asChild variant="outline" size="lg">
                 <Link to="/order">Build Your Own</Link>
               </Button>
             </div>

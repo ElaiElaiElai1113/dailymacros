@@ -6,9 +6,11 @@ import type { Ingredient, IngredientNutrition, LineIngredient } from "@/types";
 import DrinkDetailDrawer from "@/components/DrinkDetailDrawer";
 import DrinkCard, { type DrinkRecord } from "@/components/DrinkCard";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Search, X } from "lucide-react";
 
 type DrinkLineRow = {
   id: string;
@@ -47,6 +49,10 @@ export default function MenuPage() {
   const [err, setErr] = useState<string | null>(null);
   const [uiErrors, setUiErrors] = useState<string[]>([]);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
+
+  // Search and filter state
+  const [searchQuery, setSearchQuery] = useState("");
+  const [activeCategory, setActiveCategory] = useState<string>("all");
 
   const { addItem } = useCart();
   const navigate = useNavigate();
@@ -181,6 +187,33 @@ export default function MenuPage() {
     return map;
   }, [sizeLines, drinkSizes]);
 
+  // Filter and search logic
+  const filteredDrinks = useMemo(() => {
+    return drinks.filter((drink) => {
+      // Search filter
+      const matchesSearch =
+        searchQuery === "" ||
+        drink.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (drink.description?.toLowerCase().includes(searchQuery.toLowerCase()) ?? false);
+
+      // Category filter (using price ranges as categories for now)
+      let matchesCategory = true;
+      if (activeCategory === "budget") {
+        matchesCategory = drink.price_cents < 15000;
+      } else if (activeCategory === "premium") {
+        matchesCategory = drink.price_cents >= 15000;
+      }
+
+      return matchesSearch && matchesCategory;
+    });
+  }, [drinks, searchQuery, activeCategory]);
+
+  const categories = [
+    { id: "all", label: "All Drinks" },
+    { id: "budget", label: "Under ₱150" },
+    { id: "premium", label: "₱150+" },
+  ];
+
   function handleAddToCart(drink: DrinkRecord) {
     const drinkLines = drinkLinesMap[drink.id] || [];
     if (drinkLines.length === 0) {
@@ -233,6 +266,43 @@ export default function MenuPage() {
         </div>
 
         <div className="mt-6 space-y-3">
+          {/* Search Bar */}
+          <div className="relative">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              type="text"
+              placeholder="Search drinks..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-9 pr-10"
+            />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery("")}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            )}
+          </div>
+
+          {/* Filter Chips */}
+          <div className="flex flex-wrap gap-2">
+            {categories.map((cat) => (
+              <button
+                key={cat.id}
+                onClick={() => setActiveCategory(cat.id)}
+                className={`px-4 py-2 rounded-full text-sm font-medium transition-all ${
+                  activeCategory === cat.id
+                    ? "bg-[#D26E3D] text-white shadow-md"
+                    : "bg-white border border-border/60 text-muted-foreground hover:border-[#D26E3D]/40 hover:text-foreground"
+                }`}
+              >
+                {cat.label}
+              </button>
+            ))}
+          </div>
+
           {err && (
             <Alert variant="destructive">
               <AlertTitle>We could not load the menu</AlertTitle>
@@ -289,19 +359,30 @@ export default function MenuPage() {
           </div>
         ) : (
           !err && (
-            <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-              {drinks.map((d) => (
-                <DrinkCard
-                  key={d.id}
-                  drink={d}
-                  lines={drinkLinesMap[d.id] || []}
-                  ingDict={ingDict}
-                  nutrDict={nutrDict}
-                  onAdd={() => handleAddToCart(d)}
-                  onOpen={() => openDrawer(d)}
-                />
-              ))}
-            </div>
+            <>
+              {filteredDrinks.length === 0 ? (
+                <div className="text-center py-16">
+                  <p className="text-muted-foreground mb-2">No drinks found matching "{searchQuery}"</p>
+                  <Button variant="outline" onClick={() => { setSearchQuery(""); setActiveCategory("all"); }}>
+                    Clear filters
+                  </Button>
+                </div>
+              ) : (
+                <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+                  {filteredDrinks.map((d) => (
+                    <DrinkCard
+                      key={d.id}
+                      drink={d}
+                      lines={drinkLinesMap[d.id] || []}
+                      ingDict={ingDict}
+                      nutrDict={nutrDict}
+                      onAdd={() => handleAddToCart(d)}
+                      onOpen={() => openDrawer(d)}
+                    />
+                  ))}
+                </div>
+              )}
+            </>
           )
         )}
       </div>
