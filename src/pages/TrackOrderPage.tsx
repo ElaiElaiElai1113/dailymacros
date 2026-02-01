@@ -72,6 +72,14 @@ const STATUS_TONE: Record<StatusValue, string> = {
   cancelled: "bg-rose-100 text-rose-800 border-rose-200",
 };
 
+const STATUS_ICONS: Record<StatusValue, React.ReactNode> = {
+  pending: "📋",
+  in_progress: "⚡",
+  ready: "✅",
+  picked_up: "📦",
+  cancelled: "❌",
+};
+
 const Peso = ({ cents }: { cents?: number | null }) => (
   <span>₱{((cents || 0) / 100).toFixed(2)}</span>
 );
@@ -468,19 +476,19 @@ export default function TrackOrderPage() {
 
 /* ----------------------------- UI bits ----------------------------- */
 function Steps({ current }: { current: StatusValue }) {
-  const steps: { key: StatusValue; label: string }[] = [
-    { key: "pending", label: "Received" },
-    { key: "in_progress", label: "Being prepared" },
-    { key: "ready", label: "Ready for pickup" },
-    { key: "picked_up", label: "Completed" },
+  const steps: { key: StatusValue; label: string; icon: string }[] = [
+    { key: "pending", label: "Received", icon: "📋" },
+    { key: "in_progress", label: "Being prepared", icon: "⚡" },
+    { key: "ready", label: "Ready for pickup", icon: "✅" },
+    { key: "picked_up", label: "Completed", icon: "📦" },
   ];
 
   if (current === "cancelled") {
     return (
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2 text-rose-700">
-          <span className="h-2 w-2 rounded-full bg-rose-500" />
-          <span className="font-medium">Order cancelled</span>
+      <div className="flex items-center justify-center p-4">
+        <div className="flex items-center gap-3 text-rose-700">
+          <span className="text-2xl">❌</span>
+          <span className="font-medium text-lg">Order cancelled</span>
         </div>
       </div>
     );
@@ -488,44 +496,58 @@ function Steps({ current }: { current: StatusValue }) {
 
   const idx = steps.findIndex((s) => s.key === current);
   return (
-    <div className="flex flex-col gap-2 md:flex-row md:items-center md:gap-3">
+    <div className="flex flex-col gap-4 md:flex-row md:items-center md:gap-2">
       {steps.map((s, i) => {
         const done = i < idx;
         const active = i === idx;
         return (
-          <div key={s.key} className="flex items-center gap-3">
-            <div
-              className={`grid place-items-center h-7 w-7 rounded-full text-[11px] font-semibold border transition
-              ${
-                done
-                  ? "bg-emerald-600 text-white border-emerald-600"
-                  : active
-                  ? "bg-[rgba(210,110,61,0.12)] text-[color:var(--brand)] border-[rgba(210,110,61,0.35)]"
-                  : "bg-gray-50 text-gray-500 border-gray-200"
-              }`}
-              style={
-                active
-                  ? ({ ["--brand" as any]: BRAND } as React.CSSProperties)
-                  : undefined
-              }
-              title={s.label}
-            >
-              {i + 1}
-            </div>
-            <div
-              className={`text-xs ${
-                active ? "text-gray-900 font-medium" : "text-gray-500"
-              }`}
-            >
-              {s.label}
-            </div>
-            {i < steps.length - 1 && (
+          <div key={s.key} className="flex flex-1 items-center gap-3">
+            <div className="relative flex items-center gap-4 flex-1">
+              {/* Circle with icon */}
               <div
-                className={`h-px w-10 md:w-16 ${
-                  done ? "bg-emerald-400" : "bg-gray-200"
+                className={`relative grid h-10 w-10 place-items-center rounded-full text-lg font-semibold border-2 transition-all duration-300 ${
+                  done
+                    ? "bg-emerald-600 text-white border-emerald-600 scale-110"
+                    : active
+                    ? "bg-[#D26E3D] text-white border-[#D26E3D] scale-110 shadow-lg shadow-[#D26E3D]/30"
+                    : "bg-gray-50 text-gray-400 border-gray-300"
                 }`}
-              />
-            )}
+                title={s.label}
+              >
+                {done ? "✓" : active ? STATUS_ICONS[s.key] : i + 1}
+              </div>
+
+              {/* Label */}
+              <div
+                className={`flex flex-col transition-all duration-300 ${
+                  active ? "scale-105" : ""
+                }`}
+              >
+                <div
+                  className={`text-sm font-medium ${
+                    active
+                      ? "text-[#D26E3D]"
+                      : done
+                      ? "text-emerald-600"
+                      : "text-gray-500"
+                  }`}
+                >
+                  {s.label}
+                </div>
+              </div>
+
+              {/* Connecting line */}
+              {i < steps.length - 1 && (
+                <div className="flex-1 h-1 mt-5 overflow-hidden">
+                  <div
+                    className={`h-full rounded-full transition-all duration-500 ${
+                      done ? "bg-emerald-600" : "bg-gray-200"
+                    }`}
+                    style={{ width: done ? "100%" : active ? "50%" : "0%" }}
+                  />
+                </div>
+              )}
+            </div>
           </div>
         );
       })}
