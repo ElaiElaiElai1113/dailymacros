@@ -213,7 +213,7 @@ Nutrition (est.):
               <div className="mt-2 flex flex-wrap items-center gap-2">
                 {activeDrink.base_size_ml ? (
                   <Badge variant="secondary">
-                    Base {activeDrink.base_size_ml} ml
+                    Base {Math.round(activeDrink.base_size_ml / 29.5735 * 10) / 10} oz
                   </Badge>
                 ) : null}
                 <Badge variant="glow">
@@ -258,7 +258,7 @@ Nutrition (est.):
                   <p className="mt-2 text-xs text-muted-foreground">
                     {sizeLinesForSelection.length > 0
                       ? "Uses the saved recipe for this size."
-                      : `Scales from base size ${activeDrink.base_size_ml ?? "default"} ml.`}
+                      : `Scales from base size ${activeDrink.base_size_ml ? Math.round(activeDrink.base_size_ml / 29.5735 * 10) / 10 : "default"} oz.`}
                   </p>
                 </div>
 
@@ -279,7 +279,7 @@ Nutrition (est.):
             <Card>
               <CardContent>
                 <div className="text-sm font-semibold">
-                  Estimated Nutrition ({sizeMl} ml)
+                  Estimated Nutrition ({Math.round(sizeMl / 29.5735 * 10) / 10} oz)
                 </div>
                 <div className="mt-3 grid grid-cols-4 gap-2 text-center text-xs">
                   <Stat

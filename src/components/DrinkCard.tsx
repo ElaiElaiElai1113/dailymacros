@@ -56,7 +56,7 @@ export default function DrinkCard({
             </p>
             {drink.base_size_ml ? (
               <div className="text-xs text-muted-foreground">
-                {drink.base_size_ml} ml base size
+                {Math.round(drink.base_size_ml / 29.5735 * 10) / 10} oz base size
               </div>
             ) : null}
           </div>

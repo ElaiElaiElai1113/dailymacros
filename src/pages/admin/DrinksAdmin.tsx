@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { logAudit } from "@/utils/audit";
 import { toast } from "@/hooks/use-toast";
-import { Check, X, Package, Search, Plus, Loader2, ChevronDown, ChevronUp } from "lucide-react";
+import { Check, X, Package, Search, Plus, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ScaleIn } from "@/components/ui/animations";
 import { ImageDropzone } from "@/components/ui/ImageDropzone";
@@ -166,7 +166,43 @@ function SaveSuccess({ show }: { show: boolean }) {
   );
 }
 
-// Collapsible recipe section
+function Modal({
+  title,
+  onClose,
+  children,
+}: {
+  title: string;
+  onClose: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center">
+      <div
+        className="absolute inset-0 bg-black/40 backdrop-blur-[1px]"
+        onClick={onClose}
+      />
+      <div className="relative z-10 w-[92vw] max-w-3xl max-h-[90vh] overflow-hidden rounded-2xl bg-white shadow-xl border border-gray-200">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+          <div className="flex items-center gap-2">
+            <Package className="h-4 w-4 text-[#D26E3D]" />
+            <h3 className="text-sm font-bold text-gray-900">{title}</h3>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-lg border border-gray-200 px-2.5 py-2 text-gray-500 hover:text-gray-800 hover:bg-gray-50 transition-colors"
+            aria-label="Close"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+        <div className="p-5 overflow-y-auto max-h-[calc(90vh-64px)]">{children}</div>
+      </div>
+    </div>
+  );
+}
+
+// Collapsible recipe section with modern design
 function CollapsibleRecipeSection({
   title,
   description,
@@ -179,6 +215,7 @@ function CollapsibleRecipeSection({
   onSave,
   saving,
   emptyMessage,
+  defaultCollapsed = false,
 }: {
   title: string;
   description?: string;
@@ -191,130 +228,158 @@ function CollapsibleRecipeSection({
   onSave: () => void;
   saving: boolean;
   emptyMessage: string;
+  defaultCollapsed?: boolean;
 }) {
-  const [isCollapsed, setIsCollapsed] = useState(false);
+  const [isCollapsed, setIsCollapsed] = useState(defaultCollapsed);
 
   return (
-    <div className="rounded-xl border border-gray-200 bg-gray-50/60 overflow-hidden">
+    <div className="rounded-xl border border-gray-200 bg-white overflow-hidden shadow-sm">
       <button
         onClick={() => setIsCollapsed(!isCollapsed)}
-        className="w-full flex items-center justify-between p-3 text-left hover:bg-gray-100/50 transition-colors"
+        className="w-full flex items-center justify-between px-4 py-3 bg-gradient-to-r from-gray-50 to-white text-left hover:from-gray-100 hover:to-gray-50 transition-all"
       >
-        <div>
-          <div className="text-xs font-semibold text-gray-700">{title}</div>
-          {description && (
-            <div className="text-[11px] text-gray-500 mt-0.5">{description}</div>
-          )}
+        <div className="flex items-center gap-2.5">
+          <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-[#D26E3D]/10 text-[#D26E3D]">
+            <Package className="h-3.5 w-3.5" />
+          </div>
+          <div className="text-left">
+            <div className="text-sm font-bold text-gray-900">{title}</div>
+            {description && (
+              <div className="text-xs text-gray-500 mt-0.5">{description}</div>
+            )}
+          </div>
         </div>
-        {isCollapsed ? (
-          <ChevronDown className="h-4 w-4 text-gray-400" />
-        ) : (
-          <ChevronUp className="h-4 w-4 text-gray-400" />
-        )}
+        <div className="flex items-center gap-1.5 bg-white rounded-lg px-2.5 py-1.5 shadow-sm border border-gray-200">
+          <span className="text-xs font-medium text-gray-600">{lines.length}</span>
+          <span className="text-xs text-gray-400">ingredients</span>
+        </div>
       </button>
 
       {!isCollapsed && (
-        <div className="p-3 pt-0 border-t border-gray-200/50">
+        <div className="p-4 space-y-3 bg-white">
           {lines.length === 0 ? (
-            <div className="py-6 text-center">
-              <p className="text-xs text-gray-500 mb-3">{emptyMessage}</p>
+            <div className="py-8 text-center rounded-lg border-2 border-dashed border-gray-200">
+              <Package className="h-8 w-8 text-gray-300 mx-auto mb-3" />
+              <p className="text-sm text-gray-500 mb-4">{emptyMessage}</p>
               <button
                 onClick={onAddLine}
-                className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#D26E3D] hover:text-[#B85C2E] transition-colors"
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-[#D26E3D] text-sm font-semibold text-white hover:bg-[#B85C2E] transition-colors shadow-sm"
               >
-                <Plus className="h-3.5 w-3.5" />
-                Add first ingredient
+                <Plus className="h-4 w-4" />
+                Add Ingredient
               </button>
             </div>
           ) : (
-            <div className="space-y-2 mt-3">
+            <div className="space-y-2.5">
               {lines.map((line, idx) => (
                 <div
                   key={`line-${idx}`}
-                  className="grid grid-cols-12 gap-2 items-center"
+                  className="grid grid-cols-1 sm:grid-cols-[1fr_auto_auto_auto] gap-3 p-3 rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors group"
                 >
-                  <select
-                    className="col-span-6 rounded-lg border border-gray-200 px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-[#D26E3D]/30 focus:border-[#D26E3D]"
-                    value={line.ingredient_id}
-                    onChange={(e) => {
-                      const nextId = e.target.value;
-                      const nextIng = ingredientById.get(nextId);
-                      onUpdateLine(idx, {
-                        ingredient_id: nextId,
-                        unit: nextIng?.unit_default || line.unit,
-                      });
-                    }}
-                  >
-                    {ingredients.map((ingOpt) => (
-                      <option key={ingOpt.id} value={ingOpt.id}>
-                        {ingOpt.name}
-                      </option>
-                    ))}
-                  </select>
-                  <input
-                    className="col-span-3 rounded-lg border border-gray-200 px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-[#D26E3D]/30 focus:border-[#D26E3D]"
-                    type="number"
-                    placeholder="Amount"
-                    value={line.amount || ""}
-                    onChange={(e) =>
-                      onUpdateLine(idx, {
-                        amount: Number(e.target.value || 0),
-                      })
-                    }
-                  />
-                  <select
-                    className="col-span-2 rounded-lg border border-gray-200 px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-[#D26E3D]/30 focus:border-[#D26E3D]"
-                    value={line.unit}
-                    onChange={(e) =>
-                      onUpdateLine(idx, {
-                        unit: e.target.value,
-                      })
-                    }
-                  >
-                    <option value="g">g</option>
-                    <option value="ml">ml</option>
-                    <option value="scoop">scoop</option>
-                    <option value="piece">piece</option>
-                  </select>
+                  <div className="sm:col-span-1">
+                    <label className="block text-[10px] font-medium text-gray-500 uppercase tracking-wide mb-1.5">
+                      <span className="sm:hidden">Ing.</span>
+                      <span className="hidden sm:inline">Ingredient</span>
+                    </label>
+                    <select
+                      className="w-full text-sm bg-white border border-gray-200 rounded-lg px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-[#D26E3D]/20 focus:border-[#D26E3D] transition-all"
+                      value={line.ingredient_id}
+                      onChange={(e) => {
+                        const nextId = e.target.value;
+                        const nextIng = ingredientById.get(nextId);
+                        onUpdateLine(idx, {
+                          ingredient_id: nextId,
+                          unit: nextIng?.unit_default || line.unit,
+                        });
+                      }}
+                    >
+                      {ingredients.map((ingOpt) => (
+                        <option key={ingOpt.id} value={ingOpt.id}>
+                          {ingOpt.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3 sm:gap-2 sm:grid-cols-1 sm:w-28">
+                    <label className="col-span-2 sm:col-span-1 block text-[10px] font-medium text-gray-500 uppercase tracking-wide mb-1.5">
+                      <span className="sm:hidden">Amt</span>
+                      <span className="hidden sm:inline">Amount</span>
+                    </label>
+                    <input
+                      className="col-span-2 sm:col-span-1 w-full text-sm bg-white border border-gray-200 rounded-lg px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-[#D26E3D]/20 focus:border-[#D26E3D] transition-all"
+                      type="number"
+                      placeholder="0"
+                      value={line.amount || ""}
+                      onChange={(e) =>
+                        onUpdateLine(idx, {
+                          amount: Number(e.target.value || 0),
+                        })
+                      }
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-3 sm:gap-2 sm:grid-cols-1 sm:w-24">
+                    <label className="col-span-2 sm:col-span-1 block text-[10px] font-medium text-gray-500 uppercase tracking-wide mb-1.5">
+                      <span className="sm:hidden">Unit</span>
+                      <span className="hidden sm:inline">Unit</span>
+                    </label>
+                    <select
+                      className="col-span-2 sm:col-span-1 w-full text-sm bg-white border border-gray-200 rounded-lg px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-[#D26E3D]/20 focus:border-[#D26E3D] transition-all"
+                      value={line.unit}
+                      onChange={(e) =>
+                        onUpdateLine(idx, {
+                          unit: e.target.value,
+                        })
+                      }
+                    >
+                      <option value="g">g</option>
+                      <option value="ml">ml</option>
+                      <option value="scoop">scoop</option>
+                      <option value="piece">piece</option>
+                    </select>
+                  </div>
                   <button
                     type="button"
                     onClick={() => onRemoveLine(idx)}
-                    className="col-span-1 flex items-center justify-center text-gray-400 hover:text-red-600 transition-colors"
-                    title="Remove line"
+                    className="sm:mt-5 sm:justify-self-end rounded-lg border border-gray-200 px-3 py-2.5 text-gray-400 hover:text-red-600 hover:bg-red-50 hover:border-red-200 transition-all"
+                    title="Remove ingredient"
                   >
-                    <X className="h-3.5 w-3.5" />
+                    <X className="h-4 w-4" />
                   </button>
                 </div>
               ))}
 
               <button
                 onClick={onAddLine}
-                className="mt-2 text-xs font-semibold text-[#D26E3D] hover:text-[#B85C2E] transition-colors flex items-center gap-1"
+                className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg border-2 border-dashed border-gray-300 text-sm font-semibold text-gray-600 hover:border-[#D26E3D] hover:text-[#D26E3D] hover:bg-[#D26E3D]/5 transition-all"
               >
-                <Plus className="h-3.5 w-3.5" />
-                Add another ingredient
+                <Plus className="h-4 w-4" />
+                Add Another Ingredient
               </button>
             </div>
           )}
 
-          <div className="mt-3 pt-3 border-t border-gray-200">
+          <div className="pt-3 border-t border-gray-100">
             <button
               onClick={onSave}
               disabled={saving}
               className={cn(
-                "w-full rounded-lg px-3 py-2 text-xs font-semibold transition-all",
+                "w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-semibold transition-all",
                 saving
                   ? "bg-gray-100 text-gray-400 cursor-not-allowed"
-                  : "bg-white border border-gray-200 text-gray-700 hover:bg-gray-50 hover:border-gray-300"
+                  : "bg-gradient-to-r from-[#D26E3D] to-[#B85C2E] text-white hover:from-[#B85C2E] hover:to-[#9A4F2C] shadow-md hover:shadow-lg active:scale-[0.98]"
               )}
             >
               {saving ? (
-                <span className="flex items-center justify-center gap-2">
-                  <Loader2 className="h-3 w-3.5 animate-spin" />
-                  Saving...
-                </span>
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Saving Recipe...
+                </>
               ) : (
-                "Save recipe"
+                <>
+                  <Check className="h-4 w-4" />
+                  Save Recipe
+                </>
               )}
             </button>
           </div>
@@ -338,6 +403,10 @@ export default function DrinksAdminPage() {
   const [sizeRecipeSavingKey, setSizeRecipeSavingKey] = useState<string | null>(
     null
   );
+  const [recipeModalDrinkId, setRecipeModalDrinkId] = useState<string | null>(
+    null
+  );
+  const [editModalDrinkId, setEditModalDrinkId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [saveSuccessId, setSaveSuccessId] = useState<string | null>(null);
   const [q, setQ] = useState("");
@@ -913,20 +982,33 @@ export default function DrinksAdminPage() {
     return map;
   }, [drinkSizes]);
 
+  const activeRecipeDrink = useMemo(
+    () => rows.find((r) => r.id === recipeModalDrinkId) || null,
+    [rows, recipeModalDrinkId]
+  );
+  const activeEditDrink = useMemo(
+    () => rows.find((r) => r.id === editModalDrinkId) || null,
+    [rows, editModalDrinkId]
+  );
+
+  const updateDrink = (drinkId: string, patch: Partial<DrinkRow>) => {
+    setRows((prev) => prev.map((x) => (x.id === drinkId ? { ...x, ...patch } : x)));
+  };
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-5">
         <div>
-          <h1 className="text-xl font-bold text-gray-900">Drinks Admin</h1>
-          <p className="text-sm text-gray-500 mt-0.5">
-            Manage your drink menu and recipes
+          <h1 className="text-2xl font-bold text-gray-900">Drinks</h1>
+          <p className="text-sm text-gray-500 mt-1.5">
+            Manage your drink menu, recipes, and sizes
           </p>
         </div>
-        <div className="relative w-full sm:w-72">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+        <div className="relative w-full sm:w-80">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
           <input
-            className="w-full rounded-lg border border-gray-200 pl-9 pr-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[#D26E3D]/30 focus:border-[#D26E3D] transition-all"
+            className="w-full rounded-lg border border-gray-200 pl-10 pr-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-[#D26E3D]/30 focus:border-[#D26E3D] transition-all"
             placeholder="Search drinks…"
             value={q}
             onChange={(e) => setQ(e.target.value)}
@@ -934,15 +1016,35 @@ export default function DrinksAdminPage() {
         </div>
       </div>
 
+      {/* Stats */}
+      <div className="grid gap-4 sm:grid-cols-4">
+        <div className="rounded-xl border border-gray-200 bg-white px-5 py-4">
+          <div className="text-[11px] uppercase tracking-wide text-gray-500 font-medium">Total Drinks</div>
+          <div className="mt-1.5 text-2xl font-bold text-gray-900">{rows.length}</div>
+        </div>
+        <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-5 py-4">
+          <div className="text-[11px] uppercase tracking-wide text-emerald-700 font-medium">Active</div>
+          <div className="mt-1.5 text-2xl font-bold text-emerald-700">{rows.filter((r) => r.is_active).length}</div>
+        </div>
+        <div className="rounded-xl border border-gray-200 bg-gray-50 px-5 py-4">
+          <div className="text-[11px] uppercase tracking-wide text-gray-500 font-medium">Inactive</div>
+          <div className="mt-1.5 text-2xl font-bold text-gray-700">{rows.filter((r) => !r.is_active).length}</div>
+        </div>
+        <div className="rounded-xl border border-blue-200 bg-blue-50 px-5 py-4">
+          <div className="text-[11px] uppercase tracking-wide text-blue-700 font-medium">With Recipes</div>
+          <div className="mt-1.5 text-2xl font-bold text-blue-700">{Object.keys(recipeLines).filter((id) => recipeLines[id]?.length > 0).length}</div>
+        </div>
+      </div>
+
       {/* Create new */}
-      <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
-        <div className="flex items-center gap-2 mb-4">
+      <section className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+        <div className="flex items-center gap-2.5 mb-5">
           <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#D26E3D]/10">
             <Plus className="h-4 w-4 text-[#D26E3D]" />
           </div>
           <h2 className="text-sm font-semibold text-gray-800">Add New Drink</h2>
         </div>
-        <div className="grid gap-4 md:grid-cols-2">
+        <div className="grid gap-5 md:grid-cols-2">
           <Field
             label="Name"
             value={newDrink.name}
@@ -961,13 +1063,13 @@ export default function DrinksAdminPage() {
             placeholder="0"
           />
           <Field
-            label="Base Size (ml)"
+            label="Base Size (oz)"
             type="number"
-            value={newDrink.base_size_ml}
+            value={Math.round((newDrink.base_size_ml || 0) / 29.5735 * 10) / 10}
             onChange={(v) =>
-              setNewDrink((p) => ({ ...p, base_size_ml: Number(v || 0) }))
+              setNewDrink((p) => ({ ...p, base_size_ml: Math.round(Number(v || 0) * 29.5735) }))
             }
-            placeholder="350"
+            placeholder="11.8"
           />
           <Field
             label="Description"
@@ -1010,8 +1112,8 @@ export default function DrinksAdminPage() {
       </section>
 
       {/* List + edit */}
-      <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
-        <div className="flex items-center gap-2 mb-4">
+      <section className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+        <div className="flex items-center gap-2.5 mb-5">
           <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gray-100">
             <Package className="h-4 w-4 text-gray-600" />
           </div>
@@ -1020,7 +1122,7 @@ export default function DrinksAdminPage() {
         </div>
 
         {loading ? (
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+          <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
             {[...Array(6)].map((_, i) => (
               <DrinkCardSkeleton key={i} />
             ))}
@@ -1036,162 +1138,240 @@ export default function DrinksAdminPage() {
             }
           />
         ) : (
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+          <div className="grid gap-6 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-3">
             {filtered.map((d, index) => (
               <ScaleIn key={d.id} delay={index * 0.05}>
-                <div className="flex flex-col rounded-2xl border border-gray-200 bg-white shadow-sm overflow-hidden hover:shadow-md transition-shadow">
-                {/* Image upload */}
-                <div className="p-4 pb-2">
-                  <ImageDropzone
-                    currentImage={d.image_url}
-                    onUpload={async (file) => await handleUpload(d.id, file)}
-                  />
-                </div>
-
-                <div className="px-4 pb-4 space-y-3">
-                  {/* Status badge */}
-                  <div className="flex items-center justify-between">
-                    <StatusBadge active={d.is_active} />
-                    <SaveSuccess show={saveSuccessId === d.id} />
+                <div className="flex flex-col bg-white rounded-xl border border-gray-200 shadow-sm hover:shadow-lg hover:border-[#D26E3D]/20 transition-all duration-200">
+                  <div className="relative">
+                    <div className="aspect-[4/5] w-full overflow-hidden rounded-t-xl bg-gray-50 flex items-center justify-center">
+                      {d.image_url ? (
+                        <img
+                          src={d.image_url}
+                          alt={d.name}
+                          className="h-full w-full object-contain p-4"
+                          loading="lazy"
+                        />
+                      ) : (
+                        <div className="text-xs text-gray-400">No image</div>
+                      )}
+                    </div>
+                    <div className="absolute top-3 right-3">
+                      <StatusBadge active={d.is_active} />
+                    </div>
                   </div>
 
-                  <Field
-                    label="Name"
-                    value={d.name}
-                    onChange={(v) =>
-                      setRows((prev) =>
-                        prev.map((x) => (x.id === d.id ? { ...x, name: v } : x))
-                      )
-                    }
-                    placeholder="Drink name"
-                  />
-                  <Field
-                    label="Description"
-                    value={d.description || ""}
-                    onChange={(v) =>
-                      setRows((prev) =>
-                        prev.map((x) =>
-                          x.id === d.id ? { ...x, description: v } : x
-                        )
-                      )
-                    }
-                    placeholder="Description (optional)"
-                  />
-                  <div className="grid grid-cols-2 gap-3">
-                    <Field
-                      label="Price (₱)"
-                      type="number"
-                      value={d.price_php ?? 0}
-                      onChange={(v) =>
-                        setRows((prev) =>
-                          prev.map((x) =>
-                            x.id === d.id
-                              ? { ...x, price_php: Number(v || 0) }
-                              : x
-                          )
-                        )
-                      }
-                    />
-                    <Field
-                      label="Base Size (ml)"
-                      type="number"
-                      value={d.base_size_ml ?? 0}
-                      onChange={(v) =>
-                        setRows((prev) =>
-                          prev.map((x) =>
-                            x.id === d.id
-                              ? { ...x, base_size_ml: Number(v || 0) }
-                              : x
-                          )
-                        )
-                      }
-                    />
-                  </div>
-                  <label className="flex items-center gap-2 text-sm rounded-lg border border-gray-200 px-3 py-2 cursor-pointer hover:bg-gray-50 transition-colors">
-                    <input
-                      type="checkbox"
-                      checked={d.is_active}
-                      onChange={(e) =>
-                        setRows((prev) =>
-                          prev.map((x) =>
-                            x.id === d.id
-                              ? { ...x, is_active: e.target.checked }
-                              : x
-                          )
-                        )
-                      }
-                      className="rounded border-gray-300 text-[#D26E3D] focus:ring-[#D26E3D]"
-                    />
-                    <span className="text-gray-700">Active</span>
-                  </label>
+                  {/* Card content */}
+                  <div className="p-5 space-y-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1">
+                          Drink
+                        </div>
+                        <div className="text-base font-semibold text-gray-900 truncate">
+                          {d.name}
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1">
+                          Price
+                        </div>
+                        <div className="text-base font-semibold text-gray-900">
+                          ₱{d.price_php ?? 0}
+                        </div>
+                      </div>
+                    </div>
 
-                  <div className="pt-1">
+                    <div className="flex items-center justify-between text-xs text-gray-500">
+                      <span>
+                        Size: {Math.round((d.base_size_ml ?? 0) / 29.5735 * 10) / 10} oz
+                      </span>
+                      <span className="truncate max-w-[60%]">
+                        {d.description ? d.description : "No description"}
+                      </span>
+                    </div>
+
                     <button
-                      onClick={() => saveDrink(d)}
-                      className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 hover:border-gray-300 transition-all"
+                      type="button"
+                      onClick={() => setEditModalDrinkId(d.id)}
+                      className="w-full rounded-lg border border-gray-200 px-4 py-2.5 text-sm font-semibold text-gray-700 hover:border-[#D26E3D] hover:text-[#D26E3D] hover:bg-[#D26E3D]/5 transition-colors"
                     >
-                      Save details
+                      Edit Details
                     </button>
                   </div>
-
-                  {/* Base Recipe */}
-                  <CollapsibleRecipeSection
-                    title="Base Recipe"
-                    lines={recipeLines[d.id] || []}
-                    ingredients={ingredients}
-                    ingredientById={ingredientById}
-                    onAddLine={() => addRecipeLine(d.id)}
-                    onUpdateLine={(idx, patch) => updateRecipeLine(d.id, idx, patch)}
-                    onRemoveLine={(idx) => removeRecipeLine(d.id, idx)}
-                    onSave={() => saveRecipe(d.id)}
-                    saving={recipeSavingId === d.id}
-                    emptyMessage="No ingredients in the base recipe yet"
-                  />
-
-                  {/* Size Recipes */}
-                  <div className="space-y-3">
-                    <div className="text-xs font-semibold text-gray-700 px-1">
-                      Size-Specific Recipes
-                    </div>
-                    {(drinkSizesByDrink[d.id] || []).length === 0 ? (
-                      <div className="rounded-lg border border-dashed border-gray-200 p-4 text-center">
-                        <p className="text-xs text-gray-500">
-                          No sizes configured for this drink
-                        </p>
-                      </div>
-                    ) : (
-                      (drinkSizesByDrink[d.id] || []).map((size) => {
-                        const sizeLines = sizeRecipeLines[size.id] || [];
-                        const label =
-                          size.display_name ||
-                          size.size_label ||
-                          `${size.size_ml} ml`;
-                        return (
-                          <CollapsibleRecipeSection
-                            key={size.id}
-                            title={label}
-                            description="Custom recipe for this size"
-                            lines={sizeLines}
-                            ingredients={ingredients}
-                            ingredientById={ingredientById}
-                            onAddLine={() => addSizeRecipeLine(size.id)}
-                            onUpdateLine={(idx, patch) => updateSizeRecipeLine(size.id, idx, patch)}
-                            onRemoveLine={(idx) => removeSizeRecipeLine(size.id, idx)}
-                            onSave={() => saveSizeRecipe(size.id)}
-                            saving={sizeRecipeSavingKey === size.id}
-                            emptyMessage="Uses base recipe"
-                          />
-                        );
-                      })
-                    )}
-                  </div>
                 </div>
-              </div>
               </ScaleIn>
             ))}
           </div>
         )}
       </section>
+
+      {recipeModalDrinkId && activeRecipeDrink && (
+        <Modal
+          title={`Recipe • ${activeRecipeDrink.name}`}
+          onClose={() => setRecipeModalDrinkId(null)}
+        >
+          <div className="space-y-4">
+            <CollapsibleRecipeSection
+              title="Base Recipe"
+              lines={recipeLines[activeRecipeDrink.id] || []}
+              ingredients={ingredients}
+              ingredientById={ingredientById}
+              onAddLine={() => addRecipeLine(activeRecipeDrink.id)}
+              onUpdateLine={(idx, patch) =>
+                updateRecipeLine(activeRecipeDrink.id, idx, patch)
+              }
+              onRemoveLine={(idx) => removeRecipeLine(activeRecipeDrink.id, idx)}
+              onSave={() => saveRecipe(activeRecipeDrink.id)}
+              saving={recipeSavingId === activeRecipeDrink.id}
+              emptyMessage="No ingredients in the base recipe yet"
+            />
+
+            {(drinkSizesByDrink[activeRecipeDrink.id] || []).length > 0 && (
+              <div className="space-y-4">
+                <div className="text-xs font-semibold text-gray-700 uppercase tracking-wide">
+                  Size-Specific Recipes
+                </div>
+                {(drinkSizesByDrink[activeRecipeDrink.id] || []).map((size) => {
+                  const sizeLines = sizeRecipeLines[size.id] || [];
+                  const label =
+                    size.display_name ||
+                    size.size_label ||
+                    `${Math.round(size.size_ml / 29.5735 * 10) / 10} oz`;
+                  return (
+                    <CollapsibleRecipeSection
+                      key={size.id}
+                      title={label}
+                      description="Custom recipe for this size"
+                      lines={sizeLines}
+                      ingredients={ingredients}
+                      ingredientById={ingredientById}
+                      onAddLine={() => addSizeRecipeLine(size.id)}
+                      onUpdateLine={(idx, patch) => updateSizeRecipeLine(size.id, idx, patch)}
+                      onRemoveLine={(idx) => removeSizeRecipeLine(size.id, idx)}
+                      onSave={() => saveSizeRecipe(size.id)}
+                      saving={sizeRecipeSavingKey === size.id}
+                      emptyMessage="Uses base recipe"
+                    />
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </Modal>
+      )}
+
+      {editModalDrinkId && activeEditDrink && (
+        <Modal
+          title={`Edit Drink • ${activeEditDrink.name}`}
+          onClose={() => setEditModalDrinkId(null)}
+        >
+          <div className="grid gap-5 lg:grid-cols-[1.1fr_1fr]">
+            <div className="space-y-4">
+              <ImageDropzone
+                currentImage={activeEditDrink.image_url}
+                onUpload={async (file) => await handleUpload(activeEditDrink.id, file)}
+              />
+
+              <div>
+                <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1.5">
+                  Drink Name
+                </label>
+                <input
+                  className="w-full text-base font-semibold text-gray-900 border-b-2 border-gray-200 bg-transparent focus:border-[#D26E3D] focus:outline-none focus:ring-0 placeholder:text-gray-400 transition-colors px-0 pb-1"
+                  value={activeEditDrink.name}
+                  onChange={(e) => updateDrink(activeEditDrink.id, { name: e.target.value })}
+                  placeholder="Enter drink name"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1.5">
+                  Description
+                </label>
+                <textarea
+                  className="w-full text-sm text-gray-700 bg-gray-50 border-0 rounded-lg px-3 py-2.5 focus:bg-white focus:ring-2 focus:ring-[#D26E3D]/20 resize-none placeholder:text-gray-400 transition-all"
+                  rows={3}
+                  value={activeEditDrink.description || ""}
+                  onChange={(e) =>
+                    updateDrink(activeEditDrink.id, { description: e.target.value })
+                  }
+                  placeholder="Add a brief description..."
+                />
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1.5">
+                    Price (₱)
+                  </label>
+                  <input
+                    className="w-full text-sm font-semibold text-gray-900 bg-white border border-gray-200 rounded-lg px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-[#D26E3D]/20 focus:border-[#D26E3D] transition-all placeholder:text-gray-400"
+                    type="number"
+                    value={activeEditDrink.price_php ?? 0}
+                    onChange={(e) =>
+                      updateDrink(activeEditDrink.id, {
+                        price_php: Number(e.target.value || 0),
+                      })
+                    }
+                    placeholder="0.00"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1.5">
+                    Base Size (oz)
+                  </label>
+                  <input
+                    className="w-full text-sm font-semibold text-gray-900 bg-white border border-gray-200 rounded-lg px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-[#D26E3D]/20 focus:border-[#D26E3D] transition-all placeholder:text-gray-400"
+                    type="number"
+                    value={Math.round((activeEditDrink.base_size_ml ?? 0) / 29.5735 * 10) / 10}
+                    onChange={(e) =>
+                      updateDrink(activeEditDrink.id, {
+                        base_size_ml: Math.round(Number(e.target.value || 0) * 29.5735),
+                      })
+                    }
+                    placeholder="11.8"
+                  />
+                </div>
+              </div>
+
+              <label className="flex items-center gap-2.5 text-sm font-medium text-gray-700 cursor-pointer group">
+                <div className="relative">
+                  <input
+                    type="checkbox"
+                    checked={activeEditDrink.is_active}
+                    onChange={(e) =>
+                      updateDrink(activeEditDrink.id, { is_active: e.target.checked })
+                    }
+                    className="peer h-4 w-4 rounded border-gray-300 text-[#D26E3D] focus:ring-2 focus:ring-[#D26E3D] focus:ring-offset-0 transition-all"
+                  />
+                  <div className="absolute inset-0 rounded-md ring-2 ring-transparent group-hover:ring-[#D26E3D]/20 transition-all peer-checked:bg-[#D26E3D] peer-checked:border-[#D26E3D]"></div>
+                </div>
+                <span className="group-hover:text-[#D26E3D] transition-colors">Active</span>
+              </label>
+
+              <div className="flex items-center gap-3 pt-2">
+                <button
+                  onClick={() => saveDrink(activeEditDrink)}
+                  className="rounded-lg bg-gradient-to-r from-[#D26E3D] to-[#B85C2E] px-5 py-2.5 text-sm font-semibold text-white hover:from-[#B85C2E] hover:to-[#9A4F2C] transition-all shadow-md hover:shadow-lg active:scale-95"
+                >
+                  Save Changes
+                </button>
+                <SaveSuccess show={saveSuccessId === activeEditDrink.id} />
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setRecipeModalDrinkId(activeEditDrink.id)}
+                className="w-full rounded-lg border border-gray-200 px-4 py-2.5 text-sm font-semibold text-gray-700 hover:border-[#D26E3D] hover:text-[#D26E3D] hover:bg-[#D26E3D]/5 transition-colors"
+              >
+                Edit Recipe
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
     </div>
   );
 }

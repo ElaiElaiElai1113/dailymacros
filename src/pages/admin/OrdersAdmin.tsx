@@ -94,6 +94,83 @@ const timeAgo = (iso: string) => {
   return `${days}d ago`;
 };
 
+// Order item card component with collapsible details
+function OrderItemCard({
+  item,
+  lines,
+  defaultExpanded = false,
+  onPrintLabel,
+}: {
+  item: OrderItemRow;
+  lines: OrderItemIngredientRow[];
+  defaultExpanded?: boolean;
+  onPrintLabel: (id: string) => void;
+}) {
+  const [expanded, setExpanded] = useState(defaultExpanded);
+  const base = lines.filter((l) => !l.is_extra);
+  const extras = lines.filter((l) => !!l.is_extra);
+
+  return (
+    <li className="rounded-lg border border-gray-200 bg-white overflow-hidden">
+      <div className="flex items-center justify-between gap-2 p-2">
+        <span className="font-medium text-sm truncate flex-1">
+          {item.item_name}
+        </span>
+        <div className="flex items-center gap-2 flex-shrink-0">
+          <span className="text-xs text-gray-600 font-medium">
+            <Peso cents={item.line_total_cents ?? item.unit_price_cents} />
+          </span>
+          <button
+            className="rounded border border-gray-200 px-2 py-0.5 text-[11px] hover:bg-gray-50 transition-colors"
+            onClick={() => onPrintLabel(item.id)}
+          >
+            Print
+          </button>
+        </div>
+      </div>
+      {lines.length > 0 && (
+        <button
+          onClick={() => setExpanded(!expanded)}
+          className="w-full text-[11px] text-gray-500 hover:text-gray-700 py-1.5 px-2 border-t border-gray-100 text-left flex items-center gap-1 hover:bg-gray-50 transition-colors"
+        >
+          <span className="font-medium">
+            {base.length > 0 ? `${base.length} base` : ""}
+            {extras.length > 0 ? ` + ${extras.length} add-on${extras.length > 1 ? "s" : ""}` : ""}
+          </span>
+          <span className="ml-auto">
+            {expanded ? "▼" : "▶"}
+          </span>
+        </button>
+      )}
+      {expanded && lines.length > 0 && (
+        <div className="p-2 pt-0 space-y-1 bg-gray-50/50">
+          {base.length > 0 && (
+            <div className="text-[11px] text-gray-700">
+              <span className="font-semibold text-gray-800">Base:</span>{" "}
+              <span className="opacity-80">
+                {base.map((l) => l.ingredient_name).join(", ")}
+              </span>
+            </div>
+          )}
+          {extras.length > 0 && (
+            <div className="text-[11px] text-emerald-700">
+              <span className="font-semibold text-emerald-800">Add-ons:</span>{" "}
+              <span className="opacity-80">
+                {extras.map((l) => `${l.ingredient_name} (${l.amount}${l.unit})`).join(", ")}
+              </span>
+            </div>
+          )}
+        </div>
+      )}
+      {lines.length === 0 && (
+        <div className="text-[11px] text-gray-400 py-1 px-2">
+          No ingredients
+        </div>
+      )}
+    </li>
+  );
+}
+
 export default function OrdersAdminPage() {
   const [orders, setOrders] = useState<OrderRow[]>([]);
   const [itemsMap, setItemsMap] = useState<Record<string, OrderItemRow[]>>({});
@@ -333,36 +410,43 @@ export default function OrdersAdminPage() {
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-lg font-bold text-gray-900">Orders</h1>
-        <div className="flex items-center gap-2">
+    <div className="space-y-8">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-5">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Orders</h1>
+          <p className="text-sm text-gray-500 mt-1.5">
+            Manage and track customer orders
+          </p>
+        </div>
+        <div className="flex flex-wrap items-center gap-3">
           <div className="relative">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
             <input
-              className="w-64 rounded-lg border px-3 py-1.5 pl-9 text-sm outline-none focus:ring-2 focus:ring-indigo-200"
+              className="w-64 rounded-lg border border-gray-200 pl-10 pr-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-[#D26E3D]/30 focus:border-[#D26E3D]"
               placeholder="Search name / phone / ID"
               onChange={(e) => debouncedSetSearch(e.target.value)}
             />
           </div>
-          <label className="ml-2 flex items-center gap-2 text-sm text-gray-700">
+          <label className="flex items-center gap-2 text-sm rounded-lg border border-gray-200 px-3 py-2 cursor-pointer hover:bg-gray-50 transition-colors">
             <input
               type="checkbox"
               checked={autoRefresh}
               onChange={(e) => setAutoRefresh(e.target.checked)}
+              className="rounded border-gray-300 text-[#D26E3D] focus:ring-[#D26E3D]"
             />
-            Auto-refresh
+            <span className="text-gray-700">Auto-refresh</span>
           </label>
           <button
             onClick={load}
-            className="rounded-lg border px-3 py-1.5 text-sm hover:bg-gray-50"
+            className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 hover:border-gray-300 transition-all"
           >
             Refresh
           </button>
         </div>
       </div>
 
-      <div className="flex flex-wrap gap-2">
+      <div className="flex flex-wrap gap-2.5">
         <Tab
           active={activeTab === ""}
           onClick={() => setActiveTab("")}
@@ -381,26 +465,28 @@ export default function OrdersAdminPage() {
         ))}
       </div>
 
-      <div className="overflow-x-auto rounded-2xl border bg-white shadow-sm">
-        <table className="min-w-[1100px] text-sm">
-          <thead className="bg-gray-50 text-left text-xs uppercase text-gray-600">
-            <tr>
-              <th className="px-3 py-2">Order</th>
-              <th className="px-3 py-2">Pickup</th>
-              <th className="px-3 py-2">Customer</th>
-              <th className="px-3 py-2">Items</th>
-              <th className="px-3 py-2">Total</th>
-              <th className="px-3 py-2">Status</th>
-              <th className="px-3 py-2">Payment</th>
-              <th className="px-3 py-2"></th>
-            </tr>
-          </thead>
-          <tbody>
+      {/* Table */}
+      <div className="rounded-2xl border border-gray-200 bg-white shadow-sm overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="bg-gray-50 text-xs font-semibold uppercase text-gray-600 border-b border-gray-200">
+              <tr>
+                <th className="px-5 py-4 text-left min-w-[140px]">Order</th>
+                <th className="px-5 py-4 text-left min-w-[130px]">Pickup</th>
+                <th className="px-5 py-4 text-left min-w-[140px]">Customer</th>
+                <th className="px-5 py-4 text-left min-w-[280px]">Items</th>
+                <th className="px-5 py-4 text-left min-w-[80px]">Total</th>
+                <th className="px-5 py-4 text-left min-w-[140px]">Status</th>
+                <th className="px-5 py-4 text-left min-w-[160px]">Payment</th>
+                <th className="px-5 py-4 text-right min-w-[200px]">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
             {loading ? (
               <RowSkeleton />
             ) : error ? (
               <tr>
-                <td colSpan={8} className="px-3 py-4 text-rose-700">
+                <td colSpan={8} className="px-5 py-6 text-rose-700">
                   {error}
                 </td>
               </tr>
@@ -408,7 +494,7 @@ export default function OrdersAdminPage() {
               <tr>
                 <td
                   colSpan={8}
-                  className="px-3 py-10 text-center text-gray-500"
+                  className="px-5 py-12 text-center text-gray-500"
                 >
                   No orders found.
                 </td>
@@ -432,7 +518,7 @@ export default function OrdersAdminPage() {
                     key={o.id}
                     className="border-t align-top hover:bg-gray-50/40"
                   >
-                    <td className="px-3 py-3">
+                    <td className="px-5 py-4">
                       <div className="font-medium text-gray-900">
                         {new Date(o.created_at).toLocaleString([], {
                           hour12: true,
@@ -442,7 +528,7 @@ export default function OrdersAdminPage() {
                         {o.id.slice(0, 8)} � {timeAgo(o.created_at)}
                       </div>
                     </td>
-                    <td className="px-3 py-3">
+                    <td className="px-5 py-4">
                       {o.pickup_time ? (
                         <>
                           <div className="font-medium">
@@ -458,7 +544,7 @@ export default function OrdersAdminPage() {
                         "�"
                       )}
                     </td>
-                    <td className="px-3 py-3">
+                    <td className="px-5 py-4">
                       <div className="font-medium">
                         {o.guest_name || "Guest"}
                       </div>
@@ -466,83 +552,25 @@ export default function OrdersAdminPage() {
                         {o.guest_phone || "�"}
                       </div>
                     </td>
-                    <td className="px-3 py-3">
-                      <ul className="space-y-2 max-w-[480px]">
-                        {items.map((item) => {
-                          const lines = linesMap[item.id] || [];
-                          const base = lines.filter((l) => !l.is_extra);
-                          const extras = lines.filter((l) => !!l.is_extra);
-                          return (
-                            <li
-                              key={item.id}
-                              className="rounded border p-2 bg-white"
-                            >
-                              <div className="flex items-center justify-between gap-2">
-                                <span className="font-medium truncate">
-                                  {item.item_name}
-                                </span>
-                                <div className="flex items-center gap-2">
-                                  <span className="text-gray-600">
-                                    <Peso
-                                      cents={
-                                        item.line_total_cents ??
-                                        item.unit_price_cents
-                                      }
-                                    />
-                                  </span>
-                                  <button
-                                    className="rounded border px-2 py-0.5 text-[11px] hover:bg-gray-50"
-                                    onClick={() => printLabel(item.id)}
-                                  >
-                                    Print label
-                                  </button>
-                                </div>
-                              </div>
-                              {lines.length > 0 ? (
-                                <div className="mt-1 grid gap-1">
-                                  {base.length > 0 && (
-                                    <div className="text-[11px] text-gray-700">
-                                      <span className="font-semibold">
-                                        Base:
-                                      </span>{" "}
-                                      {base
-                                        .map(
-                                          (l) =>
-                                            `${l.ingredient_name} � ${l.amount} ${l.unit}`
-                                        )
-                                        .join("; ")}
-                                    </div>
-                                  )}
-                                  {extras.length > 0 && (
-                                    <div className="text-[11px] text-emerald-700">
-                                      <span className="font-semibold">
-                                        Add-ons:
-                                      </span>{" "}
-                                      {extras
-                                        .map(
-                                          (l) =>
-                                            `${l.ingredient_name} � ${l.amount} ${l.unit}`
-                                        )
-                                        .join("; ")}
-                                    </div>
-                                  )}
-                                </div>
-                              ) : (
-                                <div className="mt-1 text-[11px] text-gray-400">
-                                  No ingredient lines.
-                                </div>
-                              )}
-                            </li>
-                          );
-                        })}
+                    <td className="px-5 py-4">
+                      <ul className="space-y-1.5 max-w-[380px]">
+                        {items.map((item, idx) => (
+                          <OrderItemCard
+                            key={item.id}
+                            item={item}
+                            lines={linesMap[item.id] || []}
+                            defaultExpanded={idx === 0}
+                            onPrintLabel={printLabel}
+                          />
+                        ))}
                       </ul>
                     </td>
-                    <td className="px-3 py-3 font-semibold">
+                    <td className="px-4 py-3 font-semibold">
                       <Peso cents={itemsTotal(o)} />
                     </td>
 
                     {/* STATUS COLUMN */}
-                    <td className="px-3 py-3">
+                    <td className="px-5 py-4">
                       {paymentIsVerified ? (
                         <>
                           <Badge status={o.status} />
@@ -573,7 +601,7 @@ export default function OrdersAdminPage() {
                     </td>
 
                     {/* PAYMENT COLUMN */}
-                    <td className="px-3 py-3">
+                    <td className="px-5 py-4">
                       <div
                         className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium ${paymentBadgeTone}`}
                       >
@@ -631,7 +659,7 @@ export default function OrdersAdminPage() {
                     </td>
 
                     {/* ACTIONS */}
-                    <td className="px-3 py-3 text-right space-x-2">
+                    <td className="px-4 py-3 text-right space-x-2">
                       <button
                         className="rounded-lg border px-2 py-1 text-xs hover:bg-gray-50"
                         onClick={() => {
@@ -682,6 +710,7 @@ export default function OrdersAdminPage() {
             )}
           </tbody>
         </table>
+        </div>
       </div>
     </div>
   );
@@ -703,16 +732,16 @@ function Tab({
   return (
     <button
       onClick={onClick}
-      className={`flex items-center gap-2 rounded-full border px-3 py-1.5 text-sm transition ${
+      className={`flex items-center gap-2 rounded-full border px-3 py-1.5 text-sm font-medium transition-all ${
         active
-          ? "bg-indigo-600 text-white border-indigo-600"
-          : "bg-white text-gray-700 hover:bg-gray-50"
+          ? "bg-[#D26E3D] text-white border-[#D26E3D] shadow-sm"
+          : "bg-white text-gray-700 border-gray-200 hover:bg-gray-50 hover:border-gray-300"
       }`}
       title={label}
     >
       <span className="truncate max-w-[140px]">{label}</span>
       <span
-        className={`rounded-full px-2 py-0.5 text-xs ${
+        className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
           active
             ? "bg-white/20 text-white"
             : tone || "bg-gray-100 text-gray-600"

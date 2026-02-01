@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import IngredientCard from "@/components/IngredientCard";
 import { logAudit } from "@/utils/audit";
+import { toast } from "@/hooks/use-toast";
+import { Search } from "lucide-react";
 
 /* Helpers */
 const numberOrNull = (v: string) => {
@@ -58,7 +60,14 @@ function NewAddonForm({ onSaved }: { onSaved: () => void }) {
   const needsDensity = unitDefault === "ml";
 
   async function save() {
-    if (!name.trim()) return alert("Name is required.");
+    if (!name.trim()) {
+      toast({
+        variant: "destructive",
+        title: "Validation error",
+        description: "Name is required.",
+      });
+      return;
+    }
     setSaving(true);
     const { error } = await supabase.from("ingredients").insert({
       name: name.trim(),
@@ -76,7 +85,14 @@ function NewAddonForm({ onSaved }: { onSaved: () => void }) {
       is_addon: true,
     });
     setSaving(false);
-    if (error) return alert(error.message);
+    if (error) {
+      toast({
+        variant: "destructive",
+        title: "Failed to create add-on",
+        description: error.message,
+      });
+      return;
+    }
     await logAudit({
       action: "ingredient.created",
       entity_type: "ingredient",
@@ -96,6 +112,13 @@ function NewAddonForm({ onSaved }: { onSaved: () => void }) {
         is_addon: true,
       },
     });
+
+    // Show success message
+    toast({
+      title: "Add-on created",
+      description: `${name.trim()} has been added successfully.`,
+    });
+
     // reset
     setName("");
     setCategory("addon");
@@ -217,7 +240,14 @@ export default function AddonsAdminPage() {
       .eq("is_addon", true)
       .order("name");
     setLoading(false);
-    if (error) return alert(error.message);
+    if (error) {
+      toast({
+        variant: "destructive",
+        title: "Failed to load add-ons",
+        description: error.message,
+      });
+      return;
+    }
     setIngs((data || []) as IngredientRow[]);
   }
 
@@ -230,12 +260,23 @@ export default function AddonsAdminPage() {
       .from("ingredients")
       .update({ is_active: next })
       .eq("id", id);
-    if (error) return alert(error.message);
+    if (error) {
+      toast({
+        variant: "destructive",
+        title: "Failed to update add-on",
+        description: error.message,
+      });
+      return;
+    }
     await logAudit({
       action: next ? "ingredient.activated" : "ingredient.deactivated",
       entity_type: "ingredient",
       entity_id: id,
       metadata: { is_addon: true },
+    });
+    toast({
+      title: "Add-on updated",
+      description: next ? "Add-on has been activated" : "Add-on has been deactivated",
     });
     load();
   }
@@ -249,30 +290,56 @@ export default function AddonsAdminPage() {
   );
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-lg font-bold text-gray-800">Add-ons Admin</h1>
-        <div className="flex items-center gap-3">
-          <input
-            className="w-72 rounded-lg border px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-[#D26E3D]/30"
-            placeholder="Search add-ons…"
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-          />
-          <label className="flex items-center gap-2 text-sm">
+    <div className="space-y-8">
+      {/* Header with search and filters */}
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-5">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Add-ons</h1>
+          <p className="text-sm text-gray-500 mt-1.5">
+            Manage add-on inventory, pricing, and availability
+          </p>
+        </div>
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
+            <input
+              className="w-80 rounded-lg border border-gray-200 pl-10 pr-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-[#D26E3D]/30 focus:border-[#D26E3D]"
+              placeholder="Search add-ons…"
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+            />
+          </div>
+          <label className="flex items-center gap-2 text-sm rounded-lg border border-gray-200 px-3 py-2 cursor-pointer hover:bg-gray-50 transition-colors">
             <input
               type="checkbox"
               checked={showInactive}
               onChange={(e) => setShowInactive(e.target.checked)}
+              className="rounded border-gray-300 text-[#D26E3D] focus:ring-[#D26E3D]"
             />
-            Show inactive
+            <span className="text-gray-700">Show inactive</span>
           </label>
+        </div>
+      </div>
+
+      {/* Stats */}
+      <div className="grid gap-4 sm:grid-cols-3">
+        <div className="rounded-xl border border-gray-200 bg-white px-5 py-4">
+          <div className="text-[11px] uppercase tracking-wide text-gray-500 font-medium">Total</div>
+          <div className="mt-1.5 text-2xl font-bold text-gray-900">{ings.length}</div>
+        </div>
+        <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-5 py-4">
+          <div className="text-[11px] uppercase tracking-wide text-emerald-700 font-medium">Active</div>
+          <div className="mt-1.5 text-2xl font-bold text-emerald-700">{ings.filter((i) => i.is_active).length}</div>
+        </div>
+        <div className="rounded-xl border border-gray-200 bg-gray-50 px-5 py-4">
+          <div className="text-[11px] uppercase tracking-wide text-gray-500 font-medium">Inactive</div>
+          <div className="mt-1.5 text-2xl font-bold text-gray-700">{ings.filter((i) => !i.is_active).length}</div>
         </div>
       </div>
 
       <NewAddonForm onSaved={load} />
 
-      <section className="rounded-2xl border bg-white p-4 shadow-sm">
+      <section className="rounded-2xl border bg-white p-5 shadow-sm">
         <SectionTitle>
           {showInactive ? "Inactive" : "Active"} Add-ons
         </SectionTitle>

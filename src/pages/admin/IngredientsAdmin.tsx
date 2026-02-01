@@ -115,6 +115,27 @@ function NewIngredientForm({ onSaved }: { onSaved: () => void }) {
       });
       return;
     }
+
+    // Debug: Check auth status
+    const { data: { session } } = await supabase.auth.getSession();
+    console.log("Auth session:", session);
+    if (!session) {
+      toast({
+        variant: "destructive",
+        title: "Not authenticated",
+        description: "Please log in to create ingredients",
+      });
+      return;
+    }
+
+    // Check user profile
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("role")
+      .eq("user_id", session.user.id)
+      .single();
+    console.log("User profile:", profile);
+
     setSaving(true);
     const { error } = await supabase.from("ingredients").insert({
       name: name.trim(),
@@ -345,9 +366,9 @@ export default function IngredientsAdminPage() {
   ).length;
 
   return (
-    <div className="space-y-6">
-      <div className="rounded-2xl border bg-white p-5 shadow-sm">
-        <div className="flex flex-wrap items-start justify-between gap-4">
+    <div className="space-y-8">
+      <div className="rounded-2xl border bg-white p-6 shadow-sm">
+        <div className="flex flex-wrap items-start justify-between gap-5">
           <div className="space-y-2">
             <h1 className="text-xl font-bold text-gray-900">Ingredients</h1>
             <p className="text-sm text-gray-600">
@@ -358,7 +379,7 @@ export default function IngredientsAdminPage() {
           <div className="flex flex-wrap items-center gap-3">
             <div className="relative">
               <input
-                className="w-72 rounded-lg border px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[#D26E3D]/30"
+                className="w-80 rounded-lg border px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-[#D26E3D]/30"
                 placeholder="Search name or category…"
                 value={q}
                 onChange={(e) => setQ(e.target.value)}
@@ -383,7 +404,7 @@ export default function IngredientsAdminPage() {
           </div>
         </div>
 
-        <div className="mt-4 grid gap-3 sm:grid-cols-3">
+        <div className="mt-5 grid gap-4 sm:grid-cols-3">
           <Stat label="Active" value={activeCount} tone="green" />
           <Stat label="Inactive" value={inactiveCount} />
           <Stat label="Missing nutrition" value={missingNutritionCount} tone="amber" />

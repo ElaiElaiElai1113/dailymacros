@@ -1,122 +1,160 @@
 import { Link } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import {
   Accordion,
   AccordionContent,
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
+import {
+  ShoppingCart,
+  Package,
+  Coffee,
+  PlusCircle,
+  FileText,
+  ArrowRight,
+  AlertCircle,
+  TrendingUp,
+} from "lucide-react";
+
+const quickActions = [
+  {
+    to: "/ops/orders",
+    title: "Orders",
+    description: "Track current orders, update status, and print labels",
+    icon: ShoppingCart,
+    color: "text-blue-600",
+    bgColor: "bg-blue-50",
+  },
+  {
+    to: "/ops/ingredients",
+    title: "Ingredients",
+    description: "Update nutrition, allergens, and activity status",
+    icon: Package,
+    color: "text-emerald-600",
+    bgColor: "bg-emerald-50",
+  },
+  {
+    to: "/ops/drinks",
+    title: "Drinks",
+    description: "Manage recipes, sizes, and pricing",
+    icon: Coffee,
+    color: "text-[#D26E3D]",
+    bgColor: "bg-orange-50",
+  },
+  {
+    to: "/ops/addons",
+    title: "Add-ons",
+    description: "Update inventory and pricing",
+    icon: PlusCircle,
+    color: "text-purple-600",
+    bgColor: "bg-purple-50",
+  },
+  {
+    to: "/ops/audit",
+    title: "Audit Log",
+    description: "Review recent admin actions",
+    icon: FileText,
+    color: "text-gray-600",
+    bgColor: "bg-gray-50",
+  },
+];
 
 export default function AdminPage() {
   return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
+    <div className="space-y-8">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-5">
         <div>
-          <Badge variant="secondary">Overview</Badge>
-          <h1 className="mt-2 text-2xl font-semibold">Admin Overview</h1>
-          <p className="text-sm text-muted-foreground">
-            Jump to the area you need. Keep the rest tucked away.
+          <h1 className="text-2xl font-bold text-gray-900">Admin Overview</h1>
+          <p className="text-sm text-gray-500 mt-1.5">
+            Welcome back! Here's what's happening today.
           </p>
         </div>
-        <div className="flex gap-2">
-          <Button asChild variant="secondary">
-            <Link to="/ops/orders">Orders</Link>
+        <div className="flex gap-2.5">
+          <Button asChild variant="outline" size="sm">
+            <Link to="/ops/orders">View Orders</Link>
           </Button>
-          <Button asChild variant="secondary">
-            <Link to="/ops/ingredients">Ingredients</Link>
-          </Button>
-          <Button asChild>
-            <Link to="/ops/drinks">Drinks</Link>
+          <Button asChild size="sm">
+            <Link to="/ops/drinks">Manage Drinks</Link>
           </Button>
         </div>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-3">
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Orders</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3 text-sm text-muted-foreground">
-            Track current orders, update status, and print labels.
-            <Button asChild variant="outline" size="sm">
-              <Link to="/ops/orders">Go to Orders</Link>
-            </Button>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Ingredients</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3 text-sm text-muted-foreground">
-            Update ingredient nutrition, allergens, and activity status.
-            <Button asChild variant="outline" size="sm">
-              <Link to="/ops/ingredients">Go to Ingredients</Link>
-            </Button>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Drinks</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3 text-sm text-muted-foreground">
-            Manage recipes, sizes, and pricing for base drinks.
-            <Button asChild variant="outline" size="sm">
-              <Link to="/ops/drinks">Go to Drinks</Link>
-            </Button>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Add-ons</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3 text-sm text-muted-foreground">
-            Update add-on inventory and pricing details.
-            <Button asChild variant="outline" size="sm">
-              <Link to="/ops/addons">Go to Add-ons</Link>
-            </Button>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Audit log</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3 text-sm text-muted-foreground">
-            Review recent admin actions across ingredients, drinks, and orders.
-            <Button asChild variant="outline" size="sm">
-              <Link to="/ops/audit">Go to Audit</Link>
-            </Button>
-          </CardContent>
-        </Card>
+      {/* Quick Actions Grid */}
+      <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+        {quickActions.map((action) => {
+          const Icon = action.icon;
+          return (
+            <Link
+              key={action.to}
+              to={action.to}
+              className="group"
+            >
+              <Card className="h-full transition-all hover:shadow-md hover:border-[#D26E3D]/30">
+                <CardHeader className="pb-4">
+                  <div className="flex items-start justify-between">
+                    <div className={`flex h-12 w-12 items-center justify-center rounded-xl ${action.bgColor}`}>
+                      <Icon className={`h-6 w-6 ${action.color}`} />
+                    </div>
+                    <ArrowRight className="h-4 w-4 text-gray-400 opacity-0 group-hover:opacity-100 transition-opacity" />
+                  </div>
+                  <CardTitle className="text-base mt-2">{action.title}</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-sm text-gray-500">{action.description}</p>
+                </CardContent>
+              </Card>
+            </Link>
+          );
+        })}
       </div>
 
+      {/* Quick Tips */}
       <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Quick notes</CardTitle>
+        <CardHeader className="pb-3">
+          <div className="flex items-center gap-2.5">
+            <AlertCircle className="h-5 w-5 text-[#D26E3D]" />
+            <CardTitle className="text-base">Quick Tips</CardTitle>
+          </div>
         </CardHeader>
         <CardContent>
-          <Accordion type="single" collapsible className="space-y-2">
-            <AccordionItem value="orders">
-              <AccordionTrigger>Order flow tips</AccordionTrigger>
-              <AccordionContent>
-                Update order status as soon as the drink is queued and again
-                when it is ready for pickup. This keeps the tracking screen
-                accurate.
+          <Accordion type="single" collapsible className="space-y-3">
+            <AccordionItem value="orders" className="border border-gray-200 rounded-lg px-4">
+              <AccordionTrigger className="hover:no-underline py-3">
+                <div className="flex items-center gap-3">
+                  <ShoppingCart className="h-4 w-4 text-blue-600" />
+                  <span className="font-medium">Order flow tips</span>
+                </div>
+              </AccordionTrigger>
+              <AccordionContent className="pb-3 pt-0 text-sm text-gray-600">
+                Update order status as soon as the drink is queued and again when it's ready for pickup.
+                This keeps the tracking screen accurate for customers.
               </AccordionContent>
             </AccordionItem>
-            <AccordionItem value="inventory">
-              <AccordionTrigger>Add-on inventory</AccordionTrigger>
-              <AccordionContent>
-                Disable add-ons that are out of stock so customers cannot add
-                them during checkout.
+            <AccordionItem value="inventory" className="border border-gray-200 rounded-lg px-4">
+              <AccordionTrigger className="hover:no-underline py-3">
+                <div className="flex items-center gap-3">
+                  <Package className="h-4 w-4 text-emerald-600" />
+                  <span className="font-medium">Add-on inventory</span>
+                </div>
+              </AccordionTrigger>
+              <AccordionContent className="pb-3 pt-0 text-sm text-gray-600">
+                Disable add-ons that are out of stock so customers cannot add them during checkout.
+                Remember to re-enable them when stock is replenished.
               </AccordionContent>
             </AccordionItem>
-            <AccordionItem value="pricing">
-              <AccordionTrigger>Pricing checks</AccordionTrigger>
-              <AccordionContent>
-                Review pricing after every batch update. The cart uses these
-                values for totals and auditing.
+            <AccordionItem value="pricing" className="border border-gray-200 rounded-lg px-4">
+              <AccordionTrigger className="hover:no-underline py-3">
+                <div className="flex items-center gap-3">
+                  <TrendingUp className="h-4 w-4 text-[#D26E3D]" />
+                  <span className="font-medium">Pricing checks</span>
+                </div>
+              </AccordionTrigger>
+              <AccordionContent className="pb-3 pt-0 text-sm text-gray-600">
+                Review pricing after every batch update. The cart uses these values for totals and auditing.
+                Check the audit log if you notice discrepancies.
               </AccordionContent>
             </AccordionItem>
           </Accordion>
