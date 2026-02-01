@@ -1,0 +1,11 @@
+# https://www.robotstxt.org/robotstxt.html
+User-agent: *
+Allow: /
+
+# Disallow admin and staff areas
+Disallow: /ops
+Disallow: /staff
+Disallow: /admin
+
+# Sitemap location
+Sitemap: https://dailymacros.com/sitemap.xml
