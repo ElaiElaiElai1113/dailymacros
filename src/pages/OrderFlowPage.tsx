@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/lib/supabaseClient";
+import { motion, AnimatePresence } from "framer-motion";
 import {
   groupPricing,
   priceForExtrasPHP,
@@ -16,6 +17,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { toast } from "@/hooks/use-toast";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Check, ChevronRight, Sparkles, Plus, X, ShoppingCart } from "lucide-react";
 
 import type {
   CartItem,
@@ -45,6 +47,49 @@ const steps = [
   { id: 3, label: "Review" },
 ];
 
+// Animation variants
+const slideVariants = {
+  enter: (direction: number) => ({
+    x: direction > 0 ? 50 : -50,
+    opacity: 0,
+  }),
+  center: {
+    x: 0,
+    opacity: 1,
+  },
+  exit: (direction: number) => ({
+    x: direction < 0 ? 50 : -50,
+    opacity: 0,
+  }),
+};
+
+const cardVariants = {
+  hidden: { opacity: 0, y: 20, scale: 0.95 },
+  visible: {
+    opacity: 1,
+    y: 0,
+    scale: 1,
+    transition: {
+      type: "spring" as const,
+      stiffness: 100,
+      damping: 15,
+    },
+  },
+};
+
+const fadeInUp = {
+  hidden: { opacity: 0, y: 30 },
+  visible: {
+    opacity: 1,
+    y: 0,
+    transition: {
+      type: "spring" as const,
+      stiffness: 80,
+      damping: 12,
+    },
+  },
+};
+
 export default function OrderFlowPage() {
   const { addItem } = useCart();
   const navigate = useNavigate();
@@ -67,6 +112,7 @@ export default function OrderFlowPage() {
   const [loadingBase, setLoadingBase] = useState(false);
   const [step, setStep] = useState(1);
   const [added, setAdded] = useState(false);
+  const [direction, setDirection] = useState(0);
   const hasBase = !!selectedBaseId;
 
   useEffect(() => {
@@ -260,10 +306,12 @@ export default function OrderFlowPage() {
 
   function goNext() {
     if (step === 1 && hasBase) {
+      setDirection(1);
       setStep(2);
       return;
     }
     if (step === 2 && hasBase) {
+      setDirection(1);
       setStep(3);
       return;
     }
@@ -274,10 +322,12 @@ export default function OrderFlowPage() {
 
   function goBack() {
     if (step === 3) {
+      setDirection(-1);
       setStep(2);
       return;
     }
     if (step === 2) {
+      setDirection(-1);
       setStep(1);
     }
   }
@@ -285,385 +335,734 @@ export default function OrderFlowPage() {
   return (
     <div className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(210,110,61,0.12),_transparent_55%),radial-gradient(circle_at_bottom,_rgba(89,145,144,0.12),_transparent_45%)]">
       <div className="mx-auto max-w-7xl px-4 py-8 pb-24 lg:pb-8">
-        <header className="mb-6 space-y-2">
-          <Badge variant="secondary">Guided Order</Badge>
+        {/* Animated Header */}
+        <motion.header
+          className="mb-6 space-y-2"
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6, type: "spring" as const }}
+        >
+          <motion.div
+            initial={{ scale: 0 }}
+            animate={{ scale: 1 }}
+            transition={{ delay: 0.2, type: "spring" as const, stiffness: 200 }}
+          >
+            <Badge variant="secondary" className="gap-1">
+              <Sparkles className="h-3 w-3" />
+              Guided Order
+            </Badge>
+          </motion.div>
           <h1 className="text-2xl font-semibold">Build your perfect shake</h1>
           <p className="text-sm text-muted-foreground">
             Choose a base, customize add-ons, then review before checkout.
           </p>
-        </header>
+        </motion.header>
 
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1.2fr_0.8fr]">
           <div className="space-y-6">
-            {/* Progress Stepper */}
-            <div className="overflow-hidden">
+            {/* Enhanced Progress Stepper */}
+            <motion.div
+              className="overflow-hidden"
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.3, duration: 0.5 }}
+            >
               <div className="flex items-center justify-between">
-                {steps.map((s, idx) => (
-                  <div key={s.id} className="flex items-center flex-1">
-                    <div className="flex flex-col items-center flex-1">
-                      <div
-                        className={`flex h-10 w-10 items-center justify-center rounded-full border-2 text-sm font-semibold transition-all ${
-                          step === s.id
-                            ? "border-[#D26E3D] bg-[#D26E3D] text-white"
-                            : step > s.id
-                            ? "border-[#D26E3D] bg-[#D26E3D] text-white"
-                            : hasBase || s.id === 1
-                            ? "border-muted-300 bg-white text-muted-500"
-                            : "border-muted-200 bg-muted-100 text-muted-400"
-                        }`}
-                      >
-                        {step > s.id ? (
-                          <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                          </svg>
-                        ) : (
-                          s.id
-                        )}
-                      </div>
-                      <span
-                        className={`mt-2 text-xs font-medium transition-colors ${
-                          step === s.id
-                            ? "text-[#D26E3D]"
-                            : step > s.id
-                            ? "text-[#D26E3D]"
-                            : "text-muted-500"
-                        }`}
-                      >
-                        {s.label}
-                      </span>
-                    </div>
-                    {idx < steps.length - 1 && (
-                      <div
-                        className={`h-0.5 flex-1 transition-colors ${
-                          step > s.id ? "bg-[#D26E3D]" : "bg-muted-200"
-                        }`}
-                      />
-                    )}
-                  </div>
-                ))}
-              </div>
-            </div>
+                {steps.map((s, idx) => {
+                  const isCompleted = step > s.id;
+                  const isActive = step === s.id;
+                  const isClickable = hasBase && idx < step;
 
-            {step === 1 && (
-              <Card>
-                <CardHeader className="flex-row items-center justify-between">
-                  <CardTitle className="text-base">
-                    Choose your base drink
-                  </CardTitle>
-                  {loadingBase && <Badge variant="secondary">Loading...</Badge>}
-                </CardHeader>
-                <CardContent>
-                  {loadingAll ? (
-                    <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-                      {Array.from({ length: 6 }).map((_, i) => (
-                        <div
-                          key={`base-skel-${i}`}
-                          className="rounded-2xl border border-border/60 bg-white p-3 shadow-sm"
+                  return (
+                    <motion.div
+                      key={s.id}
+                      className="flex items-center flex-1"
+                      initial={{ scale: 0.8, opacity: 0 }}
+                      animate={{ scale: 1, opacity: 1 }}
+                      transition={{ delay: idx * 0.1 }}
+                    >
+                      <div className="flex flex-col items-center flex-1">
+                        <motion.div
+                          className={`flex h-12 w-12 items-center justify-center rounded-full border-2 text-sm font-semibold transition-all cursor-default relative ${
+                            isActive
+                              ? "border-[#D26E3D] bg-[#D26E3D] text-white scale-110 shadow-lg shadow-[#D26E3D]/30"
+                              : isCompleted
+                              ? "border-emerald-500 bg-emerald-500 text-white scale-105"
+                              : hasBase || s.id === 1
+                              ? "border-gray-300 bg-white text-gray-500"
+                              : "border-gray-200 bg-gray-100 text-gray-400"
+                          }`}
+                          whileHover={isClickable ? { scale: 1.15 } : {}}
+                          animate={isActive ? {
+                            boxShadow: [
+                              "0 0 0 0 rgba(210, 110, 61, 0.4)",
+                              "0 0 0 10px rgba(210, 110, 61, 0)",
+                            ],
+                          } : {}}
+                          transition={{ duration: 1.5, repeat: isActive ? Infinity : 0 }}
                         >
-                          <Skeleton className="h-28 w-full rounded-xl" />
-                          <div className="mt-3 space-y-2">
-                            <Skeleton className="h-4 w-2/3" />
-                            <Skeleton className="h-3 w-full" />
-                            <Skeleton className="h-3 w-1/2" />
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  ) : baseDrinks.length === 0 ? (
-                    <Alert>
-                      <AlertTitle>No base drinks yet</AlertTitle>
-                      <AlertDescription>
-                        Add base drinks in the admin panel first.
-                      </AlertDescription>
-                    </Alert>
-                  ) : (
-                    <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-                      {baseDrinks.map((d) => {
-                        const active = d.id === selectedBaseId;
-                        return (
-                          <button
-                            key={d.id}
-                            onClick={() => {
-                              setSelectedBaseId(d.id);
-                              setStep(2);
-                            }}
-                            className={`group overflow-hidden rounded-2xl border bg-white text-left shadow-sm transition ${
-                              active
-                                ? "border-primary/60 ring-2 ring-primary/30"
-                                : "hover:border-primary/40 hover:shadow-md"
-                            }`}
-                          >
-                            {d.image_url ? (
-                              <div className="h-32 w-full bg-white flex items-center justify-center overflow-hidden">
-                                <img
-                                  src={d.image_url}
-                                  alt={d.name}
-                                  loading="lazy"
-                                  className="max-h-full max-w-full object-contain transition group-hover:scale-[1.01]"
-                                />
-                              </div>
-                            ) : (
-                              <div className="h-32 w-full bg-gradient-to-br from-[#FFE7C5] to-[#FFF8DE]" />
-                            )}
-
-                            <div className="p-3 space-y-1">
-                              <div className="font-semibold">{d.name}</div>
-                              <p className="text-xs text-muted-foreground line-clamp-2">
-                                {d.description || "Signature blend"}
-                              </p>
-                              <div className="text-xs font-medium text-emerald-700">
-                                PHP {(d.price_cents / 100).toFixed(2)}
-                              </div>
-                            </div>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            )}
-
-            {step === 2 && (
-              <div className="space-y-6">
-                {!selectedBase ? (
-                  <Alert>
-                    <AlertTitle>Select a base drink</AlertTitle>
-                    <AlertDescription>
-                      Choose a base drink to unlock customization.
-                    </AlertDescription>
-                  </Alert>
-                ) : (
-                  <>
-                    <Card>
-                      <CardHeader className="flex-row items-center justify-between">
-                        <CardTitle className="text-base">
-                          Customize add-ons
-                        </CardTitle>
-                        <Badge variant="glow">Live macros</Badge>
-                      </CardHeader>
-                      <CardContent>
-                        <IngredientSelector
-                          onAdd={handleAddAddon}
-                          getPricePHP={(ing, amount, unit) =>
-                            priceForLinePHP(
-                              { ingredient_id: ing.id, amount, unit },
-                              pricingDict
-                            )
-                          }
-                          selectedIngredientIds={extraLines.map(
-                            (l) => l.ingredient_id
+                          {isCompleted ? (
+                            <motion.div
+                              initial={{ scale: 0 }}
+                              animate={{ scale: 1 }}
+                              transition={{ type: "spring" as const, stiffness: 200 }}
+                            >
+                              <Check className="h-5 w-5" />
+                            </motion.div>
+                          ) : (
+                            <span>{s.id}</span>
                           )}
+                        </motion.div>
+                        <motion.span
+                          className={`mt-2 text-xs font-medium transition-colors ${
+                            isActive
+                              ? "text-[#D26E3D] font-semibold"
+                              : isCompleted
+                              ? "text-emerald-600"
+                              : "text-gray-500"
+                          }`}
+                          animate={isActive ? { scale: [1, 1.05, 1] } : {}}
+                          transition={{ duration: 2, repeat: isActive ? Infinity : 0 }}
+                        >
+                          {s.label}
+                        </motion.span>
+                      </div>
+                      {idx < steps.length - 1 && (
+                        <motion.div
+                          className={`h-0.5 flex-1 transition-colors mx-2 ${
+                            isCompleted ? "bg-emerald-500" : "bg-gray-200"
+                          }`}
+                          initial={{ scaleX: 0 }}
+                          animate={{ scaleX: isCompleted ? 1 : 0 }}
+                          transition={{ delay: idx * 0.1 + 0.2, duration: 0.5 }}
+                          style={{ originX: 0 }}
                         />
-                      </CardContent>
-                    </Card>
+                      )}
+                    </motion.div>
+                  );
+                })}
+              </div>
+            </motion.div>
 
+            <AnimatePresence mode="wait">
+              {step === 1 && (
+                <motion.div
+                  key="step1"
+                  custom={direction}
+                  variants={slideVariants}
+                  initial="enter"
+                  animate="center"
+                  exit="exit"
+                  transition={{
+                    type: "spring",
+                    stiffness: 300,
+                    damping: 30,
+                  }}
+                >
+                  <motion.div
+                    variants={cardVariants}
+                    initial="hidden"
+                    animate="visible"
+                  >
                     <Card>
                       <CardHeader className="flex-row items-center justify-between">
-                        <CardTitle className="text-base">
-                          Selected add-ons
-                        </CardTitle>
-                        {extraLines.length > 0 && (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => setExtraLines([])}
+                        <CardTitle className="text-base flex items-center gap-2">
+                          <motion.div
+                            animate={{ rotate: [0, 10, -10, 0] }}
+                            transition={{ duration: 2, repeat: Infinity }}
                           >
-                            Clear all
-                          </Button>
+                            🥤
+                          </motion.div>
+                          Choose your base drink
+                        </CardTitle>
+                        {loadingBase && (
+                          <motion.div
+                            initial={{ scale: 0 }}
+                            animate={{ scale: 1 }}
+                            exit={{ scale: 0 }}
+                          >
+                            <Badge variant="secondary">Loading...</Badge>
+                          </motion.div>
                         )}
                       </CardHeader>
                       <CardContent>
-                        {extraLines.length === 0 ? (
-                          <div className="text-sm text-muted-foreground">
-                            No add-ons yet.
+                        {loadingAll ? (
+                          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                            {Array.from({ length: 6 }).map((_, i) => (
+                              <motion.div
+                                key={`base-skel-${i}`}
+                                className="rounded-2xl border border-border/60 bg-white p-3 shadow-sm"
+                                initial={{ opacity: 0, y: 20 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                transition={{ delay: i * 0.05 }}
+                              >
+                                <Skeleton className="h-28 w-full rounded-xl" />
+                                <div className="mt-3 space-y-2">
+                                  <Skeleton className="h-4 w-2/3" />
+                                  <Skeleton className="h-3 w-full" />
+                                  <Skeleton className="h-3 w-1/2" />
+                                </div>
+                              </motion.div>
+                            ))}
                           </div>
+                        ) : baseDrinks.length === 0 ? (
+                          <Alert>
+                            <AlertTitle>No base drinks yet</AlertTitle>
+                            <AlertDescription>
+                              Add base drinks in the admin panel first.
+                            </AlertDescription>
+                          </Alert>
                         ) : (
-                          <ul className="divide-y divide-muted/60 text-sm">
-                            {extraLines.map((l, i) => {
-                              const php = linePricePHP(l);
+                          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                            {baseDrinks.map((d, i) => {
+                              const active = d.id === selectedBaseId;
                               return (
-                                <li
-                                  key={i}
-                                  className="flex items-center justify-between py-2"
+                                <motion.button
+                                  key={d.id}
+                                  onClick={() => {
+                                    setSelectedBaseId(d.id);
+                                    setTimeout(() => setStep(2), 150);
+                                  }}
+                                  className={`group overflow-hidden rounded-2xl border bg-white text-left shadow-sm transition-all relative ${
+                                    active
+                                      ? "border-[#D26E3D] ring-2 ring-[#D26E3D]/30 shadow-lg"
+                                      : "hover:border-[#D26E3D]/40 hover:shadow-md"
+                                  }`}
+                                  initial={{ opacity: 0, scale: 0.9 }}
+                                  animate={{ opacity: 1, scale: 1 }}
+                                  transition={{ delay: i * 0.05, type: "spring" as const }}
+                                  whileHover={{ y: -4, scale: 1.02 }}
+                                  whileTap={{ scale: 0.98 }}
                                 >
-                                  <div className="min-w-0">
-                                    <span className="font-medium">{l.name}</span>{" "}
-                                    <span className="text-muted-foreground">
-                                      - {l.amount} {l.unit}
-                                    </span>
-                                  </div>
-                                  <div className="flex items-center gap-3 shrink-0">
-                                    <span className="text-emerald-700">
-                                      PHP {php.toFixed(2)}
-                                    </span>
-                                    <Button
-                                      variant="ghost"
-                                      size="sm"
-                                      onClick={() => removeAddon(i)}
+                                  {active && (
+                                    <motion.div
+                                      className="absolute top-2 right-2 h-6 w-6 rounded-full bg-[#D26E3D] flex items-center justify-center z-10"
+                                      initial={{ scale: 0, rotate: -180 }}
+                                      animate={{ scale: 1, rotate: 0 }}
+                                      transition={{ type: "spring" as const, stiffness: 200 }}
                                     >
-                                      Remove
-                                    </Button>
+                                      <Check className="h-4 w-4 text-white" />
+                                    </motion.div>
+                                  )}
+                                  {d.image_url ? (
+                                    <div className="h-32 w-full bg-white flex items-center justify-center overflow-hidden bg-gradient-to-br from-[#FFE7C5] via-white to-[#D7EFEA]">
+                                      <motion.img
+                                        src={d.image_url}
+                                        alt={d.name}
+                                        loading="lazy"
+                                        className="max-h-full max-w-full object-contain"
+                                        whileHover={{ scale: 1.05, rotate: 2 }}
+                                        transition={{ duration: 0.3 }}
+                                      />
+                                    </div>
+                                  ) : (
+                                    <div className="h-32 w-full bg-gradient-to-br from-[#FFE7C5] to-[#FFF8DE]" />
+                                  )}
+
+                                  <div className="p-3 space-y-1">
+                                    <div className="font-semibold group-hover:text-[#D26E3D] transition-colors">
+                                      {d.name}
+                                    </div>
+                                    <p className="text-xs text-muted-foreground line-clamp-2">
+                                      {d.description || "Signature blend"}
+                                    </p>
+                                    <motion.div
+                                      className="text-xs font-medium text-emerald-700"
+                                      whileHover={{ scale: 1.05 }}
+                                    >
+                                      ₱{(d.price_cents / 100).toFixed(2)}
+                                    </motion.div>
                                   </div>
-                                </li>
+                                </motion.button>
                               );
                             })}
-                          </ul>
+                          </div>
                         )}
                       </CardContent>
                     </Card>
-                    <div className="flex flex-wrap items-center justify-between gap-3">
-                      <Button variant="outline" onClick={goBack}>
-                        Back to base
-                      </Button>
-                      <Button onClick={() => setStep(3)}>
-                        Review order
-                      </Button>
-                    </div>
-                  </>
-                )}
-              </div>
-            )}
+                  </motion.div>
+                </motion.div>
+              )}
 
-            {step === 3 && (
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-base">Review your order</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
+              {step === 2 && (
+                <motion.div
+                  key="step2"
+                  custom={direction}
+                  variants={slideVariants}
+                  initial="enter"
+                  animate="center"
+                  exit="exit"
+                  transition={{
+                    type: "spring",
+                    stiffness: 300,
+                    damping: 30,
+                  }}
+                  className="space-y-6"
+                >
                   {!selectedBase ? (
-                    <Alert>
-                      <AlertTitle>Select a base drink first</AlertTitle>
-                      <AlertDescription>
-                        Go back to Step 1 to pick a base.
-                      </AlertDescription>
-                    </Alert>
+                    <motion.div
+                      variants={fadeInUp}
+                      initial="hidden"
+                      animate="visible"
+                    >
+                      <Alert>
+                        <AlertTitle>Select a base drink</AlertTitle>
+                        <AlertDescription>
+                          Choose a base drink to unlock customization.
+                        </AlertDescription>
+                      </Alert>
+                    </motion.div>
                   ) : (
                     <>
-                      <div className="flex items-center justify-between">
-                        <div className="text-sm font-semibold">
-                          {selectedBase.name}
-                        </div>
-                        <Badge variant="secondary">
-                          PHP {(base_price_cents / 100).toFixed(2)}
-                        </Badge>
-                      </div>
-                      {extraLines.length > 0 && (
-                        <div className="space-y-2">
-                          <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                            Add-ons
-                          </div>
-                          <ul className="space-y-1 text-sm">
-                            {extraLines.map((l, i) => (
-                              <li
-                                key={i}
-                                className="flex items-center justify-between"
+                      <motion.div
+                        variants={cardVariants}
+                        initial="hidden"
+                        animate="visible"
+                      >
+                        <Card>
+                          <CardHeader className="flex-row items-center justify-between">
+                            <CardTitle className="text-base flex items-center gap-2">
+                              <motion.div
+                                animate={{ rotate: [0, 15, -15, 0] }}
+                                transition={{ duration: 2, repeat: Infinity }}
                               >
-                                <span>{l.name}</span>
-                                <span className="text-muted-foreground">
-                                  {l.amount} {l.unit}
+                                ⚡
+                              </motion.div>
+                              Customize add-ons
+                            </CardTitle>
+                            <motion.div
+                              initial={{ scale: 0 }}
+                              animate={{ scale: 1 }}
+                              transition={{ type: "spring" as const, stiffness: 200 }}
+                            >
+                              <Badge variant="glow" className="gap-1">
+                                <span className="relative flex h-2 w-2">
+                                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-orange-400 opacity-75"></span>
+                                  <span className="relative inline-flex rounded-full h-2 w-2 bg-orange-500"></span>
                                 </span>
-                              </li>
-                            ))}
-                          </ul>
-                        </div>
-                      )}
-                      <div className="flex items-center justify-between text-base">
-                        <span className="font-semibold">Total</span>
-                        <span className="font-semibold">
-                          PHP {(total_price_cents / 100).toFixed(2)}
-                        </span>
-                      </div>
-                      <div className="flex flex-wrap gap-2">
-                        <Button onClick={addToCart} disabled={added}>
-                          {added ? "Added to cart" : "Add to Cart"}
-                        </Button>
-                        <Button variant="secondary" onClick={proceedToCheckout}>
-                          Proceed to Checkout
-                        </Button>
-                        <Button variant="outline" onClick={goBack}>
-                          Back to customize
-                        </Button>
-                      </div>
+                                Live macros
+                              </Badge>
+                            </motion.div>
+                          </CardHeader>
+                          <CardContent>
+                            <IngredientSelector
+                              onAdd={handleAddAddon}
+                              getPricePHP={(ing, amount, unit) =>
+                                priceForLinePHP(
+                                  { ingredient_id: ing.id, amount, unit },
+                                  pricingDict
+                                )
+                              }
+                              selectedIngredientIds={extraLines.map(
+                                (l) => l.ingredient_id
+                              )}
+                            />
+                          </CardContent>
+                        </Card>
+                      </motion.div>
+
+                      <motion.div
+                        variants={cardVariants}
+                        initial="hidden"
+                        animate="visible"
+                        transition={{ delay: 0.1 }}
+                      >
+                        <Card>
+                          <CardHeader className="flex-row items-center justify-between">
+                            <CardTitle className="text-base flex items-center gap-2">
+                              <motion.div
+                                animate={{ y: [0, -5, 0] }}
+                                transition={{ duration: 2, repeat: Infinity }}
+                              >
+                                ✨
+                              </motion.div>
+                              Selected add-ons
+                            </CardTitle>
+                            {extraLines.length > 0 && (
+                              <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => setExtraLines([])}
+                                >
+                                  Clear all
+                                </Button>
+                              </motion.div>
+                            )}
+                          </CardHeader>
+                          <CardContent>
+                            {extraLines.length === 0 ? (
+                              <motion.div
+                                className="flex flex-col items-center justify-center py-8 text-center"
+                                initial={{ opacity: 0, scale: 0.9 }}
+                                animate={{ opacity: 1, scale: 1 }}
+                                transition={{ type: "spring" as const }}
+                              >
+                                <div className="h-16 w-16 rounded-full bg-gradient-to-br from-[#D26E3D]/10 to-[#597A90]/10 flex items-center justify-center mb-3">
+                                  <Plus className="h-8 w-8 text-[#D26E3D]/50" />
+                                </div>
+                                <p className="text-sm text-muted-foreground">
+                                  No add-ons yet. Browse ingredients above to customize your shake!
+                                </p>
+                              </motion.div>
+                            ) : (
+                              <motion.ul
+                                className="divide-y divide-muted/60 text-sm"
+                                initial={{ opacity: 0 }}
+                                animate={{ opacity: 1 }}
+                              >
+                                <AnimatePresence>
+                                  {extraLines.map((l, i) => {
+                                    const php = linePricePHP(l);
+                                    return (
+                                      <motion.li
+                                        key={i}
+                                        className="flex items-center justify-between py-2"
+                                        initial={{ x: -20, opacity: 0 }}
+                                        animate={{ x: 0, opacity: 1 }}
+                                        exit={{ x: 20, opacity: 0 }}
+                                        transition={{ delay: i * 0.05 }}
+                                      >
+                                        <div className="min-w-0">
+                                          <span className="font-medium">{l.name}</span>{" "}
+                                          <span className="text-muted-foreground">
+                                            - {l.amount} {l.unit}
+                                          </span>
+                                        </div>
+                                        <div className="flex items-center gap-3 shrink-0">
+                                          <motion.span
+                                            className="text-emerald-700 font-medium"
+                                            key={`price-${i}-${php}`}
+                                            initial={{ scale: 1.2, color: "#059669" }}
+                                            animate={{ scale: 1, color: "#047857" }}
+                                          >
+                                            ₱{php.toFixed(2)}
+                                          </motion.span>
+                                          <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+                                            <Button
+                                              variant="ghost"
+                                              size="sm"
+                                              onClick={() => removeAddon(i)}
+                                            >
+                                              <X className="h-4 w-4" />
+                                            </Button>
+                                          </motion.div>
+                                        </div>
+                                      </motion.li>
+                                    );
+                                  })}
+                                </AnimatePresence>
+                              </motion.ul>
+                            )}
+                          </CardContent>
+                        </Card>
+                      </motion.div>
+                      <motion.div
+                        className="flex flex-wrap items-center justify-between gap-3"
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.2 }}
+                      >
+                        <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+                          <Button variant="outline" onClick={goBack}>
+                            Back to base
+                          </Button>
+                        </motion.div>
+                        <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+                          <Button onClick={() => setStep(3)} className="gap-2">
+                            Review order
+                            <ChevronRight className="h-4 w-4" />
+                          </Button>
+                        </motion.div>
+                      </motion.div>
                     </>
+                  )}
+                </motion.div>
+              )}
+
+              {step === 3 && (
+                <motion.div
+                  key="step3"
+                  custom={direction}
+                  variants={slideVariants}
+                  initial="enter"
+                  animate="center"
+                  exit="exit"
+                  transition={{
+                    type: "spring",
+                    stiffness: 300,
+                    damping: 30,
+                  }}
+                >
+                  <motion.div
+                    variants={cardVariants}
+                    initial="hidden"
+                    animate="visible"
+                  >
+                    <Card>
+                      <CardHeader>
+                        <CardTitle className="text-base flex items-center gap-2">
+                          <motion.div
+                            animate={{ scale: [1, 1.1, 1] }}
+                            transition={{ duration: 2, repeat: Infinity }}
+                          >
+                            🛒
+                          </motion.div>
+                          Review your order
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent className="space-y-4">
+                        {!selectedBase ? (
+                          <Alert>
+                            <AlertTitle>Select a base drink first</AlertTitle>
+                            <AlertDescription>
+                              Go back to Step 1 to pick a base.
+                            </AlertDescription>
+                          </Alert>
+                        ) : (
+                          <>
+                            <motion.div
+                              className="flex items-center justify-between p-3 rounded-lg bg-gradient-to-r from-[#D26E3D]/5 to-transparent"
+                              initial={{ x: -20, opacity: 0 }}
+                              animate={{ x: 0, opacity: 1 }}
+                            >
+                              <div className="text-sm font-semibold">
+                                {selectedBase.name}
+                              </div>
+                              <Badge variant="secondary" className="font-semibold">
+                                ₱{(base_price_cents / 100).toFixed(2)}
+                              </Badge>
+                            </motion.div>
+                            {extraLines.length > 0 && (
+                              <motion.div
+                                className="space-y-2"
+                                initial={{ opacity: 0, y: 10 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                transition={{ delay: 0.1 }}
+                              >
+                                <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                                  Add-ons
+                                </div>
+                                <ul className="space-y-1 text-sm">
+                                  {extraLines.map((l, i) => (
+                                    <motion.li
+                                      key={i}
+                                      className="flex items-center justify-between"
+                                      initial={{ x: -10, opacity: 0 }}
+                                      animate={{ x: 0, opacity: 1 }}
+                                      transition={{ delay: 0.15 + i * 0.05 }}
+                                    >
+                                      <span>{l.name}</span>
+                                      <span className="text-muted-foreground">
+                                        {l.amount} {l.unit}
+                                      </span>
+                                    </motion.li>
+                                  ))}
+                                </ul>
+                              </motion.div>
+                            )}
+                            <motion.div
+                              className="flex items-center justify-between text-base p-4 rounded-lg bg-gradient-to-r from-[#597A90]/10 to-[#D26E3D]/10 border border-[#D26E3D]/20"
+                              initial={{ scale: 0.95, opacity: 0 }}
+                              animate={{ scale: 1, opacity: 1 }}
+                              transition={{ delay: 0.2, type: "spring" as const }}
+                            >
+                              <span className="font-semibold">Total</span>
+                              <motion.span
+                                className="font-bold text-lg text-[#D26E3D]"
+                                key={total_price_cents}
+                                initial={{ scale: 1.3 }}
+                                animate={{ scale: 1 }}
+                                transition={{ type: "spring" as const, stiffness: 300 }}
+                              >
+                                ₱{(total_price_cents / 100).toFixed(2)}
+                              </motion.span>
+                            </motion.div>
+                            <motion.div
+                              className="flex flex-wrap gap-2"
+                              initial={{ opacity: 0, y: 10 }}
+                              animate={{ opacity: 1, y: 0 }}
+                              transition={{ delay: 0.3 }}
+                            >
+                              <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+                                <Button onClick={addToCart} disabled={added} className="gap-2">
+                                  <ShoppingCart className="h-4 w-4" />
+                                  {added ? "Added to cart" : "Add to Cart"}
+                                </Button>
+                              </motion.div>
+                              <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+                                <Button variant="secondary" onClick={proceedToCheckout}>
+                                  Proceed to Checkout
+                                </Button>
+                              </motion.div>
+                              <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+                                <Button variant="outline" onClick={goBack}>
+                                  Back to customize
+                                </Button>
+                              </motion.div>
+                            </motion.div>
+                          </>
+                        )}
+                      </CardContent>
+                    </Card>
+                  </motion.div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+
+          {/* Animated Sidebar */}
+          <motion.aside
+            className="space-y-4"
+            initial={{ opacity: 0, x: 50 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ delay: 0.4, duration: 0.6, type: "spring" as const }}
+          >
+            <motion.div whileHover={{ y: -2 }} transition={{ type: "spring" as const }}>
+              <Card>
+                <CardHeader className="flex-row items-center justify-between">
+                  <CardTitle className="text-base">Order summary</CardTitle>
+                  <motion.div
+                    key={`summary-price-${total_price_cents}`}
+                    initial={{ scale: 1.2 }}
+                    animate={{ scale: 1 }}
+                    transition={{ type: "spring" as const, stiffness: 300 }}
+                  >
+                    <Badge variant="secondary" className="font-semibold">
+                      ₱{(total_price_cents / 100).toFixed(2)}
+                    </Badge>
+                  </motion.div>
+                </CardHeader>
+                <CardContent className="space-y-3 text-sm">
+                  <motion.div
+                    className="flex items-center justify-between"
+                    initial={{ x: -10, opacity: 0 }}
+                    animate={{ x: 0, opacity: 1 }}
+                    transition={{ delay: 0.1 }}
+                  >
+                    <span>Base</span>
+                    <span>₱{(base_price_cents / 100).toFixed(2)}</span>
+                  </motion.div>
+                  <motion.div
+                    className="flex items-center justify-between"
+                    initial={{ x: -10, opacity: 0 }}
+                    animate={{ x: 0, opacity: 1 }}
+                    transition={{ delay: 0.15 }}
+                  >
+                    <span>Add-ons</span>
+                    <motion.span
+                      key={`addons-price-${addons_price_cents}`}
+                      initial={{ scale: 1.1 }}
+                      animate={{ scale: 1 }}
+                    >
+                      ₱{addons_price_php.toFixed(2)}
+                    </motion.span>
+                  </motion.div>
+                  <motion.div
+                    className="flex items-center justify-between text-base font-semibold p-2 rounded-lg bg-gradient-to-r from-[#597A90]/5 to-[#D26E3D]/5"
+                    initial={{ scale: 0.95, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    transition={{ delay: 0.2, type: "spring" as const }}
+                  >
+                    <span>Total</span>
+                    <motion.span
+                      className="text-[#D26E3D]"
+                      key={`total-price-${total_price_cents}`}
+                      initial={{ scale: 1.3 }}
+                      animate={{ scale: 1 }}
+                      transition={{ type: "spring" as const, stiffness: 300 }}
+                    >
+                      ₱{(total_price_cents / 100).toFixed(2)}
+                    </motion.span>
+                  </motion.div>
+                  <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setStep(3)}
+                      className="w-full"
+                    >
+                      Review order
+                    </Button>
+                  </motion.div>
+                </CardContent>
+              </Card>
+            </motion.div>
+
+            <motion.div whileHover={{ y: -2 }} transition={{ type: "spring" as const }}>
+              <Card>
+                <CardHeader className="flex-row items-center justify-between">
+                  <CardTitle className="text-base">Your macros</CardTitle>
+                  <motion.div
+                    animate={{ rotate: 360 }}
+                    transition={{ duration: 10, repeat: Infinity, ease: "linear" as const }}
+                  >
+                    <Badge variant="secondary">Live</Badge>
+                  </motion.div>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.9 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    transition={{ delay: 0.1 }}
+                  >
+                    <NutritionBar totals={totals} allergens={allergens} />
+                  </motion.div>
+                  {hasMissingNutrition && (
+                    <motion.div
+                      className="text-xs text-amber-700"
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      transition={{ delay: 0.2 }}
+                    >
+                      Some ingredients are missing nutrition data.
+                    </motion.div>
                   )}
                 </CardContent>
               </Card>
-            )}
-          </div>
-
-          <aside className="space-y-4">
-            <Card>
-              <CardHeader className="flex-row items-center justify-between">
-                <CardTitle className="text-base">Order summary</CardTitle>
-                <Badge variant="secondary">
-                  PHP {(total_price_cents / 100).toFixed(2)}
-                </Badge>
-              </CardHeader>
-              <CardContent className="space-y-3 text-sm">
-                <div className="flex items-center justify-between">
-                  <span>Base</span>
-                  <span>PHP {(base_price_cents / 100).toFixed(2)}</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span>Add-ons</span>
-                  <span>PHP {addons_price_php.toFixed(2)}</span>
-                </div>
-                <div className="flex items-center justify-between text-base font-semibold">
-                  <span>Total</span>
-                  <span>PHP {(total_price_cents / 100).toFixed(2)}</span>
-                </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setStep(3)}
-                >
-                  Review order
-                </Button>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="flex-row items-center justify-between">
-                <CardTitle className="text-base">Your macros</CardTitle>
-                <Badge variant="secondary">Live</Badge>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <NutritionBar totals={totals} allergens={allergens} />
-                {hasMissingNutrition && (
-                  <div className="text-xs text-amber-700">
-                    Some ingredients are missing nutrition data.
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </aside>
+            </motion.div>
+          </motion.aside>
         </div>
 
-        <div className="fixed inset-x-0 bottom-0 z-20 border-t bg-background/95 px-4 py-3 backdrop-blur lg:hidden">
+        {/* Animated Mobile Bottom Bar */}
+        <motion.div
+          className="fixed inset-x-0 bottom-0 z-20 border-t bg-background/95 px-4 py-3 backdrop-blur lg:hidden"
+          initial={{ y: 100 }}
+          animate={{ y: 0 }}
+          transition={{ type: "spring" as const, stiffness: 300, damping: 30 }}
+        >
           <div className="mx-auto flex max-w-7xl items-center justify-between gap-3">
-            <div>
+            <motion.div
+              key={`mobile-total-${total_price_cents}`}
+              initial={{ scale: 1.1 }}
+              animate={{ scale: 1 }}
+              transition={{ type: "spring" as const, stiffness: 300 }}
+            >
               <div className="text-xs text-muted-foreground">Total</div>
               <div className="text-base font-semibold">
-                PHP {(total_price_cents / 100).toFixed(2)}
+                ₱{(total_price_cents / 100).toFixed(2)}
               </div>
-            </div>
+            </motion.div>
             <div className="flex items-center gap-2">
               {step > 1 && (
-                <Button variant="outline" size="sm" onClick={goBack}>
-                  Back
-                </Button>
+                <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+                  <Button variant="outline" size="sm" onClick={goBack}>
+                    Back
+                  </Button>
+                </motion.div>
               )}
-              <Button
-                size="sm"
-                onClick={goNext}
-                disabled={!hasBase && step < 3}
-              >
-                {step === 3 ? "Checkout" : "Next"}
-              </Button>
+              <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+                <Button
+                  size="sm"
+                  onClick={goNext}
+                  disabled={!hasBase && step < 3}
+                >
+                  {step === 3 ? "Checkout" : "Next"}
+                </Button>
+              </motion.div>
             </div>
           </div>
-        </div>
+        </motion.div>
       </div>
     </div>
   );
