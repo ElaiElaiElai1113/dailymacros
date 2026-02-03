@@ -220,7 +220,7 @@ function validateBundlePromo(
   discountCents?: number;
   requiresAction?: {
     type: "select_variant" | "select_addon" | "add_items";
-    options?: any[];
+    options?: any;
   };
 } {
   const bundleConfig = promo.promo_bundles?.[0];
