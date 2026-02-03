@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ShoppingBasket, UtensilsCrossed } from "lucide-react";
+import { PromoSelector } from "@/components/promo/PromoSelector";
 
 type CartLine = {
   ingredient_id: string;
@@ -43,11 +44,7 @@ const titleFor = (it: CartItem) =>
   it.base_drink_name ? `Custom - ${it.base_drink_name}` : it.item_name;
 
 export default function CartPage() {
-  const { items, removeItem, clear } = useCart() as {
-    items: CartItem[];
-    removeItem: (idx: number) => void;
-    clear: () => void;
-  };
+  const { items, removeItem, clear, appliedPromo, promoDiscount, getSubtotal, getTotal } = useCart();
 
   const [nameDict, setNameDict] = useState<Record<string, string>>({});
   const [loadingNames, setLoadingNames] = useState(false);
@@ -128,29 +125,47 @@ export default function CartPage() {
               ))}
             </div>
 
-            <Card className="h-fit">
-              <CardHeader>
-                <CardTitle className="text-base">Summary</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4 text-sm">
-                <div className="flex items-center justify-between">
-                  <span>Items</span>
-                  <span>{items.length}</span>
-                </div>
-                <div className="flex items-center justify-between text-base">
-                  <span className="font-medium">Subtotal</span>
-                  <Price cents={subtotal} bold />
-                </div>
-                <Button asChild className="w-full">
-                  <Link to="/checkout">Proceed to Checkout</Link>
-                </Button>
-                <Button asChild variant="secondary" className="w-full">
-                  <Link to="/menu">Continue Shopping</Link>
-                </Button>
-                <p className="text-[11px] text-muted-foreground">
-                  Pickup time and payment details are confirmed at checkout.
-                </p>
-              </CardContent>
+            <Card className="h-fit space-y-4">
+              {/* Promo Code */}
+              <PromoSelector cartItems={items} />
+
+              {/* Summary */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base">Summary</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4 text-sm">
+                  <div className="flex items-center justify-between">
+                    <span>Items</span>
+                    <span>{items.length}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span>Subtotal</span>
+                    <Price cents={getSubtotal()} />
+                  </div>
+                  {appliedPromo && promoDiscount > 0 && (
+                    <div className="flex items-center justify-between text-green-600">
+                      <span>Promo Discount</span>
+                      <span className="font-semibold">
+                        -₱{(promoDiscount / 100).toFixed(2)}
+                      </span>
+                    </div>
+                  )}
+                  <div className="flex items-center justify-between text-base pt-2 border-t">
+                    <span className="font-medium">Total</span>
+                    <Price cents={getTotal()} bold />
+                  </div>
+                  <Button asChild className="w-full">
+                    <Link to="/checkout">Proceed to Checkout</Link>
+                  </Button>
+                  <Button asChild variant="secondary" className="w-full">
+                    <Link to="/menu">Continue Shopping</Link>
+                  </Button>
+                  <p className="text-[11px] text-muted-foreground">
+                    Pickup time and payment details are confirmed at checkout.
+                  </p>
+                </CardContent>
+              </Card>
             </Card>
           </div>
         </>

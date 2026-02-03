@@ -10,6 +10,7 @@ import {
   FileText,
   Users,
   ChevronRight,
+  Tag,
 } from "lucide-react";
 
 const navItems = [
@@ -17,6 +18,7 @@ const navItems = [
   { to: "/ops/orders", label: "Orders", icon: ShoppingCart },
   { to: "/ops/ingredients", label: "Ingredients", icon: Package },
   { to: "/ops/drinks", label: "Drinks", icon: Coffee },
+  { to: "/ops/promos", label: "Promos", icon: Tag },
   { to: "/ops/addons", label: "Add-ons", icon: PlusCircle },
   { to: "/ops/audit", label: "Audit Log", icon: FileText },
   { to: "/staff", label: "Staff", icon: Users },
