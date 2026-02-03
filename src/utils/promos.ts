@@ -38,6 +38,15 @@ export interface ApplyPromoOptions {
   selectedAddonId?: string;
 }
 
+export interface ApplyPromoServerOptions {
+  code: string;
+  cartItems: CartItem[];
+  subtotalCents: number;
+  selectedVariantId?: string;
+  selectedAddonId?: string;
+  customerIdentifier?: string;
+}
+
 // ============================================================
 // CONSTANTS
 // ============================================================
@@ -145,6 +154,43 @@ export async function validatePromoCode({
     default:
       return { valid: false, error: "Unsupported promo type" };
   }
+}
+
+/**
+ * Server-side promo validation + application via RPC
+ */
+export async function applyPromoServer({
+  code,
+  cartItems,
+  subtotalCents,
+  selectedVariantId,
+  selectedAddonId,
+  customerIdentifier,
+}: ApplyPromoServerOptions): Promise<PromoApplicationResult> {
+  const cartPayload = cartItems.map((item) => ({
+    drink_id: item.drink_id ?? null,
+    size_ml: item.size_ml ?? null,
+  }));
+
+  const { data, error } = await supabase.rpc("validate_apply_promo", {
+    p_code: code,
+    p_subtotal_cents: subtotalCents,
+    p_cart_items: cartPayload,
+    p_selected_variant_id: selectedVariantId ?? null,
+    p_selected_addon_id: selectedAddonId ?? null,
+    p_customer_identifier: customerIdentifier ?? null,
+  });
+
+  if (error || !data) {
+    return {
+      success: false,
+      discount_cents: 0,
+      new_subtotal_cents: subtotalCents,
+      errors: ["Failed to apply promo"],
+    };
+  }
+
+  return data as PromoApplicationResult;
 }
 
 /**

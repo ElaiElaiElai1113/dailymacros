@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useMemo, useState } from "react";
 import type { CartItem, Ingredient, IngredientNutrition, Promo, PromoApplicationResult } from "@/types";
 import { totalsFor } from "@/utils/nutrition";
-import { validatePromoCode, applyPromo } from "@/utils/promos";
+import { applyPromoServer } from "@/utils/promos";
 
 interface CartCtx {
   items: CartItem[];
@@ -74,58 +74,22 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({
 
     const subtotalCents = getSubtotal();
 
-    // Validate promo code
-    const validationResult = await validatePromoCode({
+    const applicationResult = await applyPromoServer({
       code,
       cartItems: items,
       subtotalCents,
+      selectedVariantId: options?.selectedVariantId,
+      selectedAddonId: options?.selectedAddonId,
       customerIdentifier,
     });
 
-    if (!validationResult.valid) {
-      setPromoError(validationResult.error || "Invalid promo code");
-      return {
-        success: false,
-        discount_cents: 0,
-        new_subtotal_cents: subtotalCents,
-        errors: [validationResult.error || "Invalid promo code"],
-      };
-    }
-
-    if (validationResult.requiresAction) {
-      if (validationResult.requiresAction.type === "add_items") {
-        return {
-          success: false,
-          discount_cents: 0,
-          new_subtotal_cents: subtotalCents,
-          promo: validationResult.promo!,
-          requires_action: validationResult.requiresAction,
-          errors: [validationResult.error || "Promo requirements not met"],
-        };
-      }
-      if (!options?.selectedVariantId && !options?.selectedAddonId) {
-        return {
-          success: false,
-          discount_cents: 0,
-          new_subtotal_cents: subtotalCents,
-          promo: validationResult.promo!,
-          requires_action: validationResult.requiresAction,
-          errors: [],
-        };
-      }
-    }
-
-    // Apply promo and calculate discount
-    const applicationResult = await applyPromo({
-      promo: validationResult.promo!,
-      subtotalCents,
-      selectedVariantId: options?.selectedVariantId,
-      selectedAddonId: options?.selectedAddonId,
-    });
-
     if (applicationResult.success) {
-      setAppliedPromo(validationResult.promo!);
+      if (applicationResult.promo) {
+        setAppliedPromo(applicationResult.promo);
+      }
       setPromoDiscount(applicationResult.discount_cents);
+    } else if (applicationResult.requires_action && !(applicationResult.errors?.length)) {
+      return applicationResult;
     } else {
       setPromoError(applicationResult.errors?.join(", ") || "Failed to apply promo");
     }

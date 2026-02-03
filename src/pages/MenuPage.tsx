@@ -27,6 +27,7 @@ type DrinkSizeRow = {
   display_name: string | null;
   size_ml: number;
   is_active: boolean;
+  price_php?: number | null;
 };
 
 type DrinkSizeLineRow = {
@@ -104,7 +105,7 @@ export default function MenuPage() {
 
         const { data: ds, error: dse } = await supabase
           .from("drink_sizes")
-          .select("id,drink_id,size_label,display_name,size_ml,is_active")
+          .select("id,drink_id,size_label,display_name,size_ml,is_active,price_php")
           .in(
             "drink_id",
             drinkIds.length
@@ -187,6 +188,17 @@ export default function MenuPage() {
     return map;
   }, [sizeLines, drinkSizes]);
 
+  const drinkSizePricesMap = useMemo(() => {
+    const map: Record<string, Record<string, number>> = {};
+    drinkSizes.forEach((s) => {
+      if (!map[s.drink_id]) map[s.drink_id] = {};
+      if (typeof s.price_php === "number") {
+        map[s.drink_id][String(s.size_ml)] = Math.round(s.price_php * 100);
+      }
+    });
+    return map;
+  }, [drinkSizes]);
+
   // Filter and search logic
   const filteredDrinks = useMemo(() => {
     return drinks.filter((drink) => {
@@ -223,11 +235,15 @@ export default function MenuPage() {
       ]);
       return;
     }
+    const sizePrice =
+      drink.base_size_ml != null
+        ? drinkSizePricesMap[drink.id]?.[String(drink.base_size_ml)] ?? null
+        : null;
     addItem({
       item_name: drink.name,
       drink_id: drink.id,
       size_ml: drink.base_size_ml ?? null,
-      unit_price_cents: drink.price_cents,
+      unit_price_cents: typeof sizePrice === "number" ? sizePrice : drink.price_cents,
       image_url: drink.image_url ?? null,
       lines: drinkLines,
     });
@@ -394,9 +410,10 @@ export default function MenuPage() {
         drink={selected}
         lines={selected ? drinkLinesMap[selected.id] || [] : []}
         sizeLines={selected ? drinkSizeLinesMap[selected.id] : undefined}
+        sizePrices={selected ? drinkSizePricesMap[selected.id] : undefined}
         ingDict={ingDict}
         nutrDict={nutrDict}
-        onAddToCart={(scaledLines, sizeMl) => {
+        onAddToCart={(scaledLines, sizeMl, priceCents) => {
           if (!selected) return;
           const fallbackLines = drinkLinesMap[selected.id] || [];
           const linesToUse =
@@ -412,7 +429,8 @@ export default function MenuPage() {
             item_name: selected.name,
             drink_id: selected.id,
             size_ml: sizeMl ?? selected.base_size_ml ?? null,
-            unit_price_cents: selected.price_cents,
+            unit_price_cents:
+              typeof priceCents === "number" ? priceCents : selected.price_cents,
             image_url: selected.image_url ?? null,
             lines: linesToUse,
           });

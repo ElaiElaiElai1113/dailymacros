@@ -48,6 +48,7 @@ type DrinkSizeRow = {
   display_name: string | null;
   size_ml: number;
   is_active: boolean;
+  price_php?: number | null;
 };
 
 type DrinkSizeLineRow = {
@@ -58,8 +59,8 @@ type DrinkSizeLineRow = {
 };
 
 const DEFAULT_SIZES = [
-  { label: "12 oz", ml: 355 },
-  { label: "16 oz", ml: 473 },
+  { label: "12 oz", ml: 355, price_cents: null },
+  { label: "16 oz", ml: 473, price_cents: null },
 ];
 
 function mlToOzLabel(sizeMl: number) {
@@ -209,7 +210,7 @@ export default function OrderFlowPage() {
       const drinkIds = normalized.map((d) => d.id);
       const { data: ds } = await supabase
         .from("drink_sizes")
-        .select("id,drink_id,size_label,display_name,size_ml,is_active")
+        .select("id,drink_id,size_label,display_name,size_ml,is_active,price_php")
         .in(
           "drink_id",
           drinkIds.length
@@ -316,9 +317,22 @@ export default function OrderFlowPage() {
       .map((s) => ({
         ml: s.size_ml,
         label: s.display_name || s.size_label || mlToOzLabel(s.size_ml),
+        price_cents:
+          typeof s.price_php === "number" ? Math.round(s.price_php * 100) : null,
       }));
     return sizes.length ? sizes : DEFAULT_SIZES;
   }, [drinkSizes, selectedBaseId]);
+
+  const sizePriceByDrink = useMemo(() => {
+    const map: Record<string, Record<string, number>> = {};
+    drinkSizes.forEach((s) => {
+      if (!map[s.drink_id]) map[s.drink_id] = {};
+      if (typeof s.price_php === "number") {
+        map[s.drink_id][String(s.size_ml)] = Math.round(s.price_php * 100);
+      }
+    });
+    return map;
+  }, [drinkSizes]);
 
   const sizeLinesByDrink = useMemo(() => {
     const map: Record<string, Record<string, CartLine[]>> = {};
@@ -375,7 +389,14 @@ export default function OrderFlowPage() {
   );
 
   const addons_price_cents = Math.round(addons_price_php * 100);
-  const base_price_cents = selectedBase?.price_cents || 0;
+  const sizePriceCents =
+    selectedBaseId && sizePriceByDrink[selectedBaseId]
+      ? sizePriceByDrink[selectedBaseId][String(sizeMl)]
+      : undefined;
+  const base_price_cents =
+    typeof sizePriceCents === "number"
+      ? sizePriceCents
+      : selectedBase?.price_cents || 0;
   const total_price_cents = base_price_cents + addons_price_cents;
 
   const hasMissingNutrition = useMemo(
@@ -756,8 +777,14 @@ export default function OrderFlowPage() {
                                   variant={sizeMl === s.ml ? "default" : "outline"}
                                   size="sm"
                                   onClick={() => setSizeMl(s.ml)}
+                                  className="flex items-center gap-2"
                                 >
-                                  {s.label}
+                                  <span>{s.label}</span>
+                                  {typeof s.price_cents === "number" && (
+                                    <span className="text-[11px] opacity-80">
+                                      ₱{(s.price_cents / 100).toFixed(2)}
+                                    </span>
+                                  )}
                                 </Button>
                               ))}
                             </div>
