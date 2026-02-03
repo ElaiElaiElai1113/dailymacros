@@ -90,7 +90,6 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({
     // Apply promo and calculate discount
     const applicationResult = await applyPromo({
       promo: validationResult.promo!,
-      cartItems: items,
       subtotalCents,
     });
 

@@ -25,7 +25,7 @@ import { cn } from "@/lib/utils";
 import { ScaleIn } from "@/components/ui/animations";
 import { ImageDropzone } from "@/components/ui/ImageDropzone";
 import { triggerSuccessConfetti } from "@/components/ui/confetti";
-import type { Promo, PromoType } from "@/types";
+import type { PromoType } from "@/types";
 
 // ============================================================
 // TYPES
@@ -45,14 +45,6 @@ type PromoRow = {
   valid_until?: string | null;
   image_url?: string | null;
   usage_count?: number;
-};
-
-type VariantRow = {
-  id: string;
-  promo_id: string;
-  variant_name: string;
-  price_cents: number;
-  is_active: boolean;
 };
 
 // ============================================================
@@ -245,7 +237,6 @@ function Modal({
 
 export default function PromosAdminPage() {
   const [rows, setRows] = useState<PromoRow[]>([]);
-  const [variants, setVariants] = useState<Record<string, VariantRow[]>>({});
   const [editModalId, setEditModalId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [saveSuccessId, setSaveSuccessId] = useState<string | null>(null);
@@ -310,38 +301,9 @@ export default function PromosAdminPage() {
     );
   }
 
-  async function loadVariants(promoIds: string[]) {
-    if (promoIds.length === 0) {
-      setVariants({});
-      return;
-    }
-
-    const { data, error } = await supabase
-      .from("promo_variants")
-      .select("id, promo_id, variant_name, price_cents, is_active")
-      .in("promo_id", promoIds)
-      .order("variant_name");
-
-    if (error) {
-      console.error("Failed to load variants:", error);
-      return;
-    }
-
-    const map: Record<string, VariantRow[]> = {};
-    (data || []).forEach((v) => {
-      (map[v.promo_id] ||= []).push(v as VariantRow);
-    });
-    setVariants(map);
-  }
-
   useEffect(() => {
     load();
   }, []);
-
-  useEffect(() => {
-    const ids = rows.map((r) => r.id);
-    loadVariants(ids);
-  }, [rows]);
 
   // ============================================================
   // CREATE PROMO

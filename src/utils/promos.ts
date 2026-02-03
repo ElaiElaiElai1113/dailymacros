@@ -33,7 +33,6 @@ export interface ValidatePromoCodeOptions {
 
 export interface ApplyPromoOptions {
   promo: Promo;
-  cartItems: CartItem[];
   subtotalCents: number;
   selectedVariantId?: string;
   selectedAddonId?: string;
@@ -66,7 +65,7 @@ export async function validatePromoCode({
   discountCents?: number;
   requiresAction?: {
     type: "select_variant" | "select_addon" | "add_items";
-    options?: any[];
+    options?: any;
   };
 }> {
   // Normalize code to uppercase
@@ -141,7 +140,7 @@ export async function validatePromoCode({
       return validateBundlePromo(promo, cartItems, subtotalCents);
 
     case "free_addon":
-      return validateFreeAddonPromo(promo, cartItems, subtotalCents);
+      return validateFreeAddonPromo(promo, cartItems);
 
     default:
       return { valid: false, error: "Unsupported promo type" };
@@ -300,8 +299,7 @@ function validateBundlePromo(
  */
 function validateFreeAddonPromo(
   promo: PromoWithRelations,
-  cartItems: CartItem[],
-  subtotalCents: number
+  cartItems: CartItem[]
 ): {
   valid: boolean;
   promo: PromoWithRelations;
@@ -309,7 +307,7 @@ function validateFreeAddonPromo(
   discountCents: number;
   requiresAction?: {
     type: "select_variant" | "select_addon" | "add_items";
-    options?: any[];
+    options?: any;
   };
 } {
   const freeAddonConfig = promo.promo_free_addons?.[0];
@@ -386,7 +384,6 @@ function validateFreeAddonPromo(
  */
 export async function applyPromo({
   promo,
-  cartItems,
   subtotalCents,
   selectedVariantId,
   selectedAddonId,

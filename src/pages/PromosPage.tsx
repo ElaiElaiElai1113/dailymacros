@@ -10,7 +10,7 @@ import { toast } from "@/hooks/use-toast";
 import { Tag, Loader2, Search, Sparkles } from "lucide-react";
 import { ScaleIn } from "@/components/ui/animations";
 import { PromoCard } from "@/components/promo/PromoCard";
-import type { Promo, PromoVariant, CartItem } from "@/types";
+import type { Promo, PromoVariant } from "@/types";
 
 type PromoWithVariants = Promo & {
   promo_variants?: PromoVariant[];
@@ -66,13 +66,6 @@ export default function PromosPage() {
         (p.description?.toLowerCase().includes(q.toLowerCase()) ?? false)
     );
   }, [promos, q]);
-
-  // Get selected variant
-  const selectedVariant = useMemo(() => {
-    if (!selectedPromoId || !selectedVariantId) return undefined;
-    const promo = promos.find((p) => p.id === selectedPromoId);
-    return promo?.promo_variants?.find((v) => v.id === selectedVariantId);
-  }, [selectedPromoId, selectedVariantId, promos]);
 
   // Get selected promo
   const selectedPromo = useMemo(() => {

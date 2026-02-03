@@ -68,11 +68,6 @@ export default function CartPage() {
     })();
   }, [items]);
 
-  const subtotal = useMemo(
-    () => items.reduce((s, i) => s + Number(i.unit_price_cents || 0), 0),
-    [items]
-  );
-
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -127,7 +122,7 @@ export default function CartPage() {
 
             <Card className="h-fit space-y-4">
               {/* Promo Code */}
-              <PromoSelector cartItems={items} />
+              <PromoSelector />
 
               {/* Summary */}
               <Card>

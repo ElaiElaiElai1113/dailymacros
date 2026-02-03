@@ -67,6 +67,7 @@ export type LineIngredient = {
   amount: number;
   unit: string;
   is_extra?: boolean;
+  name?: string;
 };
 
 // ——— Cart ———
@@ -194,7 +195,7 @@ export interface PromoValidationResult {
   discount_cents?: number;
   requires_action?: {
     type: "select_variant" | "select_addon" | "add_items";
-    options?: any[];
+    options?: any;
   };
 }
 

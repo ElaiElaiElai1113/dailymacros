@@ -10,13 +10,7 @@ import { useCart } from "@/context/CartContext";
 import { toast } from "@/hooks/use-toast";
 import { Tag, X, Check, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import type { CartItem } from "@/types";
-
-interface PromoSelectorProps {
-  cartItems: CartItem[];
-}
-
-export function PromoSelector({ cartItems }: PromoSelectorProps) {
+export function PromoSelector() {
   const {
     appliedPromo,
     promoDiscount,
@@ -27,11 +21,6 @@ export function PromoSelector({ cartItems }: PromoSelectorProps) {
 
   const [promoInput, setPromoInput] = useState("");
   const [isApplying, setIsApplying] = useState(false);
-
-  const subtotalCents = cartItems.reduce(
-    (sum, item) => sum + item.unit_price_cents,
-    0
-  );
 
   const handleApplyPromo = async () => {
     if (!promoInput.trim()) {
