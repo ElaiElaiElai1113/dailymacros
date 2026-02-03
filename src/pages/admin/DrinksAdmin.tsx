@@ -1189,6 +1189,14 @@ export default function DrinksAdminPage() {
                         {d.description ? d.description : "No description"}
                       </span>
                     </div>
+                    {((drinkSizesByDrink[d.id] || []).length > 0) && (
+                      <div className="text-[11px] text-gray-500">
+                        Sizes:{" "}
+                        {(drinkSizesByDrink[d.id] || [])
+                          .map((s) => s.display_name || s.size_label || `${Math.round(s.size_ml / 29.5735 * 10) / 10} oz`)
+                          .join(", ")}
+                      </div>
+                    )}
 
                     <button
                       type="button"

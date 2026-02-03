@@ -499,10 +499,15 @@ export default function CheckoutPage() {
                           ? `Custom - ${it.base_drink_name}`
                           : it.item_name}
                       </div>
+                      {it.size_ml ? (
+                        <div className="mt-0.5 text-xs text-gray-500">
+                          {Math.round((it.size_ml / 29.5735) * 10) / 10} oz
+                        </div>
+                      ) : null}
                       {typeof it.base_price_cents === "number" &&
                         typeof it.addons_price_cents === "number" && (
-                          <div className="mt-1 text-xs text-muted-foreground">
-                            Base <Price cents={it.base_price_cents} /> + Add-ons{" "}
+                        <div className="mt-1 text-xs text-muted-foreground">
+                          Base <Price cents={it.base_price_cents} /> + Add-ons{" "}
                             <Price cents={it.addons_price_cents} />
                           </div>
                         )}

@@ -36,6 +36,7 @@ type OrderItemRow = {
   item_name: string;
   unit_price_cents: number;
   line_total_cents?: number | null;
+  size_ml?: number | null;
 };
 
 type OrderItemIngredientRow = {
@@ -94,6 +95,12 @@ const timeAgo = (iso: string) => {
   return `${days}d ago`;
 };
 
+const sizeLabel = (sizeMl?: number | null) => {
+  if (!sizeMl) return null;
+  const oz = Math.round((sizeMl / 29.5735) * 10) / 10;
+  return `${oz} oz`;
+};
+
 // Order item card component with collapsible details
 function OrderItemCard({
   item,
@@ -115,6 +122,11 @@ function OrderItemCard({
       <div className="flex items-center justify-between gap-2 p-2">
         <span className="font-medium text-sm truncate flex-1">
           {item.item_name}
+          {sizeLabel(item.size_ml) ? (
+            <span className="ml-2 text-[11px] text-gray-500">
+              {sizeLabel(item.size_ml)}
+            </span>
+          ) : null}
         </span>
         <div className="flex items-center gap-2 flex-shrink-0">
           <span className="text-xs text-gray-600 font-medium">
@@ -217,7 +229,7 @@ export default function OrdersAdminPage() {
 
       const { data: ii, error: ei } = await supabase
         .from("order_items")
-        .select("id,order_id,item_name,unit_price_cents,line_total_cents")
+        .select("id,order_id,item_name,unit_price_cents,line_total_cents,size_ml")
         .in("order_id", orderIds);
       if (ei) throw ei;
 
@@ -762,4 +774,3 @@ function RowSkeleton() {
     </tr>
   );
 }
-

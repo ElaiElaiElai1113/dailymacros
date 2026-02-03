@@ -234,24 +234,11 @@ function validateBundlePromo(
     };
   }
 
-  // Check if bundle requires variants
-  if (bundleConfig.allow_variants && promo.promo_variants && promo.promo_variants.length > 0) {
-    return {
-      valid: true,
-      promo,
-      discountCents: 0,
-      requiresAction: {
-        type: "select_variant",
-        options: promo.promo_variants.filter((v) => v.is_active),
-      },
-    };
-  }
-
   // Check size requirements
-  const has12oz = cartItems.some((item) => item.size_ml === SIZE_12OZ_ML);
-  const has16oz = cartItems.some((item) => item.size_ml === SIZE_16OZ_ML);
+  const count12oz = cartItems.filter((item) => item.size_ml === SIZE_12OZ_ML).length;
+  const count16oz = cartItems.filter((item) => item.size_ml === SIZE_16OZ_ML).length;
 
-  if (bundleConfig.size_12oz_quantity > 0 && !has12oz) {
+  if (bundleConfig.size_12oz_quantity > 0 && count12oz < bundleConfig.size_12oz_quantity) {
     return {
       valid: false,
       promo,
@@ -260,7 +247,7 @@ function validateBundlePromo(
     };
   }
 
-  if (bundleConfig.size_16oz_quantity > 0 && !has16oz) {
+  if (bundleConfig.size_16oz_quantity > 0 && count16oz < bundleConfig.size_16oz_quantity) {
     return {
       valid: false,
       promo,
@@ -279,6 +266,19 @@ function validateBundlePromo(
       requiresAction: {
         type: "add_items",
         options: { required: bundleConfig.items_quantity },
+      },
+    };
+  }
+
+  // Check if bundle requires variants
+  if (bundleConfig.allow_variants && promo.promo_variants && promo.promo_variants.length > 0) {
+    return {
+      valid: true,
+      promo,
+      discountCents: 0,
+      requiresAction: {
+        type: "select_variant",
+        options: promo.promo_variants.filter((v) => v.is_active),
       },
     };
   }

@@ -214,6 +214,11 @@ function CartItemCard({
             </div>
             <div className="space-y-1">
               <div className="text-base font-semibold">{titleFor(item)}</div>
+              {item.size_ml ? (
+                <div className="text-xs text-gray-500">
+                  {Math.round((item.size_ml / 29.5735) * 10) / 10} oz
+                </div>
+              ) : null}
               <div className="text-xs text-muted-foreground">
                 {(item.lines || []).length} ingredients
                 {loadingNames && <span className="ml-2">Loading names...</span>}

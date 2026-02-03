@@ -37,22 +37,27 @@ DECLARE
 BEGIN
   SELECT id INTO gymstudy_id FROM promos WHERE code = 'GYMSTUDY';
 
-  INSERT INTO promo_bundles (
-    promo_id,
-    bundle_name,
-    requires_multiple_items,
-    items_quantity,
-    size_12oz_quantity,
-    size_16oz_quantity
-  ) VALUES (
-    gymstudy_id,
-    '12oz + 16oz Combo',
-    true,
-    2,
-    1,
-    1
-  )
-  ON CONFLICT DO NOTHING;
+  IF gymstudy_id IS NOT NULL THEN
+    INSERT INTO promo_bundles (
+      promo_id,
+      bundle_name,
+      requires_multiple_items,
+      items_quantity,
+      size_12oz_quantity,
+      size_16oz_quantity
+    )
+    SELECT
+      gymstudy_id,
+      '12oz + 16oz Combo',
+      true,
+      2,
+      1,
+      1
+    WHERE NOT EXISTS (
+      SELECT 1 FROM promo_bundles
+      WHERE promo_id = gymstudy_id AND bundle_name = '12oz + 16oz Combo'
+    );
+  END IF;
 END $$;
 
 -- ============================================================
@@ -86,38 +91,52 @@ DECLARE
 BEGIN
   SELECT id INTO dailyduo_id FROM promos WHERE code = 'DAILYDUO';
 
-  -- Regular variant: ₱280
-  INSERT INTO promo_variants (promo_id, variant_name, price_cents, is_active)
-  VALUES (dailyduo_id, 'Regular', 28000, true)
-  ON CONFLICT DO NOTHING;
+  IF dailyduo_id IS NOT NULL THEN
+    -- Regular variant: ₱280
+    INSERT INTO promo_variants (promo_id, variant_name, price_cents, is_active)
+    SELECT dailyduo_id, 'Regular', 28000, true
+    WHERE NOT EXISTS (
+      SELECT 1 FROM promo_variants
+      WHERE promo_id = dailyduo_id AND variant_name = 'Regular'
+    );
 
-  -- Yogurt variant: ₱320
-  INSERT INTO promo_variants (promo_id, variant_name, price_cents, is_active)
-  VALUES (dailyduo_id, 'Yogurt', 32000, true)
-  ON CONFLICT DO NOTHING;
+    -- Yogurt variant: ₱320
+    INSERT INTO promo_variants (promo_id, variant_name, price_cents, is_active)
+    SELECT dailyduo_id, 'Yogurt', 32000, true
+    WHERE NOT EXISTS (
+      SELECT 1 FROM promo_variants
+      WHERE promo_id = dailyduo_id AND variant_name = 'Yogurt'
+    );
 
-  -- Premium variant: ₱360
-  INSERT INTO promo_variants (promo_id, variant_name, price_cents, is_active)
-  VALUES (dailyduo_id, 'Premium', 36000, true)
-  ON CONFLICT DO NOTHING;
+    -- Premium variant: ₱360
+    INSERT INTO promo_variants (promo_id, variant_name, price_cents, is_active)
+    SELECT dailyduo_id, 'Premium', 36000, true
+    WHERE NOT EXISTS (
+      SELECT 1 FROM promo_variants
+      WHERE promo_id = dailyduo_id AND variant_name = 'Premium'
+    );
 
-  -- Create bundle configuration
-  INSERT INTO promo_bundles (
-    promo_id,
-    bundle_name,
-    requires_multiple_items,
-    items_quantity,
-    size_12oz_quantity,
-    allow_variants
-  ) VALUES (
-    dailyduo_id,
-    'Two 12oz Drinks',
-    true,
-    2,
-    2,
-    true
-  )
-  ON CONFLICT DO NOTHING;
+    -- Create bundle configuration
+    INSERT INTO promo_bundles (
+      promo_id,
+      bundle_name,
+      requires_multiple_items,
+      items_quantity,
+      size_12oz_quantity,
+      allow_variants
+    )
+    SELECT
+      dailyduo_id,
+      'Two 12oz Drinks',
+      true,
+      2,
+      2,
+      true
+    WHERE NOT EXISTS (
+      SELECT 1 FROM promo_bundles
+      WHERE promo_id = dailyduo_id AND bundle_name = 'Two 12oz Drinks'
+    );
+  END IF;
 END $$;
 
 -- ============================================================
@@ -151,20 +170,25 @@ DECLARE
 BEGIN
   SELECT id INTO soloboost_id FROM promos WHERE code = 'SOLOBOOST';
 
-  INSERT INTO promo_free_addons (
-    promo_id,
-    qualifying_size_ml,
-    can_choose_addon,
-    max_free_quantity,
-    free_addon_quantity
-  ) VALUES (
-    soloboost_id,
-    473,  -- 16oz in ml
-    true,  -- Customer can choose add-on
-    1,
-    1
-  )
-  ON CONFLICT DO NOTHING;
+  IF soloboost_id IS NOT NULL THEN
+    INSERT INTO promo_free_addons (
+      promo_id,
+      qualifying_size_ml,
+      can_choose_addon,
+      max_free_quantity,
+      free_addon_quantity
+    )
+    SELECT
+      soloboost_id,
+      473,  -- 16oz in ml
+      true,  -- Customer can choose add-on
+      1,
+      1
+    WHERE NOT EXISTS (
+      SELECT 1 FROM promo_free_addons
+      WHERE promo_id = soloboost_id AND qualifying_size_ml = 473
+    );
+  END IF;
 END $$;
 
 -- ============================================================

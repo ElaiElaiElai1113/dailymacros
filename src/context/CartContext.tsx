@@ -14,7 +14,11 @@ interface CartCtx {
   clear: () => void;
 
   // Promo methods
-  applyPromoCode: (code: string, customerIdentifier?: string) => Promise<PromoApplicationResult>;
+  applyPromoCode: (
+    code: string,
+    options?: { selectedVariantId?: string; selectedAddonId?: string },
+    customerIdentifier?: string
+  ) => Promise<PromoApplicationResult>;
   removePromo: () => void;
 
   computeTotals: (
@@ -63,6 +67,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({
    */
   const applyPromoCode = async (
     code: string,
+    options?: { selectedVariantId?: string; selectedAddonId?: string },
     customerIdentifier?: string
   ): Promise<PromoApplicationResult> => {
     setPromoError(null);
@@ -87,10 +92,35 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({
       };
     }
 
+    if (validationResult.requiresAction) {
+      if (validationResult.requiresAction.type === "add_items") {
+        return {
+          success: false,
+          discount_cents: 0,
+          new_subtotal_cents: subtotalCents,
+          promo: validationResult.promo!,
+          requires_action: validationResult.requiresAction,
+          errors: [validationResult.error || "Promo requirements not met"],
+        };
+      }
+      if (!options?.selectedVariantId && !options?.selectedAddonId) {
+        return {
+          success: false,
+          discount_cents: 0,
+          new_subtotal_cents: subtotalCents,
+          promo: validationResult.promo!,
+          requires_action: validationResult.requiresAction,
+          errors: [],
+        };
+      }
+    }
+
     // Apply promo and calculate discount
     const applicationResult = await applyPromo({
       promo: validationResult.promo!,
       subtotalCents,
+      selectedVariantId: options?.selectedVariantId,
+      selectedAddonId: options?.selectedAddonId,
     });
 
     if (applicationResult.success) {

@@ -226,6 +226,7 @@ export default function MenuPage() {
     addItem({
       item_name: drink.name,
       drink_id: drink.id,
+      size_ml: drink.base_size_ml ?? null,
       unit_price_cents: drink.price_cents,
       image_url: drink.image_url ?? null,
       lines: drinkLines,
@@ -395,7 +396,7 @@ export default function MenuPage() {
         sizeLines={selected ? drinkSizeLinesMap[selected.id] : undefined}
         ingDict={ingDict}
         nutrDict={nutrDict}
-        onAddToCart={(scaledLines) => {
+        onAddToCart={(scaledLines, sizeMl) => {
           if (!selected) return;
           const fallbackLines = drinkLinesMap[selected.id] || [];
           const linesToUse =
@@ -410,6 +411,7 @@ export default function MenuPage() {
           addItem({
             item_name: selected.name,
             drink_id: selected.id,
+            size_ml: sizeMl ?? selected.base_size_ml ?? null,
             unit_price_cents: selected.price_cents,
             image_url: selected.image_url ?? null,
             lines: linesToUse,

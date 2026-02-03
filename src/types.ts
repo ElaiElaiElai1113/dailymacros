@@ -208,5 +208,10 @@ export interface PromoApplicationResult {
     code: string;
     description: string;
   };
+  promo?: Promo;
+  requires_action?: {
+    type: "select_variant" | "select_addon" | "add_items";
+    options?: any;
+  };
   errors?: string[];
 }

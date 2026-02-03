@@ -62,9 +62,25 @@ CREATE TABLE IF NOT EXISTS promos (
 DO $$
 BEGIN
   IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'profiles') THEN
-    ALTER TABLE promos
-      ADD CONSTRAINT IF NOT EXISTS promos_created_by_fkey
-      FOREIGN KEY (created_by) REFERENCES profiles(id);
+    IF NOT EXISTS (
+      SELECT 1 FROM pg_constraint WHERE conname = 'promos_created_by_fkey'
+    ) THEN
+      IF EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'profiles' AND column_name = 'id'
+      ) THEN
+        ALTER TABLE promos
+          ADD CONSTRAINT promos_created_by_fkey
+          FOREIGN KEY (created_by) REFERENCES profiles(id);
+      ELSIF EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'profiles' AND column_name = 'user_id'
+      ) THEN
+        ALTER TABLE promos
+          ADD CONSTRAINT promos_created_by_fkey
+          FOREIGN KEY (created_by) REFERENCES profiles(user_id);
+      END IF;
+    END IF;
   END IF;
 END $$;
 
@@ -90,9 +106,16 @@ CREATE TABLE IF NOT EXISTS promo_bundles (
 );
 
 -- Add foreign key for promo_id
-ALTER TABLE promo_bundles
-  ADD CONSTRAINT IF NOT EXISTS promo_bundles_promo_id_fkey
-  FOREIGN KEY (promo_id) REFERENCES promos(id) ON DELETE CASCADE;
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conname = 'promo_bundles_promo_id_fkey'
+  ) THEN
+    ALTER TABLE promo_bundles
+      ADD CONSTRAINT promo_bundles_promo_id_fkey
+      FOREIGN KEY (promo_id) REFERENCES promos(id) ON DELETE CASCADE;
+  END IF;
+END $$;
 
 -- ============================================================
 -- 3. FREE ADD-ON CONFIGURATIONS TABLE
@@ -110,9 +133,16 @@ CREATE TABLE IF NOT EXISTS promo_free_addons (
 );
 
 -- Add foreign key for promo_id
-ALTER TABLE promo_free_addons
-  ADD CONSTRAINT IF NOT EXISTS promo_free_addons_promo_id_fkey
-  FOREIGN KEY (promo_id) REFERENCES promos(id) ON DELETE CASCADE;
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conname = 'promo_free_addons_promo_id_fkey'
+  ) THEN
+    ALTER TABLE promo_free_addons
+      ADD CONSTRAINT promo_free_addons_promo_id_fkey
+      FOREIGN KEY (promo_id) REFERENCES promos(id) ON DELETE CASCADE;
+  END IF;
+END $$;
 
 -- Add foreign key for qualifying_drink_id (only if drinks table exists with id column)
 DO $$
@@ -121,9 +151,13 @@ BEGIN
     SELECT 1 FROM information_schema.columns
     WHERE table_name = 'drinks' AND column_name = 'id'
   ) THEN
-    ALTER TABLE promo_free_addons
-      ADD CONSTRAINT IF NOT EXISTS promo_free_addons_qualifying_drink_id_fkey
-      FOREIGN KEY (qualifying_drink_id) REFERENCES drinks(id);
+    IF NOT EXISTS (
+      SELECT 1 FROM pg_constraint WHERE conname = 'promo_free_addons_qualifying_drink_id_fkey'
+    ) THEN
+      ALTER TABLE promo_free_addons
+        ADD CONSTRAINT promo_free_addons_qualifying_drink_id_fkey
+        FOREIGN KEY (qualifying_drink_id) REFERENCES drinks(id);
+    END IF;
   END IF;
 END $$;
 
@@ -134,9 +168,13 @@ BEGIN
     SELECT 1 FROM information_schema.columns
     WHERE table_name = 'ingredients' AND column_name = 'id'
   ) THEN
-    ALTER TABLE promo_free_addons
-      ADD CONSTRAINT IF NOT EXISTS promo_free_addons_free_addon_id_fkey
-      FOREIGN KEY (free_addon_id) REFERENCES ingredients(id);
+    IF NOT EXISTS (
+      SELECT 1 FROM pg_constraint WHERE conname = 'promo_free_addons_free_addon_id_fkey'
+    ) THEN
+      ALTER TABLE promo_free_addons
+        ADD CONSTRAINT promo_free_addons_free_addon_id_fkey
+        FOREIGN KEY (free_addon_id) REFERENCES ingredients(id);
+    END IF;
   END IF;
 END $$;
 
@@ -154,9 +192,16 @@ CREATE TABLE IF NOT EXISTS promo_variants (
 );
 
 -- Add foreign key for promo_id
-ALTER TABLE promo_variants
-  ADD CONSTRAINT IF NOT EXISTS promo_variants_promo_id_fkey
-  FOREIGN KEY (promo_id) REFERENCES promos(id) ON DELETE CASCADE;
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conname = 'promo_variants_promo_id_fkey'
+  ) THEN
+    ALTER TABLE promo_variants
+      ADD CONSTRAINT promo_variants_promo_id_fkey
+      FOREIGN KEY (promo_id) REFERENCES promos(id) ON DELETE CASCADE;
+  END IF;
+END $$;
 
 -- ============================================================
 -- 5. PROMO USAGE TRACKING TABLE
@@ -171,9 +216,16 @@ CREATE TABLE IF NOT EXISTS promo_usage (
 );
 
 -- Add foreign key for promo_id
-ALTER TABLE promo_usage
-  ADD CONSTRAINT IF NOT EXISTS promo_usage_promo_id_fkey
-  FOREIGN KEY (promo_id) REFERENCES promos(id) ON DELETE CASCADE;
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conname = 'promo_usage_promo_id_fkey'
+  ) THEN
+    ALTER TABLE promo_usage
+      ADD CONSTRAINT promo_usage_promo_id_fkey
+      FOREIGN KEY (promo_id) REFERENCES promos(id) ON DELETE CASCADE;
+  END IF;
+END $$;
 
 -- Add foreign key for order_id (only if orders table exists with id column)
 DO $$
@@ -182,16 +234,27 @@ BEGIN
     SELECT 1 FROM information_schema.columns
     WHERE table_name = 'orders' AND column_name = 'id'
   ) THEN
-    ALTER TABLE promo_usage
-      ADD CONSTRAINT IF NOT EXISTS promo_usage_order_id_fkey
-      FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE;
+    IF NOT EXISTS (
+      SELECT 1 FROM pg_constraint WHERE conname = 'promo_usage_order_id_fkey'
+    ) THEN
+      ALTER TABLE promo_usage
+        ADD CONSTRAINT promo_usage_order_id_fkey
+        FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE;
+    END IF;
   END IF;
 END $$;
 
 -- Add unique constraint to prevent abuse
-ALTER TABLE promo_usage
-  ADD CONSTRAINT IF NOT EXISTS unique_customer_promo
-  UNIQUE (promo_id, customer_identifier);
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conname = 'unique_customer_promo'
+  ) THEN
+    ALTER TABLE promo_usage
+      ADD CONSTRAINT unique_customer_promo
+      UNIQUE (promo_id, customer_identifier);
+  END IF;
+END $$;
 
 -- ============================================================
 -- 6. MODIFY EXISTING ORDERS TABLE
@@ -205,9 +268,13 @@ BEGIN
       ADD COLUMN IF NOT EXISTS promo_id UUID;
 
     IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'promos') THEN
-      ALTER TABLE orders
-        ADD CONSTRAINT IF NOT EXISTS orders_promo_id_fkey
-        FOREIGN KEY (promo_id) REFERENCES promos(id);
+      IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'orders_promo_id_fkey'
+      ) THEN
+        ALTER TABLE orders
+          ADD CONSTRAINT orders_promo_id_fkey
+          FOREIGN KEY (promo_id) REFERENCES promos(id);
+      END IF;
     END IF;
 
     -- Add other promo columns
@@ -225,88 +292,188 @@ END $$;
 ALTER TABLE promos ENABLE ROW LEVEL SECURITY;
 
 -- Customers can only read active promos
-CREATE POLICY IF NOT EXISTS "Customers can view active promos"
-  ON promos FOR SELECT
-  USING (is_active = true);
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies
+    WHERE schemaname = 'public'
+      AND tablename = 'promos'
+      AND policyname = 'Customers can view active promos'
+  ) THEN
+    CREATE POLICY "Customers can view active promos"
+      ON promos FOR SELECT
+      USING (is_active = true);
+  END IF;
+END $$;
 
 -- Staff/Admin can do everything
-CREATE POLICY IF NOT EXISTS "Staff/Admin can manage promos"
-  ON promos FOR ALL
-  USING (
-    EXISTS (
-      SELECT 1 FROM profiles
-      WHERE profiles.user_id = auth.uid()
-      AND profiles.role IN ('staff', 'admin')
-    )
-  );
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies
+    WHERE schemaname = 'public'
+      AND tablename = 'promos'
+      AND policyname = 'Staff/Admin can manage promos'
+  ) THEN
+    CREATE POLICY "Staff/Admin can manage promos"
+      ON promos FOR ALL
+      USING (
+        EXISTS (
+          SELECT 1 FROM profiles
+          WHERE profiles.user_id = auth.uid()
+          AND profiles.role IN ('staff', 'admin')
+        )
+      );
+  END IF;
+END $$;
 
 -- Promo bundles RLS
 ALTER TABLE promo_bundles ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY IF NOT EXISTS "Anyone can view promo bundles"
-  ON promo_bundles FOR SELECT
-  USING (true);
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies
+    WHERE schemaname = 'public'
+      AND tablename = 'promo_bundles'
+      AND policyname = 'Anyone can view promo bundles'
+  ) THEN
+    CREATE POLICY "Anyone can view promo bundles"
+      ON promo_bundles FOR SELECT
+      USING (true);
+  END IF;
+END $$;
 
-CREATE POLICY IF NOT EXISTS "Staff/Admin can manage promo bundles"
-  ON promo_bundles FOR ALL
-  USING (
-    EXISTS (
-      SELECT 1 FROM profiles
-      WHERE profiles.user_id = auth.uid()
-      AND profiles.role IN ('staff', 'admin')
-    )
-  );
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies
+    WHERE schemaname = 'public'
+      AND tablename = 'promo_bundles'
+      AND policyname = 'Staff/Admin can manage promo bundles'
+  ) THEN
+    CREATE POLICY "Staff/Admin can manage promo bundles"
+      ON promo_bundles FOR ALL
+      USING (
+        EXISTS (
+          SELECT 1 FROM profiles
+          WHERE profiles.user_id = auth.uid()
+          AND profiles.role IN ('staff', 'admin')
+        )
+      );
+  END IF;
+END $$;
 
 -- Promo free add-ons RLS
 ALTER TABLE promo_free_addons ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY IF NOT EXISTS "Anyone can view promo free add-ons"
-  ON promo_free_addons FOR SELECT
-  USING (true);
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies
+    WHERE schemaname = 'public'
+      AND tablename = 'promo_free_addons'
+      AND policyname = 'Anyone can view promo free add-ons'
+  ) THEN
+    CREATE POLICY "Anyone can view promo free add-ons"
+      ON promo_free_addons FOR SELECT
+      USING (true);
+  END IF;
+END $$;
 
-CREATE POLICY IF NOT EXISTS "Staff/Admin can manage promo free add-ons"
-  ON promo_free_addons FOR ALL
-  USING (
-    EXISTS (
-      SELECT 1 FROM profiles
-      WHERE profiles.user_id = auth.uid()
-      AND profiles.role IN ('staff', 'admin')
-    )
-  );
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies
+    WHERE schemaname = 'public'
+      AND tablename = 'promo_free_addons'
+      AND policyname = 'Staff/Admin can manage promo free add-ons'
+  ) THEN
+    CREATE POLICY "Staff/Admin can manage promo free add-ons"
+      ON promo_free_addons FOR ALL
+      USING (
+        EXISTS (
+          SELECT 1 FROM profiles
+          WHERE profiles.user_id = auth.uid()
+          AND profiles.role IN ('staff', 'admin')
+        )
+      );
+  END IF;
+END $$;
 
 -- Promo variants RLS
 ALTER TABLE promo_variants ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY IF NOT EXISTS "Anyone can view active promo variants"
-  ON promo_variants FOR SELECT
-  USING (is_active = true);
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies
+    WHERE schemaname = 'public'
+      AND tablename = 'promo_variants'
+      AND policyname = 'Anyone can view active promo variants'
+  ) THEN
+    CREATE POLICY "Anyone can view active promo variants"
+      ON promo_variants FOR SELECT
+      USING (is_active = true);
+  END IF;
+END $$;
 
-CREATE POLICY IF NOT EXISTS "Staff/Admin can manage promo variants"
-  ON promo_variants FOR ALL
-  USING (
-    EXISTS (
-      SELECT 1 FROM profiles
-      WHERE profiles.user_id = auth.uid()
-      AND profiles.role IN ('staff', 'admin')
-    )
-  );
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies
+    WHERE schemaname = 'public'
+      AND tablename = 'promo_variants'
+      AND policyname = 'Staff/Admin can manage promo variants'
+  ) THEN
+    CREATE POLICY "Staff/Admin can manage promo variants"
+      ON promo_variants FOR ALL
+      USING (
+        EXISTS (
+          SELECT 1 FROM profiles
+          WHERE profiles.user_id = auth.uid()
+          AND profiles.role IN ('staff', 'admin')
+        )
+      );
+  END IF;
+END $$;
 
 -- Promo usage RLS
 ALTER TABLE promo_usage ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY IF NOT EXISTS "Staff/Admin can view promo usage"
-  ON promo_usage FOR SELECT
-  USING (
-    EXISTS (
-      SELECT 1 FROM profiles
-      WHERE profiles.user_id = auth.uid()
-      AND profiles.role IN ('staff', 'admin')
-    )
-  );
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies
+    WHERE schemaname = 'public'
+      AND tablename = 'promo_usage'
+      AND policyname = 'Staff/Admin can view promo usage'
+  ) THEN
+    CREATE POLICY "Staff/Admin can view promo usage"
+      ON promo_usage FOR SELECT
+      USING (
+        EXISTS (
+          SELECT 1 FROM profiles
+          WHERE profiles.user_id = auth.uid()
+          AND profiles.role IN ('staff', 'admin')
+        )
+      );
+  END IF;
+END $$;
 
-CREATE POLICY IF NOT EXISTS "System can insert promo usage"
-  ON promo_usage FOR INSERT
-  WITH CHECK (true);
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies
+    WHERE schemaname = 'public'
+      AND tablename = 'promo_usage'
+      AND policyname = 'System can insert promo usage'
+  ) THEN
+    CREATE POLICY "System can insert promo usage"
+      ON promo_usage FOR INSERT
+      WITH CHECK (true);
+  END IF;
+END $$;
 
 -- ============================================================
 -- 8. HELPER FUNCTIONS

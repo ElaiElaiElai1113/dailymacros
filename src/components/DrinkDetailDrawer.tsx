@@ -54,7 +54,7 @@ export default function DrinkDetailDrawer({
   sizeLines?: Record<string, LineIngredient[]>;
   ingDict: Record<string, Ingredient>;
   nutrDict: Record<string, IngredientNutrition>;
-  onAddToCart: (scaledLines?: LineIngredient[]) => void;
+  onAddToCart: (scaledLines?: LineIngredient[], sizeMl?: number) => void;
   onCustomize: () => void;
 }) {
   if (!drink) return null;
@@ -97,7 +97,7 @@ export default function DrinkDetailDrawer({
   if (!activeDrink) return null;
 
   function handleAddToCart() {
-    onAddToCart(effectiveLines);
+    onAddToCart(effectiveLines, sizeMl);
   }
 
   async function handleShareOrPrint() {
