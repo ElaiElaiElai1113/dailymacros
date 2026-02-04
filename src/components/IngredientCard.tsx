@@ -296,7 +296,6 @@ export default function IngredientCard({
                           }))
                         }
                         placeholder="e.g. 30"
-                        disabled={!needsGramsPerUnit}
                       />
                       <div className="text-[11px] text-gray-400">
                         Required for scoop/piece conversions.
@@ -317,7 +316,6 @@ export default function IngredientCard({
                           }))
                         }
                         placeholder="e.g. 1.02"
-                        disabled={!needsDensity}
                       />
                       <div className="text-[11px] text-gray-400">
                         Required for ml conversions.
