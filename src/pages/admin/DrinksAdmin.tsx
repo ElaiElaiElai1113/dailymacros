@@ -32,6 +32,7 @@ type DrinkSizeRow = {
   display_name: string | null;
   size_ml: number;
   is_active: boolean;
+  price_php?: number | null;
 };
 
 type DrinkLineRow = {
@@ -209,6 +210,8 @@ function CollapsibleRecipeSection({
   lines,
   ingredients,
   ingredientById,
+  pricePhp,
+  onPriceChange,
   onAddLine,
   onUpdateLine,
   onRemoveLine,
@@ -222,6 +225,8 @@ function CollapsibleRecipeSection({
   lines: RecipeLine[];
   ingredients: IngredientRow[];
   ingredientById: Map<string, IngredientRow>;
+  pricePhp?: number | null;
+  onPriceChange?: (value: number) => void;
   onAddLine: () => void;
   onUpdateLine: (idx: number, patch: Partial<RecipeLine>) => void;
   onRemoveLine: (idx: number) => void;
@@ -257,6 +262,20 @@ function CollapsibleRecipeSection({
 
       {!isCollapsed && (
         <div className="p-4 space-y-3 bg-white">
+          {typeof pricePhp !== "undefined" && onPriceChange && (
+            <div className="flex flex-wrap items-center gap-3 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2">
+              <span className="text-xs font-semibold text-gray-600 uppercase tracking-wide">
+                Size Price (₱)
+              </span>
+              <input
+                className="w-32 text-sm bg-white border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#D26E3D]/20 focus:border-[#D26E3D] transition-all"
+                type="number"
+                value={pricePhp ?? ""}
+                onChange={(e) => onPriceChange(Number(e.target.value || 0))}
+                placeholder="0"
+              />
+            </div>
+          )}
           {lines.length === 0 ? (
             <div className="py-8 text-center rounded-lg border-2 border-dashed border-gray-200">
               <Package className="h-8 w-8 text-gray-300 mx-auto mb-3" />
@@ -458,7 +477,7 @@ export default function DrinksAdminPage() {
   async function loadDrinkSizes() {
     const { data, error } = await supabase
       .from("drink_sizes")
-      .select("id,drink_id,size_label,display_name,size_ml,is_active")
+      .select("id,drink_id,size_label,display_name,size_ml,is_active,price_php")
       .order("size_ml", { ascending: true });
     if (error) {
       toast({
@@ -713,7 +732,7 @@ export default function DrinksAdminPage() {
     loadLines([drinkId]);
   }
 
-  async function saveSizeRecipe(drinkSizeId: string) {
+  async function saveSizeRecipe(drinkSizeId: string, pricePhp?: number | null) {
     const key = drinkSizeId;
     const lines = sizeRecipeLines[drinkSizeId] || [];
     const cleaned = lines
@@ -734,6 +753,19 @@ export default function DrinksAdminPage() {
         variant: "destructive",
         title: "Failed to save recipe",
         description: delErr.message,
+      });
+      return;
+    }
+    const { error: priceErr } = await supabase
+      .from("drink_sizes")
+      .update({ price_php: pricePhp ?? null })
+      .eq("id", drinkSizeId);
+    if (priceErr) {
+      setSizeRecipeSavingKey(null);
+      toast({
+        variant: "destructive",
+        title: "Failed to save size price",
+        description: priceErr.message,
       });
       return;
     }
@@ -764,6 +796,7 @@ export default function DrinksAdminPage() {
         recipe_updated: true,
         drink_size_id: drinkSizeId,
         line_count: cleaned.length,
+        price_php: pricePhp ?? null,
       },
     });
     setSizeRecipeSavingKey(null);
@@ -802,6 +835,7 @@ export default function DrinksAdminPage() {
       });
     });
     setSizeRecipeLines(map);
+    await loadDrinkSizes();
   }
 
   function updateRecipeLine(
@@ -995,6 +1029,79 @@ export default function DrinksAdminPage() {
     setRows((prev) => prev.map((x) => (x.id === drinkId ? { ...x, ...patch } : x)));
   };
 
+  async function createDefaultSizes() {
+    if (rows.length === 0) {
+      toast({
+        variant: "destructive",
+        title: "No drinks found",
+        description: "Create drinks first before generating sizes.",
+      });
+      return;
+    }
+
+    const existing = new Set(
+      drinkSizes.map((s) => `${s.drink_id}:${s.size_ml}`)
+    );
+
+    const inserts: Array<{
+      drink_id: string;
+      size_label: string;
+      display_name: string;
+      size_ml: number;
+      is_active: boolean;
+      price_php: number | null;
+    }> = [];
+
+    rows.forEach((drink) => {
+      const has12 = existing.has(`${drink.id}:355`);
+      const has16 = existing.has(`${drink.id}:473`);
+      if (!has12) {
+        inserts.push({
+          drink_id: drink.id,
+          size_label: "12oz",
+          display_name: "12 oz",
+          size_ml: 355,
+          is_active: true,
+          price_php: null,
+        });
+      }
+      if (!has16) {
+        inserts.push({
+          drink_id: drink.id,
+          size_label: "16oz",
+          display_name: "16 oz",
+          size_ml: 473,
+          is_active: true,
+          price_php: null,
+        });
+      }
+    });
+
+    if (inserts.length === 0) {
+      toast({
+        title: "All sizes already exist",
+        description: "No new size rows were created.",
+      });
+      return;
+    }
+
+    const { error } = await supabase.from("drink_sizes").insert(inserts);
+    if (error) {
+      toast({
+        variant: "destructive",
+        title: "Failed to create sizes",
+        description: error.message,
+      });
+      return;
+    }
+
+    toast({
+      title: "Sizes generated",
+      description: `${inserts.length} size rows created.`,
+    });
+    await loadDrinkSizes();
+  }
+
   return (
     <div className="space-y-8">
       {/* Header */}
@@ -1005,14 +1112,23 @@ export default function DrinksAdminPage() {
             Manage your drink menu, recipes, and sizes
           </p>
         </div>
-        <div className="relative w-full sm:w-80">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
-          <input
-            className="w-full rounded-lg border border-gray-200 pl-10 pr-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-[#D26E3D]/30 focus:border-[#D26E3D] transition-all"
-            placeholder="Search drinks…"
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-          />
+        <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row sm:items-center">
+          <button
+            type="button"
+            onClick={createDefaultSizes}
+            className="rounded-lg border border-gray-200 px-4 py-2.5 text-sm font-semibold text-gray-700 hover:border-[#D26E3D] hover:text-[#D26E3D] hover:bg-[#D26E3D]/5 transition-colors"
+          >
+            Generate 12oz/16oz sizes
+          </button>
+          <div className="relative w-full sm:w-80">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
+            <input
+              className="w-full rounded-lg border border-gray-200 pl-10 pr-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-[#D26E3D]/30 focus:border-[#D26E3D] transition-all"
+              placeholder="Search drinks…"
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+            />
+          </div>
         </div>
       </div>
 
@@ -1189,6 +1305,14 @@ export default function DrinksAdminPage() {
                         {d.description ? d.description : "No description"}
                       </span>
                     </div>
+                    {((drinkSizesByDrink[d.id] || []).length > 0) && (
+                      <div className="text-[11px] text-gray-500">
+                        Sizes:{" "}
+                        {(drinkSizesByDrink[d.id] || [])
+                          .map((s) => s.display_name || s.size_label || `${Math.round(s.size_ml / 29.5735 * 10) / 10} oz`)
+                          .join(", ")}
+                      </div>
+                    )}
 
                     <button
                       type="button"
@@ -1245,10 +1369,18 @@ export default function DrinksAdminPage() {
                       lines={sizeLines}
                       ingredients={ingredients}
                       ingredientById={ingredientById}
+                      pricePhp={size.price_php ?? null}
+                      onPriceChange={(value) => {
+                        setDrinkSizes((prev) =>
+                          prev.map((s) =>
+                            s.id === size.id ? { ...s, price_php: value } : s
+                          )
+                        );
+                      }}
                       onAddLine={() => addSizeRecipeLine(size.id)}
                       onUpdateLine={(idx, patch) => updateSizeRecipeLine(size.id, idx, patch)}
                       onRemoveLine={(idx) => removeSizeRecipeLine(size.id, idx)}
-                      onSave={() => saveSizeRecipe(size.id)}
+                      onSave={() => saveSizeRecipe(size.id, size.price_php ?? null)}
                       saving={sizeRecipeSavingKey === size.id}
                       emptyMessage="Uses base recipe"
                     />

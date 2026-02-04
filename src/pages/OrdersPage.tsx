@@ -17,6 +17,9 @@ const statusConfig: Record<string, { label: string; variant: "default" | "second
 
 export default function OrdersPage() {
   const [orders, setOrders] = useState<Order[]>([]);
+  const [itemsMap, setItemsMap] = useState<
+    Record<string, { id: string; item_name: string; size_ml?: number | null }[]>
+  >({});
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -27,6 +30,20 @@ export default function OrdersPage() {
         .select("id,pickup_time,status")
         .order("created_at", { ascending: false });
       setOrders((data || []) as any);
+      const orderIds = (data || []).map((o: any) => o.id);
+      if (orderIds.length) {
+        const { data: ii } = await supabase
+          .from("order_items")
+          .select("id,order_id,item_name,size_ml")
+          .in("order_id", orderIds);
+        const map: Record<string, { id: string; item_name: string; size_ml?: number | null }[]> = {};
+        (ii || []).forEach((it: any) => {
+          (map[it.order_id] ||= []).push(it);
+        });
+        setItemsMap(map);
+      } else {
+        setItemsMap({});
+      }
       setLoading(false);
     })();
   }, []);
@@ -91,6 +108,7 @@ export default function OrdersPage() {
       <div className="space-y-3">
         {orders.map((o) => {
           const config = statusConfig[o.status] || statusConfig.pending;
+          const items = itemsMap[o.id] || [];
           return (
             <Card key={o.id} className="group hover:shadow-md transition-shadow">
               <CardContent className="p-4">
@@ -107,6 +125,21 @@ export default function OrdersPage() {
                       <Clock className="h-3 w-3" />
                       Pickup: {new Date(o.pickup_time).toLocaleString()}
                     </div>
+                    {items.length > 0 && (
+                      <div className="text-xs text-muted-foreground">
+                        {items.map((it) => {
+                          const oz = it.size_ml
+                            ? Math.round((it.size_ml / 29.5735) * 10) / 10
+                            : null;
+                          return (
+                            <span key={it.id} className="mr-2">
+                              {it.item_name}
+                              {oz ? ` (${oz} oz)` : ""}
+                            </span>
+                          );
+                        })}
+                      </div>
+                    )}
                   </div>
                   <Button asChild variant="outline" size="sm">
                     <Link to={`/track/${o.id}`}>Track</Link>

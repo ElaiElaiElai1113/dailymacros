@@ -41,6 +41,43 @@ type V100Row = {
   per_100g_carbs_g: number | null;
 };
 
+type DrinkSizeRow = {
+  id: string;
+  drink_id: string;
+  size_label: string | null;
+  display_name: string | null;
+  size_ml: number;
+  is_active: boolean;
+  price_php?: number | null;
+};
+
+type DrinkSizeLineRow = {
+  drink_size_id: string;
+  ingredient_id: string;
+  amount: number;
+  unit: string;
+};
+
+const DEFAULT_SIZES = [
+  { label: "12 oz", ml: 355, price_cents: null },
+  { label: "16 oz", ml: 473, price_cents: null },
+];
+
+function mlToOzLabel(sizeMl: number) {
+  const oz = Math.round((sizeMl / 29.5735) * 10) / 10;
+  return `${oz} oz`;
+}
+
+function scaleLines(
+  lines: CartLine[],
+  referenceMl: number | null,
+  targetMl: number
+): CartLine[] {
+  if (!referenceMl || referenceMl <= 0) return lines;
+  const factor = targetMl / referenceMl;
+  return lines.map((l) => ({ ...l, amount: Number(l.amount) * factor }));
+}
+
 const steps = [
   { id: 1, label: "Choose base" },
   { id: 2, label: "Customize" },
@@ -102,11 +139,14 @@ export default function OrderFlowPage() {
   const [pricingDict, setPricingDict] = useState<
     Record<string, IngredientPricing[]>
   >({});
+  const [drinkSizes, setDrinkSizes] = useState<DrinkSizeRow[]>([]);
+  const [sizeLines, setSizeLines] = useState<DrinkSizeLineRow[]>([]);
 
   const [baseDrinks, setBaseDrinks] = useState<BYODrink[]>([]);
   const [selectedBaseId, setSelectedBaseId] = useState<string | null>(null);
   const [baseLines, setBaseLines] = useState<CartLine[]>([]);
   const [extraLines, setExtraLines] = useState<CartLine[]>([]);
+  const [sizeMl, setSizeMl] = useState<number>(DEFAULT_SIZES[1].ml);
 
   const [loadingAll, setLoadingAll] = useState(true);
   const [loadingBase, setLoadingBase] = useState(false);
@@ -166,6 +206,30 @@ export default function OrderFlowPage() {
           typeof d.price_php === "number" ? Math.round(d.price_php * 100) : 0,
       }));
       setBaseDrinks(normalized);
+
+      const drinkIds = normalized.map((d) => d.id);
+      const { data: ds } = await supabase
+        .from("drink_sizes")
+        .select("id,drink_id,size_label,display_name,size_ml,is_active,price_php")
+        .in(
+          "drink_id",
+          drinkIds.length
+            ? drinkIds
+            : ["00000000-0000-0000-0000-000000000000"]
+        );
+      setDrinkSizes((ds || []) as DrinkSizeRow[]);
+
+      const drinkSizeIds = (ds || []).map((s) => s.id);
+      const { data: sl } = await supabase
+        .from("drink_size_lines")
+        .select("drink_size_id,ingredient_id,amount,unit")
+        .in(
+          "drink_size_id",
+          drinkSizeIds.length
+            ? drinkSizeIds
+            : ["00000000-0000-0000-0000-000000000000"]
+        );
+      setSizeLines((sl || []) as DrinkSizeLineRow[]);
 
       setLoadingAll(false);
     })();
@@ -244,9 +308,74 @@ export default function OrderFlowPage() {
     setExtraLines((prev) => prev.filter((_, i) => i !== idx));
   }
 
+  const selectedBase = baseDrinks.find((b) => b.id === selectedBaseId) || null;
+
+  const sizeOptions = useMemo(() => {
+    if (!selectedBaseId) return DEFAULT_SIZES;
+    const sizes = drinkSizes
+      .filter((s) => s.drink_id === selectedBaseId && s.is_active)
+      .map((s) => ({
+        ml: s.size_ml,
+        label: s.display_name || s.size_label || mlToOzLabel(s.size_ml),
+        price_cents:
+          typeof s.price_php === "number" ? Math.round(s.price_php * 100) : null,
+      }));
+    return sizes.length ? sizes : DEFAULT_SIZES;
+  }, [drinkSizes, selectedBaseId]);
+
+  const sizePriceByDrink = useMemo(() => {
+    const map: Record<string, Record<string, number>> = {};
+    drinkSizes.forEach((s) => {
+      if (!map[s.drink_id]) map[s.drink_id] = {};
+      if (typeof s.price_php === "number") {
+        map[s.drink_id][String(s.size_ml)] = Math.round(s.price_php * 100);
+      }
+    });
+    return map;
+  }, [drinkSizes]);
+
+  const sizeLinesByDrink = useMemo(() => {
+    const map: Record<string, Record<string, CartLine[]>> = {};
+    const sizeById = new Map(drinkSizes.map((s) => [s.id, s] as const));
+    for (const r of sizeLines) {
+      const size = sizeById.get(r.drink_size_id);
+      if (!size) continue;
+      const sizeKey = String(size.size_ml);
+      if (!map[size.drink_id]) map[size.drink_id] = {};
+      (map[size.drink_id][sizeKey] ||= []).push({
+        ingredient_id: r.ingredient_id,
+        amount: Number(r.amount),
+        unit: r.unit,
+        role: "base",
+        name: ingDict[r.ingredient_id]?.name,
+      });
+    }
+    return map;
+  }, [sizeLines, drinkSizes, ingDict]);
+
+  useEffect(() => {
+    if (!selectedBase) return;
+    const baseSize = selectedBase.base_size_ml ?? sizeOptions[0]?.ml ?? DEFAULT_SIZES[1].ml;
+    const optionMls = sizeOptions.map((s) => s.ml);
+    setSizeMl(optionMls.includes(baseSize) ? baseSize : optionMls[0]);
+  }, [selectedBase?.id, selectedBase?.base_size_ml, sizeOptions]);
+
+  const sizeLinesForSelection =
+    selectedBaseId && sizeLinesByDrink[selectedBaseId]
+      ? sizeLinesByDrink[selectedBaseId][String(sizeMl)] || []
+      : [];
+
+  const scaledBaseLines = useMemo(
+    () => scaleLines(baseLines, selectedBase?.base_size_ml ?? null, sizeMl),
+    [baseLines, selectedBase?.base_size_ml, sizeMl]
+  );
+
+  const effectiveBaseLines =
+    sizeLinesForSelection.length > 0 ? sizeLinesForSelection : scaledBaseLines;
+
   const combinedLines = useMemo(
-    () => [...baseLines, ...extraLines],
-    [baseLines, extraLines]
+    () => [...effectiveBaseLines, ...extraLines],
+    [effectiveBaseLines, extraLines]
   );
 
   const { totals, allergens } = useMemo(
@@ -254,15 +383,20 @@ export default function OrderFlowPage() {
     [combinedLines, ingDict, nutrDict]
   );
 
-  const selectedBase = baseDrinks.find((b) => b.id === selectedBaseId) || null;
-
   const addons_price_php = useMemo(
     () => priceForExtrasPHP(extraLines, pricingDict),
     [extraLines, pricingDict]
   );
 
   const addons_price_cents = Math.round(addons_price_php * 100);
-  const base_price_cents = selectedBase?.price_cents || 0;
+  const sizePriceCents =
+    selectedBaseId && sizePriceByDrink[selectedBaseId]
+      ? sizePriceByDrink[selectedBaseId][String(sizeMl)]
+      : undefined;
+  const base_price_cents =
+    typeof sizePriceCents === "number"
+      ? sizePriceCents
+      : selectedBase?.price_cents || 0;
   const total_price_cents = base_price_cents + addons_price_cents;
 
   const hasMissingNutrition = useMemo(
@@ -277,12 +411,13 @@ export default function OrderFlowPage() {
     return {
       item_name: `Custom - ${selectedBase.name}`,
       drink_id: selectedBase.id,
+      size_ml: sizeMl,
       unit_price_cents: total_price_cents,
       base_price_cents,
       addons_price_cents,
       base_drink_name: selectedBase.name,
       image_url: selectedBase.image_url ?? null,
-      lines: [...baseLines, ...extraLines],
+      lines: [...effectiveBaseLines, ...extraLines],
     };
   }
 
@@ -614,6 +749,56 @@ export default function OrderFlowPage() {
                     </motion.div>
                   ) : (
                     <>
+                      <motion.div
+                        variants={cardVariants}
+                        initial="hidden"
+                        animate="visible"
+                      >
+                        <Card>
+                          <CardHeader className="flex-row items-center justify-between">
+                            <CardTitle className="text-base flex items-center gap-2">
+                              <motion.div
+                                animate={{ rotate: [0, -10, 10, 0] }}
+                                transition={{ duration: 2, repeat: Infinity }}
+                              >
+                                📏
+                              </motion.div>
+                              Choose size
+                            </CardTitle>
+                            <Badge variant="secondary">
+                              {mlToOzLabel(sizeMl)}
+                            </Badge>
+                          </CardHeader>
+                          <CardContent>
+                            <div className="flex flex-wrap gap-2">
+                              {sizeOptions.map((s) => (
+                                <Button
+                                  key={s.ml}
+                                  variant={sizeMl === s.ml ? "default" : "outline"}
+                                  size="sm"
+                                  onClick={() => setSizeMl(s.ml)}
+                                  className="flex items-center gap-2"
+                                >
+                                  <span>{s.label}</span>
+                                  {typeof s.price_cents === "number" && (
+                                    <span className="text-[11px] opacity-80">
+                                      ₱{(s.price_cents / 100).toFixed(2)}
+                                    </span>
+                                  )}
+                                </Button>
+                              ))}
+                            </div>
+                            <p className="mt-2 text-xs text-muted-foreground">
+                              {sizeLinesForSelection.length > 0
+                                ? "Uses the saved recipe for this size."
+                                : selectedBase?.base_size_ml
+                                  ? `Scales from base size ${mlToOzLabel(selectedBase.base_size_ml)}.`
+                                  : "Scales from default base size."}
+                            </p>
+                          </CardContent>
+                        </Card>
+                      </motion.div>
+
                       <motion.div
                         variants={cardVariants}
                         initial="hidden"

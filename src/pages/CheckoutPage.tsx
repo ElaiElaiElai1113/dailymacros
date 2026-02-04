@@ -1,6 +1,7 @@
 import { useCart } from "@/context/CartContext";
 import PickupTimePicker from "@/components/PickupTimePicker";
 import { supabase } from "@/lib/supabaseClient";
+import { recordPromoUsage } from "@/utils/promos";
 import { useEffect, useMemo, useState } from "react";
 import QRCode from "react-qr-code";
 import { Button } from "@/components/ui/button";
@@ -10,7 +11,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Badge } from "@/components/ui/badge";
-import { Hash, Phone, User } from "lucide-react";
+import { Hash, Phone, User, Tag } from "lucide-react";
 
 function Price({ cents }: { cents: number }) {
   return <span>PHP {(Number(cents || 0) / 100).toFixed(2)}</span>;
@@ -27,7 +28,7 @@ type FieldErrors = {
 };
 
 export default function CheckoutPage() {
-  const { items, clear } = useCart();
+  const { items, clear, appliedPromo, promoDiscount, getSubtotal, getTotal } = useCart();
   const [loadedAt] = useState(() => Date.now());
   const [pickup, setPickup] = useState(() =>
     new Date(Date.now() + 60 * 60 * 1000).toISOString().slice(0, 16)
@@ -57,10 +58,8 @@ export default function CheckoutPage() {
 
   const cartEmpty = items.length === 0;
 
-  const subtotal = useMemo(
-    () => items.reduce((sum, it) => sum + Number(it.unit_price_cents || 0), 0),
-    [items]
-  );
+  const subtotal = useMemo(() => getSubtotal(), [items, getSubtotal]);
+  const total = useMemo(() => getTotal(), [items, getTotal, promoDiscount]);
 
   function getMinPickup() {
     return new Date(Date.now() + 5 * 60 * 1000).toISOString().slice(0, 16);
@@ -187,12 +186,25 @@ export default function CheckoutPage() {
           payment_reference: paymentRef.trim() || null,
           payment_proof_url,
           subtotal_cents: subtotal,
+          promo_id: appliedPromo?.id || null,
+          promo_code_applied: appliedPromo?.code || null,
+          promo_discount_cents: promoDiscount || 0,
         })
         .select("id, tracking_code")
         .single();
 
       if (orderErr || !order)
         throw orderErr || new Error("Failed to create order.");
+
+      // Record promo usage if a promo was applied
+      if (appliedPromo && promoDiscount > 0) {
+        await recordPromoUsage(
+          appliedPromo.id,
+          order.id,
+          promoDiscount,
+          trimmedPhone // Use phone as customer identifier
+        );
+      }
 
       for (let idx = 0; idx < items.length; idx++) {
         const it = items[idx];
@@ -487,10 +499,15 @@ export default function CheckoutPage() {
                           ? `Custom - ${it.base_drink_name}`
                           : it.item_name}
                       </div>
+                      {it.size_ml ? (
+                        <div className="mt-0.5 text-xs text-gray-500">
+                          {Math.round((it.size_ml / 29.5735) * 10) / 10} oz
+                        </div>
+                      ) : null}
                       {typeof it.base_price_cents === "number" &&
                         typeof it.addons_price_cents === "number" && (
-                          <div className="mt-1 text-xs text-muted-foreground">
-                            Base <Price cents={it.base_price_cents} /> + Add-ons{" "}
+                        <div className="mt-1 text-xs text-muted-foreground">
+                          Base <Price cents={it.base_price_cents} /> + Add-ons{" "}
                             <Price cents={it.addons_price_cents} />
                           </div>
                         )}
@@ -506,6 +523,25 @@ export default function CheckoutPage() {
                 <div className="font-medium">Subtotal</div>
                 <div className="font-semibold">
                   <Price cents={subtotal} />
+                </div>
+              </div>
+
+              {appliedPromo && promoDiscount > 0 && (
+                <div className="flex items-center justify-between text-green-600">
+                  <div className="flex items-center gap-2">
+                    <Tag className="h-3.5 w-3.5" />
+                    <span className="font-medium">Promo ({appliedPromo.code})</span>
+                  </div>
+                  <div className="font-semibold">
+                    -₱{(promoDiscount / 100).toFixed(2)}
+                  </div>
+                </div>
+              )}
+
+              <div className="flex items-center justify-between text-lg pt-2 border-t">
+                <div className="font-semibold">Total</div>
+                <div className="font-bold text-[#D26E3D]">
+                  <Price cents={total} />
                 </div>
               </div>
 

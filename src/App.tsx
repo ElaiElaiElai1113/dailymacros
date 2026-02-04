@@ -23,6 +23,7 @@ const BuildYourOwnPage = lazy(() => import("./pages/BuildYourOwnPage"));
 const OrderFlowPage = lazy(() => import("./pages/OrderFlowPage"));
 const CartPage = lazy(() => import("./pages/CartPage"));
 const CheckoutPage = lazy(() => import("./pages/CheckoutPage"));
+const PromosPage = lazy(() => import("./pages/PromosPage"));
 const OrdersPage = lazy(() => import("./pages/OrdersPage"));
 const StaffDashboard = lazy(() => import("./pages/StaffDashboard"));
 const AdminPage = lazy(() => import("./pages/admin/AdminPage"));
@@ -32,6 +33,7 @@ const PrintLabelPage = lazy(() => import("./pages/PrintLabelPage"));
 const TrackOrderPage = lazy(() => import("./pages/TrackOrderPage"));
 
 const DrinksAdminPage = lazy(() => import("@/pages/admin/DrinksAdmin"));
+const PromosAdminPage = lazy(() => import("@/pages/admin/PromosAdmin"));
 const IngredientsAdminPage = lazy(
   () => import("@/pages/admin/IngredientsAdmin")
 );
@@ -232,6 +234,7 @@ export default function App() {
         >
           <Route path="/" element={<LandingPage />} />
           <Route path="/menu" element={<MenuPage />} />
+          <Route path="/promos" element={<PromosPage />} />
           <Route path="/order" element={<OrderFlowPage />} />
           <Route path="/build" element={<BuildYourOwnPage />} />
           <Route path="/cart" element={<CartPage />} />
@@ -278,6 +281,14 @@ export default function App() {
               element={
                 <RoleGate allow={["admin"]}>
                   <DrinksAdminPage />
+                </RoleGate>
+              }
+            />
+            <Route
+              path="promos"
+              element={
+                <RoleGate allow={["admin"]}>
+                  <PromosAdminPage />
                 </RoleGate>
               }
             />

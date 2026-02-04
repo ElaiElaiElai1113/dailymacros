@@ -42,6 +42,7 @@ export default function DrinkDetailDrawer({
   drink,
   lines,
   sizeLines,
+  sizePrices,
   ingDict,
   nutrDict,
   onAddToCart,
@@ -52,9 +53,10 @@ export default function DrinkDetailDrawer({
   drink: Drink | null;
   lines: LineIngredient[];
   sizeLines?: Record<string, LineIngredient[]>;
+  sizePrices?: Record<string, number>;
   ingDict: Record<string, Ingredient>;
   nutrDict: Record<string, IngredientNutrition>;
-  onAddToCart: (scaledLines?: LineIngredient[]) => void;
+  onAddToCart: (scaledLines?: LineIngredient[], sizeMl?: number, priceCents?: number) => void;
   onCustomize: () => void;
 }) {
   if (!drink) return null;
@@ -96,12 +98,15 @@ export default function DrinkDetailDrawer({
   const activeDrink = drink;
   if (!activeDrink) return null;
 
+  const sizePriceCents =
+    sizePrices?.[String(sizeMl)] ?? activeDrink.price_cents;
+
   function handleAddToCart() {
-    onAddToCart(effectiveLines);
+    onAddToCart(effectiveLines, sizeMl, sizePriceCents);
   }
 
   async function handleShareOrPrint() {
-    const price = `PHP ${(activeDrink.price_cents / 100).toFixed(2)}`;
+    const price = `PHP ${(sizePriceCents / 100).toFixed(2)}`;
     const ingList = effectiveLines
       .map(
         (l) =>
@@ -217,7 +222,7 @@ Nutrition (est.):
                   </Badge>
                 ) : null}
                 <Badge variant="glow">
-                  PHP {(activeDrink.price_cents / 100).toFixed(2)}
+                  PHP {(sizePriceCents / 100).toFixed(2)}
                 </Badge>
               </div>
             </div>
@@ -250,8 +255,14 @@ Nutrition (est.):
                         variant={sizeMl === s.ml ? "default" : "outline"}
                         size="sm"
                         onClick={() => setSizeMl(s.ml)}
+                        className="flex items-center gap-2"
                       >
-                        {s.label}
+                        <span>{s.label}</span>
+                        {typeof sizePrices?.[String(s.ml)] === "number" && (
+                          <span className="text-[11px] opacity-80">
+                            ₱{(sizePrices[String(s.ml)] / 100).toFixed(2)}
+                          </span>
+                        )}
                       </Button>
                     ))}
                   </div>

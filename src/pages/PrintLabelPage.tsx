@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { supabase } from "@/lib/supabaseClient";
+import logo from "@/assets/dailymacroslogo.png";
 
 type IngredientLine = {
   ingredient_id: string;
@@ -69,64 +70,45 @@ export default function PrintLabelPage() {
   }
 
   const kcal = Math.round(data.total_kcal || 0);
-  const P = (data.total_protein_g || 0).toFixed(1);
-  const C = (data.total_carbs_g || 0).toFixed(1);
-  const F = (data.total_fat_g || 0).toFixed(1);
-  const Sug = (data.total_sugars_g || 0).toFixed(1);
-  const Fib = (data.total_fiber_g || 0).toFixed(1);
-  const Na = Math.round(data.total_sodium_mg || 0);
-  const pickup = data.pickup_time
-    ? new Date(data.pickup_time).toLocaleString([], { hour12: true })
-    : "—";
-
+  const P = Math.round(data.total_protein_g || 0);
+  const C = Math.round(data.total_carbs_g || 0);
+  const F = Math.round(data.total_fat_g || 0);
   return (
     <div className="label">
-      <div className="title">{data.item_name}</div>
-      <div className="sub">
-        #{data.order_id.slice(0, 8)} • {pickup}
+      <div className="nf-title">Nutritional Facts</div>
+      <div className="kcal-row">
+        <div className="kcal">{kcal}</div>
+        <div className="kcal-unit">kcal</div>
       </div>
 
-      <div className="box">
-        <div className="row">
-          <b>Calories</b>
-          <b>{kcal}</b>
+      <div className="rule" />
+
+      <div className="macro-list">
+        <div className="macro-row">
+          <span>{C}g Carbs</span>
         </div>
-        <div className="grid">
-          <div>
-            Protein: <b>{P}g</b>
-          </div>
-          <div>
-            Carbs: <b>{C}g</b>
-          </div>
-          <div>
-            Fat: <b>{F}g</b>
-          </div>
-          <div>
-            Sugars: <b>{Sug}g</b>
-          </div>
-          <div>
-            Fiber: <b>{Fib}g</b>
-          </div>
-          <div>
-            Sodium: <b>{Na}mg</b>
-          </div>
+        <div className="macro-row">
+          <span>{P}g Protein</span>
+        </div>
+        <div className="macro-row">
+          <span>{F}g Fat</span>
         </div>
       </div>
 
-      <div className="box">
-        <div className="ing-title">Ingredients</div>
-        {data.ingredients?.length ? (
-          data.ingredients.map((l, i) => (
-            <div key={i} className="row">
-              <div className="truncate">{l.name}</div>
-              <div className="muted">
-                {l.amount} {l.unit}
-              </div>
-            </div>
-          ))
-        ) : (
-          <div className="muted">None</div>
-        )}
+      <div className="rule" />
+
+      <div className="serving">per 16 oz serving</div>
+      <div className="item-name">{data.item_name.toUpperCase()}</div>
+      <div className="addons">
+        add ons:{" "}
+        {data.ingredients?.length
+          ? data.ingredients.map((l) => l.name).join(", ")
+          : "none"}
+      </div>
+      <div className="tagline">Balanced nutrition for everyday energy.</div>
+
+      <div className="logo-wrap">
+        <img src={logo} alt="daily macros" />
       </div>
 
       <div className="noprint actions">
@@ -134,19 +116,38 @@ export default function PrintLabelPage() {
       </div>
 
       <style>{`
-        @page { size: 2.25in 3.5in; margin: 6mm; }
+        @page { size: 5cm 14cm; margin: 6mm; }
         html, body { background: #fff; }
-        body { margin:0; }
-        .label { font: 12px/1.25 -apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Arial,sans-serif; padding: 8px; color:#111;}
-        .title { font-weight: 700; font-size: 14px; }
-        .sub { color:#666; margin-top:2px; }
-        .box { border:1px solid #ddd; border-radius:6px; padding:6px; margin-top:6px; }
-        .row { display:flex; justify-content:space-between; gap:8px; }
-        .grid { display:grid; grid-template-columns: repeat(2, 1fr); gap:4px; margin-top:4px; }
-        .muted { color:#666; }
-        .truncate { max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-        .actions { margin-top:8px; }
-        .actions button { border:1px solid #ccc; border-radius:6px; padding:4px 8px; background:#fff; }
+        body { margin: 0; }
+        .label {
+          width: 5cm;
+          min-height: 14cm;
+          font: 12px/1.2 "Helvetica Neue", Helvetica, Arial, sans-serif;
+          color: #111;
+          padding: 6mm 5mm;
+          box-sizing: border-box;
+        }
+        .nf-title { font-weight: 700; font-size: 16px; text-align: center; }
+        .kcal-row {
+          display: flex;
+          justify-content: center;
+          align-items: baseline;
+          gap: 6px;
+          margin-top: 6px;
+        }
+        .kcal { font-size: 34px; font-weight: 800; }
+        .kcal-unit { font-size: 18px; font-weight: 700; }
+        .rule { height: 3px; background: #222; margin: 10px 0; border-radius: 2px; }
+        .macro-list { display: grid; gap: 6px; justify-items: center; font-size: 13px; }
+        .macro-row { display: flex; align-items: center; gap: 6px; font-weight: 600; }
+        .serving { text-align: center; font-size: 12px; margin-top: 2px; }
+        .item-name { text-align: center; font-weight: 800; font-size: 13px; margin-top: 6px; letter-spacing: 0.3px; }
+        .addons { text-align: center; font-size: 11px; margin-top: 4px; }
+        .tagline { text-align: center; font-size: 11px; font-style: italic; margin-top: 12px; }
+        .logo-wrap { display: flex; justify-content: center; margin-top: 20px; }
+        .logo-wrap img { width: 36px; height: auto; }
+        .actions { margin-top: 10px; text-align: center; }
+        .actions button { border: 1px solid #ccc; border-radius: 6px; padding: 4px 8px; background: #fff; }
         @media print { .noprint { display: none } }
       `}</style>
     </div>
