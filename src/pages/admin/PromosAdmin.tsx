@@ -6,6 +6,7 @@
  */
 
 import { useEffect, useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import { supabase } from "@/lib/supabaseClient";
 import { logAudit } from "@/utils/audit";
 import { toast } from "@/hooks/use-toast";
@@ -45,6 +46,19 @@ type PromoRow = {
   valid_until?: string | null;
   image_url?: string | null;
   usage_count?: number;
+};
+
+type PromoDraft = {
+  code?: string | null;
+  name?: string | null;
+  description?: string | null;
+  promo_type?: PromoType;
+  discount_percentage?: number | null;
+  discount_cents?: number | null;
+  bundle_price_cents?: number | null;
+  is_active?: boolean;
+  valid_from?: string | null;
+  valid_until?: string | null;
 };
 
 // ============================================================
@@ -255,6 +269,16 @@ export default function PromosAdminPage() {
     valid_from: new Date().toISOString().split("T")[0],
     valid_until: null,
   });
+  const [testCode, setTestCode] = useState("");
+  const [testSubtotal, setTestSubtotal] = useState("0");
+  const [testCount12, setTestCount12] = useState("0");
+  const [testCount16, setTestCount16] = useState("0");
+  const [testDrinkId, setTestDrinkId] = useState("");
+  const [testVariantId, setTestVariantId] = useState("");
+  const [testAddonId, setTestAddonId] = useState("");
+  const [testCustomerId, setTestCustomerId] = useState("");
+  const [testResult, setTestResult] = useState<any>(null);
+  const [testLoading, setTestLoading] = useState(false);
 
   // ============================================================
   // DATA LOADING
@@ -305,20 +329,89 @@ export default function PromosAdminPage() {
     load();
   }, []);
 
+  const validatePromoDraft = (draft: PromoDraft) => {
+    const errors: Record<string, string> = {};
+    const code = (draft.code || "").trim();
+    const name = (draft.name || "").trim();
+    const promoType = draft.promo_type || "percentage";
+
+    if (!code) {
+      errors.code = "Code is required";
+    } else if (/\s/.test(code)) {
+      errors.code = "Code must not contain spaces";
+    }
+    if (!name) {
+      errors.name = "Name is required";
+    }
+
+    const validFrom = draft.valid_from ? Date.parse(draft.valid_from) : NaN;
+    if (Number.isNaN(validFrom)) {
+      errors.valid_from = "Valid from date is required";
+    }
+    if (draft.valid_until) {
+      const validUntil = Date.parse(draft.valid_until);
+      if (Number.isNaN(validUntil)) {
+        errors.valid_until = "Valid until date is invalid";
+      } else if (!Number.isNaN(validFrom) && validUntil < validFrom) {
+        errors.valid_until = "Valid until must be after valid from";
+      }
+    }
+
+    if (promoType === "percentage") {
+      const pct = Number(draft.discount_percentage || 0);
+      if (!pct || pct <= 0 || pct > 100) {
+        errors.discount_percentage = "Enter a valid percentage (1-100)";
+      }
+    } else if (promoType === "fixed_amount") {
+      const amt = Number(draft.discount_cents || 0);
+      if (!amt || amt <= 0) {
+        errors.discount_cents = "Enter a valid amount";
+      }
+    } else if (promoType === "bundle") {
+      const amt = Number(draft.bundle_price_cents || 0);
+      if (!amt || amt <= 0) {
+        errors.bundle_price_cents = "Enter a valid bundle price";
+      }
+    }
+
+    return { errors };
+  };
+
+  const buildPromoPayload = (draft: PromoDraft) => {
+    const code = (draft.code || "").trim().toUpperCase();
+    const name = (draft.name || "").trim();
+    const promoType = draft.promo_type || "percentage";
+
+    const payload: any = {
+      code,
+      name,
+      description: draft.description || null,
+      promo_type: promoType,
+      is_active: !!draft.is_active,
+      valid_from: draft.valid_from ? new Date(draft.valid_from).toISOString() : new Date().toISOString(),
+      valid_until: draft.valid_until ? new Date(draft.valid_until).toISOString() : null,
+      discount_percentage: null,
+      discount_cents: null,
+      bundle_price_cents: null,
+    };
+
+    if (promoType === "percentage") {
+      payload.discount_percentage = Number(draft.discount_percentage || 0);
+    } else if (promoType === "fixed_amount") {
+      payload.discount_cents = Math.round(Number(draft.discount_cents || 0) * 100);
+    } else if (promoType === "bundle") {
+      payload.bundle_price_cents = Math.round(Number(draft.bundle_price_cents || 0) * 100);
+    }
+
+    return payload;
+  };
+
   // ============================================================
   // CREATE PROMO
   // ============================================================
 
   async function createPromo() {
-    const errors: Record<string, string> = {};
-
-    if (!newPromo.code?.trim()) {
-      errors.code = "Code is required";
-    }
-    if (!newPromo.name?.trim()) {
-      errors.name = "Name is required";
-    }
-
+    const { errors } = validatePromoDraft(newPromo);
     if (Object.keys(errors).length > 0) {
       setFormErrors(errors);
       toast({
@@ -332,27 +425,7 @@ export default function PromosAdminPage() {
     setFormErrors({});
     setCreating(true);
 
-    // Build promo object based on type
-    const promoData: any = {
-      code: newPromo.code!.toUpperCase().trim(),
-      name: newPromo.name!.trim(),
-      description: newPromo.description || null,
-      promo_type: newPromo.promo_type,
-      is_active: !!newPromo.is_active,
-      valid_from: new Date(newPromo.valid_from || "").toISOString(),
-      valid_until: newPromo.valid_until
-        ? new Date(newPromo.valid_until).toISOString()
-        : null,
-    };
-
-    // Add discount fields based on type
-    if (newPromo.promo_type === "percentage" && newPromo.discount_percentage) {
-      promoData.discount_percentage = Number(newPromo.discount_percentage);
-    } else if (newPromo.promo_type === "fixed_amount" && newPromo.discount_cents) {
-      promoData.discount_cents = Number(newPromo.discount_cents) * 100;
-    } else if (newPromo.promo_type === "bundle" && newPromo.bundle_price_cents) {
-      promoData.bundle_price_cents = Number(newPromo.bundle_price_cents) * 100;
-    }
+    const promoData = buildPromoPayload(newPromo);
 
     const { error } = await supabase.from("promos").insert(promoData);
     setCreating(false);
@@ -404,19 +477,44 @@ export default function PromosAdminPage() {
   // ============================================================
 
   async function savePromo(p: PromoRow) {
+    const { errors } = validatePromoDraft({
+      code: p.code,
+      name: p.name,
+      description: p.description,
+      promo_type: p.promo_type,
+      discount_percentage: p.discount_percentage,
+      discount_cents: p.discount_cents ? p.discount_cents / 100 : null,
+      bundle_price_cents: p.bundle_price_cents ? p.bundle_price_cents / 100 : null,
+      is_active: p.is_active,
+      valid_from: p.valid_from,
+      valid_until: p.valid_until,
+    });
+    if (Object.keys(errors).length > 0) {
+      toast({
+        variant: "destructive",
+        title: "Please fix the errors",
+        description: Object.values(errors).join(" • "),
+      });
+      return;
+    }
+
+    const payload = buildPromoPayload({
+      code: p.code,
+      name: p.name,
+      description: p.description,
+      promo_type: p.promo_type,
+      discount_percentage: p.discount_percentage,
+      discount_cents: p.discount_cents ? p.discount_cents / 100 : null,
+      bundle_price_cents: p.bundle_price_cents ? p.bundle_price_cents / 100 : null,
+      is_active: p.is_active,
+      valid_from: p.valid_from,
+      valid_until: p.valid_until,
+    });
+
     const { error } = await supabase
       .from("promos")
       .update({
-        code: p.code,
-        name: p.name,
-        description: p.description ?? null,
-        promo_type: p.promo_type,
-        discount_percentage: p.discount_percentage,
-        discount_cents: p.discount_cents,
-        bundle_price_cents: p.bundle_price_cents,
-        is_active: p.is_active,
-        valid_from: p.valid_from,
-        valid_until: p.valid_until,
+        ...payload,
         image_url: p.image_url ?? null,
       })
       .eq("id", p.id);
@@ -474,6 +572,69 @@ export default function PromosAdminPage() {
     setRows((prev) => prev.map((x) => (x.id === promoId ? { ...x, ...patch } : x)));
   };
 
+  const buildTestCart = () => {
+    const items: any[] = [];
+    const count12 = Math.max(0, Number(testCount12 || 0));
+    const count16 = Math.max(0, Number(testCount16 || 0));
+    const drinkId = testDrinkId.trim();
+
+    for (let i = 0; i < count12; i += 1) {
+      const item: any = { size_ml: 355, item_name: "Test 12oz" };
+      if (drinkId) item.drink_id = drinkId;
+      items.push(item);
+    }
+    for (let i = 0; i < count16; i += 1) {
+      const item: any = { size_ml: 473, item_name: "Test 16oz" };
+      if (drinkId) item.drink_id = drinkId;
+      items.push(item);
+    }
+    return items;
+  };
+
+  const runPromoTest = async () => {
+    const code = testCode.trim();
+    if (!code) {
+      toast({
+        variant: "destructive",
+        title: "Promo code required",
+        description: "Enter a promo code to test.",
+      });
+      return;
+    }
+
+    const subtotalValue = Number(testSubtotal || 0);
+    if (Number.isNaN(subtotalValue) || subtotalValue < 0) {
+      toast({
+        variant: "destructive",
+        title: "Invalid subtotal",
+        description: "Enter a valid subtotal amount.",
+      });
+      return;
+    }
+
+    setTestLoading(true);
+    const { data, error } = await supabase.rpc("validate_apply_promo", {
+      p_code: code,
+      p_subtotal_cents: Math.round(subtotalValue * 100),
+      p_cart_items: buildTestCart(),
+      p_selected_variant_id: testVariantId.trim() || null,
+      p_selected_addon_id: testAddonId.trim() || null,
+      p_customer_identifier: testCustomerId.trim() || null,
+    });
+    setTestLoading(false);
+
+    if (error) {
+      toast({
+        variant: "destructive",
+        title: "Promo test failed",
+        description: error.message,
+      });
+      return;
+    }
+
+    setTestResult(data);
+  };
+
   // ============================================================
   // RENDER
   // ============================================================
@@ -488,14 +649,22 @@ export default function PromosAdminPage() {
             Manage promo codes, bundles, and discounts
           </p>
         </div>
-        <div className="relative w-full sm:w-80">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
-          <input
-            className="w-full rounded-lg border border-gray-200 pl-10 pr-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-[#D26E3D]/30 focus:border-[#D26E3D] transition-all"
-            placeholder="Search promos…"
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-          />
+        <div className="flex w-full sm:w-auto items-center gap-3">
+          <Link
+            to="/ops/audit"
+            className="text-xs font-semibold text-[#D26E3D] border border-[#D26E3D]/30 rounded-lg px-3 py-2 hover:bg-[#D26E3D]/10 transition-colors"
+          >
+            View audit log
+          </Link>
+          <div className="relative w-full sm:w-80">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
+            <input
+              className="w-full rounded-lg border border-gray-200 pl-10 pr-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-[#D26E3D]/30 focus:border-[#D26E3D] transition-all"
+              placeholder="Search promos…"
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+            />
+          </div>
         </div>
       </div>
 
@@ -550,7 +719,13 @@ export default function PromosAdminPage() {
             label="Promo Type"
             value={newPromo.promo_type || "percentage"}
             onChange={(v) =>
-              setNewPromo((p) => ({ ...p, promo_type: v as PromoType }))
+              setNewPromo((p) => ({
+                ...p,
+                promo_type: v as PromoType,
+                discount_percentage: null,
+                discount_cents: null,
+                bundle_price_cents: null,
+              }))
             }
             options={[
               { value: "percentage", label: "Percentage Discount" },
@@ -568,6 +743,7 @@ export default function PromosAdminPage() {
               onChange={(v) =>
                 setNewPromo((p) => ({ ...p, discount_percentage: Number(v || 0) }))
               }
+              error={formErrors.discount_percentage}
               placeholder="e.g., 15"
             />
           )}
@@ -579,6 +755,7 @@ export default function PromosAdminPage() {
               onChange={(v) =>
                 setNewPromo((p) => ({ ...p, discount_cents: Number(v || 0) }))
               }
+              error={formErrors.discount_cents}
               placeholder="e.g., 50"
             />
           )}
@@ -590,6 +767,7 @@ export default function PromosAdminPage() {
               onChange={(v) =>
                 setNewPromo((p) => ({ ...p, bundle_price_cents: Number(v || 0) }))
               }
+              error={formErrors.bundle_price_cents}
               placeholder="e.g., 410"
             />
           )}
@@ -598,6 +776,7 @@ export default function PromosAdminPage() {
             type="date"
             value={newPromo.valid_from?.split("T")[0] || ""}
             onChange={(v) => setNewPromo((p) => ({ ...p, valid_from: v }))}
+            error={formErrors.valid_from}
           />
           <Field
             label="Valid Until"
@@ -605,6 +784,7 @@ export default function PromosAdminPage() {
             value={newPromo.valid_until?.split("T")[0] || ""}
             onChange={(v) => setNewPromo((p) => ({ ...p, valid_until: v || null }))}
             placeholder="Leave empty for no end date"
+            error={formErrors.valid_until}
           />
           <label className="flex items-center gap-2 text-sm rounded-lg border border-gray-200 px-3 py-2 cursor-pointer hover:bg-gray-50 transition-colors md:col-span-2">
             <input
@@ -637,6 +817,103 @@ export default function PromosAdminPage() {
             )}
           </button>
         </div>
+      </section>
+
+      {/* Promo test tool */}
+      <section className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+        <div className="flex items-center gap-2.5 mb-5">
+          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gray-100">
+            <Package className="h-4 w-4 text-gray-600" />
+          </div>
+          <h2 className="text-sm font-semibold text-gray-800">Promo Test Bench</h2>
+          <span className="text-xs text-gray-500">Simulate promo validation</span>
+        </div>
+
+        <div className="grid gap-4 lg:grid-cols-[2fr_1fr]">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field
+              label="Promo Code"
+              value={testCode}
+              onChange={setTestCode}
+              placeholder="PROMOCODE"
+              required
+            />
+            <Field
+              label="Subtotal (₱)"
+              value={testSubtotal}
+              onChange={setTestSubtotal}
+              type="number"
+              placeholder="300"
+              required
+            />
+            <Field
+              label="12oz Count"
+              value={testCount12}
+              onChange={setTestCount12}
+              type="number"
+              placeholder="1"
+            />
+            <Field
+              label="16oz Count"
+              value={testCount16}
+              onChange={setTestCount16}
+              type="number"
+              placeholder="1"
+            />
+            <Field
+              label="Drink ID (optional)"
+              value={testDrinkId}
+              onChange={setTestDrinkId}
+              placeholder="UUID"
+            />
+            <Field
+              label="Variant ID (optional)"
+              value={testVariantId}
+              onChange={setTestVariantId}
+              placeholder="UUID"
+            />
+            <Field
+              label="Add-on ID (optional)"
+              value={testAddonId}
+              onChange={setTestAddonId}
+              placeholder="UUID"
+            />
+            <Field
+              label="Customer Identifier (optional)"
+              value={testCustomerId}
+              onChange={setTestCustomerId}
+              placeholder="phone/email"
+            />
+          </div>
+
+          <div className="flex flex-col gap-3">
+            <button
+              onClick={runPromoTest}
+              disabled={testLoading}
+              className="rounded-lg bg-[#D26E3D] px-4 py-2 text-sm font-semibold text-white hover:bg-[#B85C2E] disabled:opacity-60"
+            >
+              {testLoading ? "Testing…" : "Run Test"}
+            </button>
+            <button
+              type="button"
+              onClick={() => setTestResult(null)}
+              className="rounded-lg border border-gray-200 px-4 py-2 text-xs text-gray-600 hover:bg-gray-50"
+            >
+              Clear Result
+            </button>
+          </div>
+        </div>
+
+        {testResult && (
+          <div className="mt-4 rounded-lg border border-gray-200 bg-gray-50 p-4">
+            <div className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-2">
+              Result
+            </div>
+            <pre className="text-xs text-gray-700 whitespace-pre-wrap">
+              {JSON.stringify(testResult, null, 2)}
+            </pre>
+          </div>
+        )}
       </section>
 
       {/* List + edit */}
@@ -814,7 +1091,12 @@ export default function PromosAdminPage() {
                   className="w-full text-sm font-semibold bg-white border border-gray-200 rounded-lg px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-[#D26E3D]/20 focus:border-[#D26E3D] transition-all"
                   value={activeEditPromo.promo_type}
                   onChange={(e) =>
-                    updatePromo(activeEditPromo.id, { promo_type: e.target.value as PromoType })
+                    updatePromo(activeEditPromo.id, {
+                      promo_type: e.target.value as PromoType,
+                      discount_percentage: null,
+                      discount_cents: null,
+                      bundle_price_cents: null,
+                    })
                   }
                 >
                   <option value="percentage">Percentage Discount</option>

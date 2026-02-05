@@ -1,5 +1,6 @@
 // src/pages/OrdersAdminPage.tsx
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
+import { Link } from "react-router-dom";
 import { supabase } from "@/lib/supabaseClient";
 import { toast } from "@/hooks/use-toast";
 import { logAudit } from "@/utils/audit";
@@ -340,8 +341,48 @@ export default function OrdersAdminPage() {
     return flow[i + 1];
   };
 
+  const canTransition = (from: StatusValue, to: StatusValue) => {
+    if (from === to) return true;
+    if (from === "cancelled") return false;
+    if (to === "cancelled") return from !== "picked_up";
+    const flow: StatusValue[] = ["pending", "in_progress", "ready", "picked_up"];
+    const fromIndex = flow.indexOf(from);
+    const toIndex = flow.indexOf(to);
+    if (fromIndex === -1 || toIndex === -1) return false;
+    return toIndex === fromIndex + 1;
+  };
+
+  const allowedStatusOptions = (status: StatusValue) => {
+    const next = advanceStatus(status);
+    const options: StatusValue[] = [status];
+    if (next !== status) options.push(next);
+    if (canTransition(status, "cancelled")) options.push("cancelled");
+    return options;
+  };
+
   const updateOrderStatus = useCallback(
     async (orderId: string, next: StatusValue) => {
+      const current = orders.find((o) => o.id === orderId);
+      if (!current) return;
+
+      if (!canTransition(current.status, next)) {
+        toast({
+          variant: "destructive",
+          title: "Invalid status change",
+          description: `Cannot move from ${STATUS_LABEL[current.status]} to ${STATUS_LABEL[next]}.`,
+        });
+        return;
+      }
+
+      if (current.payment_status !== "paid" && next !== "cancelled") {
+        toast({
+          variant: "destructive",
+          title: "Payment not verified",
+          description: "Verify payment before advancing the order.",
+        });
+        return;
+      }
+
       const prev = orders;
       setOrders((os) =>
         os.map((o) => (o.id === orderId ? { ...o, status: next } : o))
@@ -389,6 +430,14 @@ export default function OrdersAdminPage() {
     const method = paidMethod[orderId] || "cash";
     const reference =
       method === "cash" ? null : paidRef[orderId]?.trim() || null;
+    if (method !== "cash" && !reference) {
+      toast({
+        variant: "destructive",
+        title: "Reference required",
+        description: "Enter a transaction/reference number for non-cash payments.",
+      });
+      return;
+    }
     setPaySavingId(orderId);
     const { error } = await supabase
       .from("orders")
@@ -432,6 +481,12 @@ export default function OrdersAdminPage() {
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
+          <Link
+            to="/ops/audit"
+            className="text-xs font-semibold text-[#D26E3D] border border-[#D26E3D]/30 rounded-lg px-3 py-2 hover:bg-[#D26E3D]/10 transition-colors"
+          >
+            View audit log
+          </Link>
           <div className="relative">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
             <input
@@ -524,6 +579,8 @@ export default function OrdersAdminPage() {
                 const selectedMethod =
                   paidMethod[o.id] || o.payment_method || "cash";
                 const paymentIsVerified = o.payment_status === "paid";
+                const allowedStatuses = allowedStatusOptions(o.status);
+                const canCancel = canTransition(o.status, "cancelled");
 
                 return (
                   <tr
@@ -597,7 +654,7 @@ export default function OrdersAdminPage() {
                                 )
                               }
                             >
-                              {STATUS_OPTIONS.map((s) => (
+                              {allowedStatuses.map((s) => (
                                 <option key={s} value={s}>
                                   {STATUS_LABEL[s]}
                                 </option>
@@ -705,8 +762,20 @@ export default function OrdersAdminPage() {
                         }
                       >
                         {canAdvance && paymentIsVerified
-                          ? `? ${STATUS_LABEL[next]}`
-                          : "�"}
+                          ? `Advance to ${STATUS_LABEL[next]}`
+                          : "Advance"}
+                      </button>
+                      <button
+                        disabled={!canCancel}
+                        className={`rounded-lg px-2 py-1 text-xs ${
+                          canCancel
+                            ? "border border-rose-200 text-rose-700 hover:bg-rose-50"
+                            : "border text-gray-400 cursor-not-allowed"
+                        }`}
+                        onClick={() => canCancel && updateOrderStatus(o.id, "cancelled")}
+                        title={canCancel ? "Cancel order" : "Cannot cancel"}
+                      >
+                        Cancel
                       </button>
                       <button
                         className="rounded border px-2 py-1 text-xs hover:bg-gray-50"
