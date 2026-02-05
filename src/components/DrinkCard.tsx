@@ -21,6 +21,7 @@ export default function DrinkCard({
   lines,
   ingDict,
   nutrDict,
+  sizeOptions,
   onAdd,
   onOpen,
 }: {
@@ -28,6 +29,7 @@ export default function DrinkCard({
   lines: LineIngredient[];
   ingDict: Record<string, Ingredient>;
   nutrDict: Record<string, IngredientNutrition>;
+  sizeOptions?: Array<{ label: string; price_cents?: number | null }>;
   onAdd: () => void;
   onOpen: () => void;
 }) {
@@ -59,6 +61,18 @@ export default function DrinkCard({
                 {Math.round(drink.base_size_ml / 29.5735 * 10) / 10} oz base size
               </div>
             ) : null}
+            {sizeOptions && sizeOptions.length > 0 && (
+              <div className="text-xs text-muted-foreground">
+                Sizes:{" "}
+                {sizeOptions
+                  .map((s) =>
+                    typeof s.price_cents === "number"
+                      ? `${s.label} ₱${(s.price_cents / 100).toFixed(2)}`
+                      : s.label
+                  )
+                  .join(" • ")}
+              </div>
+            )}
           </div>
           <Badge variant="glow" className="text-xs">
             PHP {(drink.price_cents / 100).toFixed(2)}

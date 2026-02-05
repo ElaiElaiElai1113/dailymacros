@@ -199,6 +199,25 @@ export default function MenuPage() {
     return map;
   }, [drinkSizes]);
 
+  const drinkSizeOptionsMap = useMemo(() => {
+    const map: Record<string, Array<{ label: string; price_cents?: number | null }>> = {};
+    const sorted = [...drinkSizes].sort((a, b) => a.size_ml - b.size_ml);
+    sorted.forEach((s) => {
+      if (!s.is_active) return;
+      const label =
+        s.display_name ||
+        s.size_label ||
+        `${Math.round((s.size_ml / 29.5735) * 10) / 10} oz`;
+      if (!map[s.drink_id]) map[s.drink_id] = [];
+      map[s.drink_id].push({
+        label,
+        price_cents:
+          typeof s.price_php === "number" ? Math.round(s.price_php * 100) : null,
+      });
+    });
+    return map;
+  }, [drinkSizes]);
+
   // Filter and search logic
   const filteredDrinks = useMemo(() => {
     return drinks.filter((drink) => {
@@ -393,6 +412,7 @@ export default function MenuPage() {
                       lines={drinkLinesMap[d.id] || []}
                       ingDict={ingDict}
                       nutrDict={nutrDict}
+                      sizeOptions={drinkSizeOptionsMap[d.id] || []}
                       onAdd={() => handleAddToCart(d)}
                       onOpen={() => openDrawer(d)}
                     />

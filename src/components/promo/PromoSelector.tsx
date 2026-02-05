@@ -93,9 +93,11 @@ export function PromoSelector() {
         toast({
           variant: "destructive",
           title: "Promo requirements not met",
-          description: required
-            ? `Add ${required} items to use this promo.`
-            : "Add the required items to use this promo.",
+          description:
+            result.errors?.[0] ||
+            (required
+              ? `Add ${required} items to use this promo.`
+              : "Add the required items to use this promo."),
         });
         return;
       }
@@ -104,6 +106,14 @@ export function PromoSelector() {
       setPendingCode(promoInput.trim().toUpperCase());
       if (result.requires_action.type === "select_variant") {
         const variants = (result.requires_action.options || []) as PromoVariant[];
+        if (!variants.length) {
+          toast({
+            variant: "destructive",
+            title: "No promo options available",
+            description: "This promo has no active variants right now.",
+          });
+          return;
+        }
         setSelectedVariantId(variants[0]?.id || null);
       }
       if (result.requires_action.type === "select_addon") {
@@ -123,7 +133,7 @@ export function PromoSelector() {
       toast({
         variant: "destructive",
         title: "Promo code invalid",
-        description: result.errors?.join(", ") || "This promo code cannot be applied",
+        description: result.errors?.[0] || "This promo code cannot be applied",
       });
     }
   };
@@ -161,7 +171,7 @@ export function PromoSelector() {
     toast({
       variant: "destructive",
       title: "Promo code invalid",
-      description: result.errors?.join(", ") || "This promo code cannot be applied",
+      description: result.errors?.[0] || "This promo code cannot be applied",
     });
   };
 

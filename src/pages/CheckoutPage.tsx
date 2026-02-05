@@ -1,7 +1,6 @@
 import { useCart } from "@/context/CartContext";
 import PickupTimePicker from "@/components/PickupTimePicker";
 import { supabase } from "@/lib/supabaseClient";
-import { recordPromoUsage } from "@/utils/promos";
 import { useEffect, useMemo, useState } from "react";
 import QRCode from "react-qr-code";
 import { Button } from "@/components/ui/button";
@@ -28,7 +27,16 @@ type FieldErrors = {
 };
 
 export default function CheckoutPage() {
-  const { items, clear, appliedPromo, promoDiscount, getSubtotal, getTotal } = useCart();
+  const {
+    items,
+    clear,
+    appliedPromo,
+    promoDiscount,
+    getSubtotal,
+    getTotal,
+    appliedPromoVariantId,
+    appliedPromoAddonId,
+  } = useCart();
   const [loadedAt] = useState(() => Date.now());
   const [pickup, setPickup] = useState(() =>
     new Date(Date.now() + 60 * 60 * 1000).toISOString().slice(0, 16)
@@ -174,75 +182,42 @@ export default function CheckoutPage() {
         payment_proof_url = publicUrlData.publicUrl;
       }
 
-      const { data: order, error: orderErr } = await supabase
-        .from("orders")
-        .insert({
-          pickup_time: new Date(pickup).toISOString(),
-          guest_name: trimmedName || null,
-          guest_phone: trimmedPhone || null,
-          status: "pending",
-          payment_method: paymentMethod,
-          payment_status,
-          payment_reference: paymentRef.trim() || null,
-          payment_proof_url,
-          subtotal_cents: subtotal,
-          promo_id: appliedPromo?.id || null,
-          promo_code_applied: appliedPromo?.code || null,
-          promo_discount_cents: promoDiscount || 0,
-        })
-        .select("id, tracking_code")
-        .single();
+      const cartItemsPayload = items.map((it) => ({
+        drink_id: it.drink_id ?? null,
+        size_ml: it.size_ml ?? null,
+        item_name: it.item_name,
+        lines: (it.lines || []).map((l) => ({
+          ingredient_id: l.ingredient_id,
+          amount: Number(l.amount),
+          unit: l.unit,
+          is_extra: !!(l as any).is_extra || (l as any).role === "extra",
+        })),
+      }));
 
-      if (orderErr || !order)
-        throw orderErr || new Error("Failed to create order.");
-
-      // Record promo usage if a promo was applied
-      if (appliedPromo && promoDiscount > 0) {
-        await recordPromoUsage(
-          appliedPromo.id,
-          order.id,
-          promoDiscount,
-          trimmedPhone // Use phone as customer identifier
-        );
-      }
-
-      for (let idx = 0; idx < items.length; idx++) {
-        const it = items[idx];
-        const { data: oi, error: oiErr } = await supabase
-          .from("order_items")
-          .insert({
-            order_id: order.id,
-            drink_id: it.drink_id ?? null,
-            item_name: it.item_name,
-            size_ml: it.size_ml ?? null,
-            unit_price_cents: it.unit_price_cents,
-            line_total_cents: it.unit_price_cents,
-            position: idx,
-          })
-          .select("id")
-          .single();
-
-        if (oiErr || !oi) throw oiErr || new Error("Failed to add order item.");
-
-        const lineRows =
-          (it.lines || []).map((l) => ({
-            order_item_id: oi.id,
-            ingredient_id: l.ingredient_id,
-            amount: Number(l.amount),
-            unit: l.unit,
-            is_extra: !!(l as any).is_extra,
-          })) || [];
-
-        if (lineRows.length > 0) {
-          const { error: liErr } = await supabase
-            .from("order_item_ingredients")
-            .insert(lineRows);
-          if (liErr) throw liErr;
+      const { data: orderResult, error: orderErr } = await supabase.rpc(
+        "create_order_with_items",
+        {
+          p_pickup_time: new Date(pickup).toISOString(),
+          p_guest_name: trimmedName || null,
+          p_guest_phone: trimmedPhone || null,
+          p_payment_method: paymentMethod,
+          p_payment_status: payment_status,
+          p_payment_reference: paymentRef.trim() || null,
+          p_payment_proof_url: payment_proof_url,
+          p_cart_items: cartItemsPayload,
+          p_promo_code: appliedPromo?.code || null,
+          p_selected_variant_id: appliedPromoVariantId || null,
+          p_selected_addon_id: appliedPromoAddonId || null,
+          p_customer_identifier: trimmedPhone || null,
         }
+      );
+
+      if (orderErr || !orderResult?.success) {
+        throw orderErr || new Error(orderResult?.errors?.[0] || "Failed to create order.");
       }
 
       clear();
-      setPlaced({ id: order.id, tracking_code: order.tracking_code });
+      setPlaced({ id: orderResult.order_id, tracking_code: orderResult.tracking_code });
     } catch (err: any) {
       setErrors([
         err?.message ||

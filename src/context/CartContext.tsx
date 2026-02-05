@@ -8,6 +8,8 @@ interface CartCtx {
   appliedPromo: Promo | null;
   promoDiscount: number; // in cents
   promoError: string | null;
+  appliedPromoVariantId: string | null;
+  appliedPromoAddonId: string | null;
 
   addItem: (ci: CartItem) => void;
   removeItem: (idx: number) => void;
@@ -40,6 +42,8 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({
   const [appliedPromo, setAppliedPromo] = useState<Promo | null>(null);
   const [promoDiscount, setPromoDiscount] = useState<number>(0);
   const [promoError, setPromoError] = useState<string | null>(null);
+  const [appliedPromoVariantId, setAppliedPromoVariantId] = useState<string | null>(null);
+  const [appliedPromoAddonId, setAppliedPromoAddonId] = useState<string | null>(null);
 
   // Calculate subtotal (before promo)
   const getSubtotal = (): number => {
@@ -60,6 +64,8 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({
     setAppliedPromo(null);
     setPromoDiscount(0);
     setPromoError(null);
+    setAppliedPromoVariantId(null);
+    setAppliedPromoAddonId(null);
   };
 
   /**
@@ -88,6 +94,8 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({
         setAppliedPromo(applicationResult.promo);
       }
       setPromoDiscount(applicationResult.discount_cents);
+      setAppliedPromoVariantId(options?.selectedVariantId || null);
+      setAppliedPromoAddonId(options?.selectedAddonId || null);
     } else if (applicationResult.requires_action && !(applicationResult.errors?.length)) {
       return applicationResult;
     } else {
@@ -104,6 +112,8 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({
     setAppliedPromo(null);
     setPromoDiscount(0);
     setPromoError(null);
+    setAppliedPromoVariantId(null);
+    setAppliedPromoAddonId(null);
   };
 
   const computeTotals: CartCtx["computeTotals"] = (idx, ing, nutr) =>
@@ -115,6 +125,8 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({
       appliedPromo,
       promoDiscount,
       promoError,
+      appliedPromoVariantId,
+      appliedPromoAddonId,
       addItem,
       removeItem,
       clear,
@@ -124,7 +136,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({
       getSubtotal,
       getTotal,
     }),
-    [items, appliedPromo, promoDiscount, promoError]
+    [items, appliedPromo, promoDiscount, promoError, appliedPromoVariantId, appliedPromoAddonId]
   );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
