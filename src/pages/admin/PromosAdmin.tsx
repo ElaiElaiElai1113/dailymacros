@@ -42,6 +42,10 @@ type PromoRow = {
   discount_percentage?: number | null;
   discount_cents?: number | null;
   bundle_price_cents?: number | null;
+  size_12oz_quantity?: number | null;
+  size_16oz_quantity?: number | null;
+  items_quantity?: number | null;
+  allow_variants?: boolean | null;
   is_active: boolean;
   valid_from: string;
   valid_until?: string | null;
@@ -57,6 +61,10 @@ type PromoDraft = {
   discount_percentage?: number | null;
   discount_cents?: number | null;
   bundle_price_cents?: number | null;
+  size_12oz_quantity?: number | null;
+  size_16oz_quantity?: number | null;
+  items_quantity?: number | null;
+  allow_variants?: boolean | null;
   is_active?: boolean;
   valid_from?: string | null;
   valid_until?: string | null;
@@ -281,6 +289,10 @@ export default function PromosAdminPage() {
     discount_percentage: null,
     discount_cents: null,
     bundle_price_cents: null,
+    size_12oz_quantity: 0,
+    size_16oz_quantity: 0,
+    items_quantity: 2,
+    allow_variants: false,
     is_active: true,
     valid_from: new Date().toISOString().split("T")[0],
     valid_until: null,
@@ -321,23 +333,43 @@ export default function PromosAdminPage() {
       return;
     }
 
-    // Load usage counts
+    // Load usage counts + bundle configs
     const promoIds = (data || []).map((p) => p.id);
-    const { data: usageData } = await supabase
-      .from("promo_usage")
-      .select("promo_id")
-      .in("promo_id", promoIds);
+    const { data: usageData } = promoIds.length
+      ? await supabase.from("promo_usage").select("promo_id").in("promo_id", promoIds)
+      : { data: [] as { promo_id: string }[] };
+
+    const { data: bundleData } = promoIds.length
+      ? await supabase
+          .from("promo_bundles")
+          .select(
+            "promo_id,size_12oz_quantity,size_16oz_quantity,items_quantity,allow_variants"
+          )
+          .in("promo_id", promoIds)
+      : { data: [] as any[] };
 
     const usageCount: Record<string, number> = {};
     usageData?.forEach((u) => {
       usageCount[u.promo_id] = (usageCount[u.promo_id] || 0) + 1;
     });
 
+    const bundleByPromo: Record<string, any> = {};
+    bundleData?.forEach((b) => {
+      bundleByPromo[b.promo_id] = b;
+    });
+
     setRows(
-      (data || []).map((p) => ({
-        ...p,
-        usage_count: usageCount[p.id] || 0,
-      })) as PromoRow[]
+      (data || []).map((p) => {
+        const bundle = bundleByPromo[p.id];
+        return {
+          ...p,
+          size_12oz_quantity: bundle?.size_12oz_quantity ?? null,
+          size_16oz_quantity: bundle?.size_16oz_quantity ?? null,
+          items_quantity: bundle?.items_quantity ?? null,
+          allow_variants: bundle?.allow_variants ?? null,
+          usage_count: usageCount[p.id] || 0,
+        };
+      }) as PromoRow[]
     );
   }
 
@@ -388,6 +420,17 @@ export default function PromosAdminPage() {
       if (!amt || amt <= 0) {
         errors.bundle_price_cents = "Enter a valid bundle price";
       }
+      const size12 = Number(draft.size_12oz_quantity || 0);
+      const size16 = Number(draft.size_16oz_quantity || 0);
+      const itemsQty = Number(draft.items_quantity || 0);
+
+      if (size12 < 0) errors.size_12oz_quantity = "Must be 0 or more";
+      if (size16 < 0) errors.size_16oz_quantity = "Must be 0 or more";
+      if (itemsQty < 0) errors.items_quantity = "Must be 0 or more";
+
+      if (size12 <= 0 && size16 <= 0 && itemsQty <= 0) {
+        errors.items_quantity = "Set at least one bundle requirement";
+      }
     }
 
     return { errors };
@@ -414,9 +457,9 @@ export default function PromosAdminPage() {
     if (promoType === "percentage") {
       payload.discount_percentage = Number(draft.discount_percentage || 0);
     } else if (promoType === "fixed_amount") {
-      payload.discount_cents = Math.round(Number(draft.discount_cents || 0) * 100);
+      payload.discount_cents = Math.round(Number(draft.discount_cents || 0));
     } else if (promoType === "bundle") {
-      payload.bundle_price_cents = Math.round(Number(draft.bundle_price_cents || 0) * 100);
+      payload.bundle_price_cents = Math.round(Number(draft.bundle_price_cents || 0));
     }
 
     return payload;
@@ -443,7 +486,11 @@ export default function PromosAdminPage() {
 
     const promoData = buildPromoPayload(newPromo);
 
-    const { error } = await supabase.from("promos").insert(promoData);
+    const { data: createdPromo, error } = await supabase
+      .from("promos")
+      .insert(promoData)
+      .select("id")
+      .single();
     setCreating(false);
 
     if (error) {
@@ -453,6 +500,28 @@ export default function PromosAdminPage() {
         description: error.message,
       });
       return;
+    }
+
+    if (promoData.promo_type === "bundle" && createdPromo?.id) {
+      const bundlePayload = {
+        promo_id: createdPromo.id,
+        bundle_name: promoData.name || "Bundle",
+        requires_multiple_items: true,
+        items_quantity: Math.max(0, Number(newPromo.items_quantity || 0)),
+        size_12oz_quantity: Math.max(0, Number(newPromo.size_12oz_quantity || 0)),
+        size_16oz_quantity: Math.max(0, Number(newPromo.size_16oz_quantity || 0)),
+        allow_variants: !!newPromo.allow_variants,
+      };
+      const { error: bundleError } = await supabase
+        .from("promo_bundles")
+        .insert(bundlePayload);
+      if (bundleError) {
+        toast({
+          variant: "destructive",
+          title: "Promo created, bundle config failed",
+          description: bundleError.message,
+        });
+      }
     }
 
     await logAudit({
@@ -481,6 +550,10 @@ export default function PromosAdminPage() {
       discount_percentage: null,
       discount_cents: null,
       bundle_price_cents: null,
+      size_12oz_quantity: 0,
+      size_16oz_quantity: 0,
+      items_quantity: 2,
+      allow_variants: false,
       is_active: true,
       valid_from: new Date().toISOString().split("T")[0],
       valid_until: null,
@@ -499,8 +572,12 @@ export default function PromosAdminPage() {
       description: p.description,
       promo_type: p.promo_type,
       discount_percentage: p.discount_percentage,
-      discount_cents: p.discount_cents ? p.discount_cents / 100 : null,
-      bundle_price_cents: p.bundle_price_cents ? p.bundle_price_cents / 100 : null,
+      discount_cents: p.discount_cents ?? null,
+      bundle_price_cents: p.bundle_price_cents ?? null,
+      size_12oz_quantity: p.size_12oz_quantity ?? null,
+      size_16oz_quantity: p.size_16oz_quantity ?? null,
+      items_quantity: p.items_quantity ?? null,
+      allow_variants: p.allow_variants ?? null,
       is_active: p.is_active,
       valid_from: p.valid_from,
       valid_until: p.valid_until,
@@ -520,8 +597,12 @@ export default function PromosAdminPage() {
       description: p.description,
       promo_type: p.promo_type,
       discount_percentage: p.discount_percentage,
-      discount_cents: p.discount_cents ? p.discount_cents / 100 : null,
-      bundle_price_cents: p.bundle_price_cents ? p.bundle_price_cents / 100 : null,
+      discount_cents: p.discount_cents ?? null,
+      bundle_price_cents: p.bundle_price_cents ?? null,
+      size_12oz_quantity: p.size_12oz_quantity ?? null,
+      size_16oz_quantity: p.size_16oz_quantity ?? null,
+      items_quantity: p.items_quantity ?? null,
+      allow_variants: p.allow_variants ?? null,
       is_active: p.is_active,
       valid_from: p.valid_from,
       valid_until: p.valid_until,
@@ -542,6 +623,31 @@ export default function PromosAdminPage() {
         description: error.message,
       });
       return;
+    }
+
+    if (p.promo_type === "bundle") {
+      const bundlePayload = {
+        promo_id: p.id,
+        bundle_name: p.name || "Bundle",
+        requires_multiple_items: true,
+        items_quantity: Math.max(0, Number(p.items_quantity || 0)),
+        size_12oz_quantity: Math.max(0, Number(p.size_12oz_quantity || 0)),
+        size_16oz_quantity: Math.max(0, Number(p.size_16oz_quantity || 0)),
+        allow_variants: !!p.allow_variants,
+      };
+      await supabase.from("promo_bundles").delete().eq("promo_id", p.id);
+      const { error: bundleError } = await supabase
+        .from("promo_bundles")
+        .insert(bundlePayload);
+      if (bundleError) {
+        toast({
+          variant: "destructive",
+          title: "Saved promo, bundle config failed",
+          description: bundleError.message,
+        });
+      }
+    } else {
+      await supabase.from("promo_bundles").delete().eq("promo_id", p.id);
     }
 
     await logAudit({
@@ -741,6 +847,10 @@ export default function PromosAdminPage() {
                 discount_percentage: null,
                 discount_cents: null,
                 bundle_price_cents: null,
+                size_12oz_quantity: 0,
+                size_16oz_quantity: 0,
+                items_quantity: 2,
+                allow_variants: false,
               }))
             }
             options={[
@@ -769,23 +879,80 @@ export default function PromosAdminPage() {
               type="number"
               value={newPromo.discount_cents ? newPromo.discount_cents / 100 : ""}
               onChange={(v) =>
-                setNewPromo((p) => ({ ...p, discount_cents: Number(v || 0) }))
+                setNewPromo((p) => ({ ...p, discount_cents: Math.round(Number(v || 0) * 100) }))
               }
               error={formErrors.discount_cents}
               placeholder="e.g., 50"
             />
           )}
           {newPromo.promo_type === "bundle" && (
-            <Field
-              label="Bundle Price (₱)"
-              type="number"
-              value={newPromo.bundle_price_cents ? newPromo.bundle_price_cents / 100 : ""}
-              onChange={(v) =>
-                setNewPromo((p) => ({ ...p, bundle_price_cents: Number(v || 0) }))
-              }
-              error={formErrors.bundle_price_cents}
-              placeholder="e.g., 410"
-            />
+            <>
+              <Field
+                label="Bundle Price (???)"
+                type="number"
+                value={newPromo.bundle_price_cents ? newPromo.bundle_price_cents / 100 : ""}
+                onChange={(v) =>
+                  setNewPromo((p) => ({
+                    ...p,
+                    bundle_price_cents: Math.round(Number(v || 0) * 100),
+                  }))
+                }
+                error={formErrors.bundle_price_cents}
+                placeholder="e.g., 410"
+              />
+              <div className="grid gap-4 md:grid-cols-2 md:col-span-2">
+                <Field
+                  label="Minimum Items in Bundle"
+                  type="number"
+                  value={newPromo.items_quantity ?? 0}
+                  onChange={(v) =>
+                    setNewPromo((p) => ({
+                      ...p,
+                      items_quantity: Number(v || 0),
+                    }))
+                  }
+                  error={formErrors.items_quantity}
+                  placeholder="e.g., 2"
+                />
+                <Field
+                  label="Required 12oz Count"
+                  type="number"
+                  value={newPromo.size_12oz_quantity ?? 0}
+                  onChange={(v) =>
+                    setNewPromo((p) => ({
+                      ...p,
+                      size_12oz_quantity: Number(v || 0),
+                    }))
+                  }
+                  error={formErrors.size_12oz_quantity}
+                  placeholder="e.g., 1"
+                />
+                <Field
+                  label="Required 16oz Count"
+                  type="number"
+                  value={newPromo.size_16oz_quantity ?? 0}
+                  onChange={(v) =>
+                    setNewPromo((p) => ({
+                      ...p,
+                      size_16oz_quantity: Number(v || 0),
+                    }))
+                  }
+                  error={formErrors.size_16oz_quantity}
+                  placeholder="e.g., 1"
+                />
+                <label className="flex items-center gap-2 text-sm rounded-lg border border-gray-200 px-3 py-2 cursor-pointer hover:bg-gray-50 transition-colors">
+                  <input
+                    type="checkbox"
+                    checked={!!newPromo.allow_variants}
+                    onChange={(e) =>
+                      setNewPromo((p) => ({ ...p, allow_variants: e.target.checked }))
+                    }
+                    className="rounded border-gray-300 text-[#D26E3D] focus:ring-[#D26E3D]"
+                  />
+                  <span className="text-gray-700">Allow variants in bundle</span>
+                </label>
+              </div>
+            </>
           )}
           <Field
             label="Valid From"
@@ -934,7 +1101,7 @@ export default function PromosAdminPage() {
                 <div>
                   <span className="font-semibold">Promo:</span>{" "}
                   {testResult.promo.code}{" "}
-                  {testResult.promo.name ? `? ${testResult.promo.name}` : ""}
+                  {testResult.promo.name ? `- ${testResult.promo.name}` : ""}
                 </div>
               )}
               {typeof testResult.discount_cents === "number" && (
@@ -950,15 +1117,52 @@ export default function PromosAdminPage() {
                 </div>
               )}
             </div>
-            {Array.isArray(testResult.errors) && testResult.errors.length > 0 && (
+            {testResult?.requires_action?.type === "select_variant" && (
+              <div className="mt-2 rounded-md border border-amber-100 bg-amber-50 p-2">
+                <div className="text-xs font-semibold text-amber-700 uppercase tracking-wide mb-1">
+                  Select a variant to test
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {(testResult.requires_action.options || []).map((v: any) => (
+                    <button
+                      key={v.id}
+                      type="button"
+                      onClick={() => setTestVariantId(v.id)}
+                      className={`rounded-full border px-3 py-1 text-xs font-semibold transition-colors ${
+                        testVariantId === v.id
+                          ? "border-amber-300 bg-amber-100 text-amber-800"
+                          : "border-amber-200 text-amber-700 hover:bg-amber-50"
+                      }`}
+                      title={v.variant_name}
+                    >
+                      {v.variant_name}
+                      {typeof v.price_cents === "number"
+                        ? ` • ${formatCents(v.price_cents)}`
+                        : ""}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+            {((Array.isArray(testResult.errors) && testResult.errors.length > 0) ||
+              (!testResult.success && !testResult.errors?.length)) && (
               <div className="mt-2 rounded-md border border-rose-100 bg-rose-50 p-2">
                 <div className="text-xs font-semibold text-rose-700 uppercase tracking-wide mb-1">
                   What to fix
                 </div>
                 <ul className="text-xs text-rose-700 list-disc pl-4">
-                  {testResult.errors.map((e: string, i: number) => (
-                    <li key={i}>{formatPromoError(e)}</li>
-                  ))}
+                  {Array.isArray(testResult.errors) && testResult.errors.length > 0 ? (
+                    testResult.errors.map((e: string, i: number) => (
+                      <li key={i}>{formatPromoError(e)}</li>
+                    ))
+                  ) : (
+                    <>
+                      <li>Promo is not applicable to the current test inputs.</li>
+                      {testResult.promo?.terms ? (
+                        <li>Check promo terms: {testResult.promo.terms}</li>
+                      ) : null}
+                    </>
+                  )}
                 </ul>
               </div>
             )}
@@ -1197,23 +1401,87 @@ export default function PromosAdminPage() {
               )}
 
               {activeEditPromo.promo_type === "bundle" && (
-                <div>
-                  <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1.5">
-                    Bundle Price (₱)
-                  </label>
-                  <input
-                    className="w-full text-sm font-semibold bg-white border border-gray-200 rounded-lg px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-[#D26E3D]/20 focus:border-[#D26E3D] transition-all"
-                    type="number"
-                    step="0.01"
-                    value={activeEditPromo.bundle_price_cents ? activeEditPromo.bundle_price_cents / 100 : ""}
-                    onChange={(e) =>
-                      updatePromo(activeEditPromo.id, {
-                        bundle_price_cents: Number(Number(e.target.value || 0) * 100),
-                      })
-                    }
-                    placeholder="410.00"
-                  />
-                </div>
+                <>
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1.5">
+                      Bundle Price (???)
+                    </label>
+                    <input
+                      className="w-full text-sm font-semibold bg-white border border-gray-200 rounded-lg px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-[#D26E3D]/20 focus:border-[#D26E3D] transition-all"
+                      type="number"
+                      step="0.01"
+                      value={activeEditPromo.bundle_price_cents ? activeEditPromo.bundle_price_cents / 100 : ""}
+                      onChange={(e) =>
+                        updatePromo(activeEditPromo.id, {
+                          bundle_price_cents: Number(Number(e.target.value || 0) * 100),
+                        })
+                      }
+                      placeholder="410.00"
+                    />
+                  </div>
+
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1.5">
+                        Minimum Items in Bundle
+                      </label>
+                      <input
+                        className="w-full text-sm font-semibold bg-white border border-gray-200 rounded-lg px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-[#D26E3D]/20 focus:border-[#D26E3D] transition-all"
+                        type="number"
+                        value={activeEditPromo.items_quantity ?? 0}
+                        onChange={(e) =>
+                          updatePromo(activeEditPromo.id, {
+                            items_quantity: Number(e.target.value || 0),
+                          })
+                        }
+                        placeholder="2"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1.5">
+                        Required 12oz Count
+                      </label>
+                      <input
+                        className="w-full text-sm font-semibold bg-white border border-gray-200 rounded-lg px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-[#D26E3D]/20 focus:border-[#D26E3D] transition-all"
+                        type="number"
+                        value={activeEditPromo.size_12oz_quantity ?? 0}
+                        onChange={(e) =>
+                          updatePromo(activeEditPromo.id, {
+                            size_12oz_quantity: Number(e.target.value || 0),
+                          })
+                        }
+                        placeholder="1"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1.5">
+                        Required 16oz Count
+                      </label>
+                      <input
+                        className="w-full text-sm font-semibold bg-white border border-gray-200 rounded-lg px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-[#D26E3D]/20 focus:border-[#D26E3D] transition-all"
+                        type="number"
+                        value={activeEditPromo.size_16oz_quantity ?? 0}
+                        onChange={(e) =>
+                          updatePromo(activeEditPromo.id, {
+                            size_16oz_quantity: Number(e.target.value || 0),
+                          })
+                        }
+                        placeholder="1"
+                      />
+                    </div>
+                    <label className="flex items-center gap-2 text-sm rounded-lg border border-gray-200 px-3 py-2 cursor-pointer hover:bg-gray-50 transition-colors">
+                      <input
+                        type="checkbox"
+                        checked={!!activeEditPromo.allow_variants}
+                        onChange={(e) =>
+                          updatePromo(activeEditPromo.id, { allow_variants: e.target.checked })
+                        }
+                        className="rounded border-gray-300 text-[#D26E3D] focus:ring-[#D26E3D]"
+                      />
+                      <span className="text-gray-700">Allow variants in bundle</span>
+                    </label>
+                  </div>
+                </>
               )}
 
               {/* Validity dates */}
