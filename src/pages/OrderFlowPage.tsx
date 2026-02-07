@@ -942,7 +942,11 @@ export default function OrderFlowPage() {
                           <CardContent>
                             <IngredientSelector
                               onAdd={handleAddAddon}
-                              getPrice={(ing, amount, unit) =>
+                              getPricePHP={(
+                                ing: Ingredient,
+                                amount: number,
+                                unit: string
+                              ) =>
                                 priceForLinePHP(
                                   { ingredient_id: ing.id, amount, unit },
                                   pricingDict

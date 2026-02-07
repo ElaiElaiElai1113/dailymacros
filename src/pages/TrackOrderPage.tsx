@@ -118,9 +118,9 @@ export default function TrackOrderPage() {
     try {
       setLoading(true);
       setErr(null);
-      const { data, error } = await withRetry(() =>
+      const { data, error } = (await withRetry(async () =>
         supabase.rpc("get_order_tracking", { p_tracking_code: code })
-      );
+      )) as { data: any; error: any };
       if (error) throw error;
       if (!data?.success) {
         throw new Error(data?.error || "Order not found. Please check your link.");

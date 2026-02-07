@@ -839,13 +839,13 @@ function Tab({
   label,
   count,
   onClick,
-  tone,
+  tone = "bg-gray-100 text-gray-600",
 }: {
   active: boolean;
   label: string;
   count: number;
   onClick: () => void;
-  tone: string;
+  tone?: string;
 }) {
   return (
     <button

@@ -484,7 +484,7 @@ export default function CheckoutPage() {
                       </p>
                     )}
 
-                    {paymentProofPreview && (
+                    {paymentProofPreview && paymentProofFile && (
                       <div className="flex items-center gap-2">
                         <img
                           src={paymentProofPreview}

@@ -68,6 +68,7 @@ export type LineIngredient = {
   unit: string;
   is_extra?: boolean;
   name?: string;
+  role?: "base" | "extra";
 };
 
 // ——— Cart ———
