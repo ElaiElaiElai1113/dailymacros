@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import { Link } from "react-router-dom";
 import type { Ingredient, IngredientNutrition, LineIngredient } from "@/types";
 import { totalsFor } from "@/utils/nutrition";
+import { formatCents } from "@/utils/format";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -39,13 +40,7 @@ export default function DrinkCard({
   );
 
   return (
-    <Card
-      className="group relative overflow-hidden border-transparent bg-white/80 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
-      onClick={onOpen}
-      role="button"
-      tabIndex={0}
-      onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && onOpen()}
-    >
+    <Card className="group relative overflow-hidden border-transparent bg-white/80 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(226,188,120,0.35),_transparent_55%)]" />
       <div className="absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-white via-white/70 to-transparent" />
 
@@ -67,15 +62,15 @@ export default function DrinkCard({
                 {sizeOptions
                   .map((s) =>
                     typeof s.price_cents === "number"
-                      ? `${s.label} ₱${(s.price_cents / 100).toFixed(2)}`
+                      ? `${s.label} ${formatCents(s.price_cents)}`
                       : s.label
                   )
-                  .join(" • ")}
+                  .join(" | ")}
               </div>
             )}
           </div>
           <Badge variant="glow" className="text-xs">
-            PHP {(drink.price_cents / 100).toFixed(2)}
+            {formatCents(drink.price_cents)}
           </Badge>
         </div>
 
@@ -128,12 +123,11 @@ export default function DrinkCard({
           >
             Add to Cart
           </Button>
-          <Button
-            asChild
-            variant="secondary"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <Link to="/build">Customize</Link>
+          <Button variant="secondary" onClick={onOpen}>
+            Details
+          </Button>
+          <Button asChild variant="outline">
+            <Link to={`/order?base=${drink.id}`}>Customize</Link>
           </Button>
         </div>
       </CardContent>

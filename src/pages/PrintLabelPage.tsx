@@ -4,6 +4,7 @@ import { useParams } from "react-router-dom";
 import { supabase } from "@/lib/supabaseClient";
 import logo from "@/assets/dailymacroslogo.png";
 import fruitBg from "@/assets/fruitbg.png";
+import { formatAddonList } from "@/utils/addons";
 
 type IngredientLine = {
   ingredient_id: string;
@@ -93,6 +94,9 @@ export default function PrintLabelPage() {
   const P = Math.round(data.total_protein_g || 0);
   const C = Math.round(data.total_carbs_g || 0);
   const F = Math.round(data.total_fat_g || 0);
+  const addonsText = formatAddonList(
+    data.ingredients?.map((l) => l.name) || []
+  );
 
   return (
     <div className="label-container">
@@ -126,12 +130,7 @@ export default function PrintLabelPage() {
 
         <div className="item-name">{data.item_name.toUpperCase()}</div>
 
-        <div className="addons">
-          add ons:{" "}
-          {data.ingredients?.length
-            ? data.ingredients.map((l) => l.name).join(", ")
-            : "none"}
-        </div>
+        <div className="addons">add ons: {addonsText}</div>
 
         <div className="tagline">Balanced nutrition for everyday energy.</div>
 
@@ -183,6 +182,7 @@ export default function PrintLabelPage() {
           display: flex;
           flex-direction: column;
           align-items: center;
+          overflow: hidden;
         }
 
         .nf-title {
@@ -259,6 +259,7 @@ export default function PrintLabelPage() {
           margin-top: 2px;
           max-width: 100%;
           word-wrap: break-word;
+          overflow: hidden;
         }
 
         .tagline {

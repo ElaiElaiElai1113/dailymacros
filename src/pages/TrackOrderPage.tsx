@@ -1,6 +1,9 @@
 import { useEffect, useMemo, useState, useCallback, useRef } from "react";
 import { useParams, Link } from "react-router-dom";
 import { supabase } from "@/lib/supabaseClient";
+import { formatCents } from "@/utils/format";
+import { formatGroupedIngredientLines, groupIngredientLines } from "@/utils/addons";
+import { withRetry } from "@/utils/retry";
 
 /* ----------------------------- Types ----------------------------- */
 const STATUS_OPTIONS = [
@@ -73,15 +76,15 @@ const STATUS_TONE: Record<StatusValue, string> = {
 };
 
 const STATUS_ICONS: Record<StatusValue, React.ReactNode> = {
-  pending: "📋",
-  in_progress: "⚡",
-  ready: "✅",
-  picked_up: "📦",
-  cancelled: "❌",
+  pending: "P",
+  in_progress: "IP",
+  ready: "R",
+  picked_up: "Done",
+  cancelled: "X",
 };
 
 const Peso = ({ cents }: { cents?: number | null }) => (
-  <span>₱{((cents || 0) / 100).toFixed(2)}</span>
+  <span>{formatCents(cents || 0)}</span>
 );
 
 function Badge({ status }: { status: StatusValue }) {
@@ -95,7 +98,7 @@ function Badge({ status }: { status: StatusValue }) {
 }
 
 const timeShort = (iso: string | null) =>
-  iso ? new Date(iso).toLocaleString([], { hour12: true }) : "—";
+  iso ? new Date(iso).toLocaleString([], { hour12: true }) : "--";
 
 /* ----------------------------- Page ----------------------------- */
 export default function TrackOrderPage() {
@@ -115,95 +118,36 @@ export default function TrackOrderPage() {
     try {
       setLoading(true);
       setErr(null);
+      const { data, error } = await withRetry(() =>
+        supabase.rpc("get_order_tracking", { p_tracking_code: code })
+      );
+      if (error) throw error;
+      if (!data?.success) {
+        throw new Error(data?.error || "Order not found. Please check your link.");
+      }
 
-      // 1) Order (via tracking_code)
-      const { data: oo, error: eo } = await supabase
-        .from("orders")
-        .select(
-          "id,created_at,pickup_time,status,guest_name,guest_phone,tracking_code"
-        )
-        .eq("tracking_code", code)
-        .limit(1);
+      const o = data.order as OrderRow;
+      const itemRows = (data.items || []) as OrderItemRow[];
+      const lineRows = (data.lines || []) as OrderItemIngredientRow[];
+      const macroRows = (data.macros || []) as ItemMacroRow[];
 
-      if (eo) throw eo;
-      const o = (oo?.[0] as OrderRow) || null;
-      if (!o) throw new Error("Order not found. Please check your link.");
       setOrder(o);
-
-      // 2) Items
-      const { data: ii, error: ei } = await supabase
-        .from("order_items")
-        .select("id,order_id,item_name,unit_price_cents,line_total_cents")
-        .eq("order_id", o.id)
-        .order("position", { ascending: true });
-      if (ei) throw ei;
-      const itemRows = (ii || []) as OrderItemRow[];
       setItems(itemRows);
 
-      // 3) Ingredient lines (joined to ingredient name)
-      if (itemRows.length) {
-        const itemIds = itemRows.map((r) => r.id);
-        const { data: ll, error: el } = await supabase
-          .from("order_item_ingredients")
-          .select(
-            "id,order_item_id,ingredient_id,amount,unit,is_extra,ingredients(name)"
-          )
-          .in("order_item_id", itemIds);
-        if (el) throw el;
+      const byItem: Record<string, OrderItemIngredientRow[]> = {};
+      lineRows.forEach((row) => {
+        (byItem[row.order_item_id] ||= []).push(row);
+      });
+      Object.values(byItem).forEach((arr) =>
+        arr.sort((a, b) => Number(!!a.is_extra) - Number(!!b.is_extra))
+      );
+      setLinesMap(byItem);
 
-        const byItem: Record<string, OrderItemIngredientRow[]> = {};
-        (ll || []).forEach((r: any) => {
-          const row: OrderItemIngredientRow = {
-            id: r.id,
-            order_item_id: r.order_item_id,
-            ingredient_id: r.ingredient_id,
-            amount: r.amount,
-            unit: r.unit,
-            is_extra: r.is_extra,
-            ingredient_name: r.ingredients?.name ?? r.ingredient_id,
-          };
-          (byItem[row.order_item_id] ||= []).push(row);
-        });
-        // base first, then extras
-        Object.values(byItem).forEach((arr) =>
-          arr.sort((a, b) => Number(!!a.is_extra) - Number(!!b.is_extra))
-        );
-        setLinesMap(byItem);
-      } else {
-        setLinesMap({});
-      }
-
-      // 4) Per-item macros (via view), map by order_item_id
-      if (itemRows.length) {
-        const itemIds = itemRows.map((r) => r.id);
-        const { data: mm, error: em } = await supabase
-          .from("order_item_macros_v")
-          .select(
-            "order_item_id,total_kcal,total_protein_g,total_fat_g,total_carbs_g,total_sugars_g,total_fiber_g,total_sodium_mg"
-          )
-          .in("order_item_id", itemIds);
-        if (em) {
-          // If the view isn't ready, just skip macros
-          setMacrosMap({});
-        } else {
-          const dict: Record<string, ItemMacroRow> = {};
-          (mm || []).forEach((m: any) => {
-            dict[m.order_item_id] = {
-              order_item_id: m.order_item_id,
-              total_kcal: m.total_kcal,
-              total_protein_g: m.total_protein_g,
-              total_fat_g: m.total_fat_g,
-              total_carbs_g: m.total_carbs_g,
-              total_sugars_g: m.total_sugars_g,
-              total_fiber_g: m.total_fiber_g,
-              total_sodium_mg: m.total_sodium_mg,
-            };
-          });
-          setMacrosMap(dict);
-        }
-      } else {
-        setMacrosMap({});
-      }
+      const macrosByItem: Record<string, ItemMacroRow> = {};
+      macroRows.forEach((m) => {
+        macrosByItem[m.order_item_id] = m;
+      });
+      setMacrosMap(macrosByItem);
     } catch (e: any) {
       setErr(e.message || "Failed to load order");
     } finally {
@@ -214,34 +158,6 @@ export default function TrackOrderPage() {
   useEffect(() => {
     load();
   }, [load]);
-
-  // Realtime: status updates
-  useEffect(() => {
-    if (!order?.id) return;
-
-    const channel = supabase
-      .channel(`order_${order.id}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "UPDATE",
-          schema: "public",
-          table: "orders",
-          filter: `id=eq.${order.id}`,
-        },
-        (payload) => {
-          const next = payload.new as OrderRow;
-          setOrder((cur) => (cur ? { ...cur, status: next.status } : cur));
-        }
-      )
-      .subscribe();
-
-    return () => {
-      try {
-        supabase.removeChannel(channel);
-      } catch {}
-    };
-  }, [order?.id]);
 
   // Light polling as backup
   useEffect(() => {
@@ -289,7 +205,7 @@ export default function TrackOrderPage() {
   if (loading) {
     return (
       <PageShell>
-        <Card>Loading order…</Card>
+        <Card>Loading order...</Card>
       </PageShell>
     );
   }
@@ -350,6 +266,8 @@ export default function TrackOrderPage() {
               const lines = linesMap[it.id] || [];
               const base = lines.filter((l) => !l.is_extra);
               const extras = lines.filter((l) => !!l.is_extra);
+              const baseGrouped = groupIngredientLines(base);
+              const extrasGrouped = groupIngredientLines(extras);
               const m = macrosMap[it.id];
 
               return (
@@ -360,26 +278,16 @@ export default function TrackOrderPage() {
                         {it.item_name}
                       </div>
                       <div className="mt-1 grid gap-1 text-[12px]">
-                        {base.length > 0 && (
+                        {baseGrouped.length > 0 && (
                           <div className="text-gray-700">
                             <span className="font-medium">Base:</span>{" "}
-                            {base
-                              .map(
-                                (l) =>
-                                  `${l.ingredient_name} — ${l.amount} ${l.unit}`
-                              )
-                              .join("; ")}
+                            {formatGroupedIngredientLines(baseGrouped, { maxChars: 90 })}
                           </div>
                         )}
-                        {extras.length > 0 && (
+                        {extrasGrouped.length > 0 && (
                           <div className="text-emerald-700">
                             <span className="font-medium">Add-ons:</span>{" "}
-                            {extras
-                              .map(
-                                (l) =>
-                                  `${l.ingredient_name} — ${l.amount} ${l.unit}`
-                              )
-                              .join("; ")}
+                            {formatGroupedIngredientLines(extrasGrouped, { maxChars: 90 })}
                           </div>
                         )}
                       </div>
@@ -477,17 +385,17 @@ export default function TrackOrderPage() {
 /* ----------------------------- UI bits ----------------------------- */
 function Steps({ current }: { current: StatusValue }) {
   const steps: { key: StatusValue; label: string; icon: string }[] = [
-    { key: "pending", label: "Received", icon: "📋" },
-    { key: "in_progress", label: "Being prepared", icon: "⚡" },
-    { key: "ready", label: "Ready for pickup", icon: "✅" },
-    { key: "picked_up", label: "Completed", icon: "📦" },
+    { key: "pending", label: "Received", icon: "1" },
+    { key: "in_progress", label: "Being prepared", icon: "2" },
+    { key: "ready", label: "Ready for pickup", icon: "3" },
+    { key: "picked_up", label: "Completed", icon: "4" },
   ];
 
   if (current === "cancelled") {
     return (
       <div className="flex items-center justify-center p-4">
         <div className="flex items-center gap-3 text-rose-700">
-          <span className="text-2xl">❌</span>
+          <span className="text-2xl">X</span>
           <span className="font-medium text-lg">Order cancelled</span>
         </div>
       </div>
@@ -514,7 +422,7 @@ function Steps({ current }: { current: StatusValue }) {
                 }`}
                 title={s.label}
               >
-                {done ? "✓" : active ? STATUS_ICONS[s.key] : i + 1}
+                {done ? "OK" : active ? STATUS_ICONS[s.key] : i + 1}
               </div>
 
               {/* Label */}

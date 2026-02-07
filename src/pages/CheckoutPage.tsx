@@ -11,9 +11,11 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Badge } from "@/components/ui/badge";
 import { Hash, Phone, User, Tag } from "lucide-react";
+import { formatCents } from "@/utils/format";
+import { trackEvent } from "@/utils/telemetry";
 
 function Price({ cents }: { cents: number }) {
-  return <span>PHP {(Number(cents || 0) / 100).toFixed(2)}</span>;
+  return <span>{formatCents(cents)}</span>;
 }
 
 type PaymentMethod = "cash" | "gcash" | "bank";
@@ -176,10 +178,7 @@ export default function CheckoutPage() {
           .from("payment-proofs")
           .upload(fileName, paymentProofFile);
         if (uploadErr) throw uploadErr;
-        const { data: publicUrlData } = supabase.storage
-          .from("payment-proofs")
-          .getPublicUrl(uploadData.path);
-        payment_proof_url = publicUrlData.publicUrl;
+        payment_proof_url = uploadData.path;
       }
 
       const cartItemsPayload = items.map((it) => ({
@@ -213,14 +212,22 @@ export default function CheckoutPage() {
       );
 
       if (orderErr || !orderResult?.success) {
-        throw orderErr || new Error(orderResult?.errors?.[0] || "Failed to create order.");
+        const firstError = Array.isArray(orderResult?.errors)
+          ? orderResult?.errors[0]
+          : null;
+        throw orderErr || new Error(firstError || "Failed to create order.");
       }
 
       clear();
+      trackEvent("order_placed", {
+        order_id: orderResult.order_id,
+        total_cents: orderResult.total_cents,
+        promo_code: appliedPromo?.code || null,
+      });
       setPlaced({ id: orderResult.order_id, tracking_code: orderResult.tracking_code });
     } catch (err: any) {
       setErrors([
-        err?.message ||
+        err.message ||
           "Something went wrong placing your order. Please try again.",
       ]);
     } finally {
@@ -297,6 +304,11 @@ export default function CheckoutPage() {
               <p className="mt-2 text-xs text-muted-foreground">
                 Choose a time at least a few minutes from now.
               </p>
+              {fieldErrors.pickup && (
+                <p className="mt-2 text-xs text-destructive">
+                  Pickup time must be at least 5 minutes from now.
+                </p>
+              )}
             </CardContent>
           </Card>
 
@@ -318,9 +330,16 @@ export default function CheckoutPage() {
                     autoComplete="name"
                     value={name}
                     onChange={(e) => setName(e.target.value)}
+                    aria-invalid={fieldErrors.name}
+                    aria-describedby={fieldErrors.name ? "name-error" : undefined}
                     className={`pl-9 ${fieldErrors.name ? "border-destructive/60" : ""}`}
                   />
                 </div>
+                {fieldErrors.name && (
+                  <p id="name-error" className="text-xs text-destructive">
+                    Please enter your full name.
+                  </p>
+                )}
               </div>
               <div className="space-y-2">
                 <Label htmlFor="phone">Phone number</Label>
@@ -335,9 +354,16 @@ export default function CheckoutPage() {
                     maxLength={20}
                     value={phone}
                     onChange={(e) => setPhone(e.target.value)}
+                    aria-invalid={fieldErrors.phone}
+                    aria-describedby={fieldErrors.phone ? "phone-error" : undefined}
                     className={`pl-9 ${fieldErrors.phone ? "border-destructive/60" : ""}`}
                   />
                 </div>
+                {fieldErrors.phone && (
+                  <p id="phone-error" className="text-xs text-destructive">
+                    Enter a valid phone number (10-13 digits).
+                  </p>
+                )}
               </div>
             </CardContent>
           </Card>
@@ -415,9 +441,18 @@ export default function CheckoutPage() {
                         value={paymentRef}
                         onChange={(e) => setPaymentRef(e.target.value)}
                         placeholder="Ref #1234 / Juan Dela Cruz"
+                        aria-invalid={fieldErrors.paymentRef}
+                        aria-describedby={
+                          fieldErrors.paymentRef ? "payment-ref-error" : undefined
+                        }
                         className={`pl-9 ${fieldErrors.paymentRef ? "border-destructive/60" : ""}`}
                       />
                     </div>
+                    {fieldErrors.paymentRef && (
+                      <p id="payment-ref-error" className="text-xs text-destructive">
+                        Please enter a payment reference number or sender name.
+                      </p>
+                    )}
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="proof">Upload payment proof</Label>
@@ -438,7 +473,16 @@ export default function CheckoutPage() {
                       className={
                         fieldErrors.paymentProof ? "border-destructive/60" : ""
                       }
+                      aria-invalid={fieldErrors.paymentProof}
+                      aria-describedby={
+                        fieldErrors.paymentProof ? "payment-proof-error" : undefined
+                      }
                     />
+                    {fieldErrors.paymentProof && (
+                      <p id="payment-proof-error" className="text-xs text-destructive">
+                        Please upload a screenshot of your payment.
+                      </p>
+                    )}
 
                     {paymentProofPreview && (
                       <div className="flex items-center gap-2">
@@ -448,7 +492,7 @@ export default function CheckoutPage() {
                           className="h-14 w-14 rounded-xl border object-cover"
                         />
                         <span className="text-xs text-muted-foreground">
-                          {paymentProofFile?.name}
+                          {paymentProofFile.name}
                         </span>
                       </div>
                     )}
@@ -508,7 +552,7 @@ export default function CheckoutPage() {
                     <span className="font-medium">Promo ({appliedPromo.code})</span>
                   </div>
                   <div className="font-semibold">
-                    -₱{(promoDiscount / 100).toFixed(2)}
+                    -{formatCents(promoDiscount)}
                   </div>
                 </div>
               )}

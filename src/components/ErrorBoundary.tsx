@@ -1,6 +1,7 @@
 import React, { Component } from "react";
 import type { ErrorInfo, ReactNode } from "react";
 import { AlertTriangle, RefreshCw } from "lucide-react";
+import { trackError } from "@/utils/telemetry";
 
 interface Props {
   children: ReactNode;
@@ -54,8 +55,10 @@ export class ErrorBoundary extends Component<Props, State> {
       errorInfo,
     });
 
-    // You could also log to a service here
-    // logErrorToService(error, errorInfo);
+    // Best-effort telemetry
+    trackError(error.message, {
+      stack: errorInfo.componentStack,
+    });
   }
 
   handleReset = (): void => {

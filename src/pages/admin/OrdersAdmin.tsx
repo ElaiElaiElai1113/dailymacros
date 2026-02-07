@@ -5,6 +5,8 @@ import { supabase } from "@/lib/supabaseClient";
 import { toast } from "@/hooks/use-toast";
 import { logAudit } from "@/utils/audit";
 import { Search } from "lucide-react";
+import { formatCents } from "@/utils/format";
+import { formatGroupedIngredientLines, groupIngredientLines } from "@/utils/addons";
 
 const STATUS_OPTIONS = [
   "pending",
@@ -24,11 +26,11 @@ type OrderRow = {
   guest_phone: string | null;
   customer_id: string | null;
   total_cents?: number | null;
-  subtotal_cents?: number | null;
-  payment_method?: string | null;
-  payment_status?: string | null;
-  payment_reference?: string | null;
-  payment_proof_url?: string | null;
+  subtotal_cents: number | null;
+  payment_method: string | null;
+  payment_status: string | null;
+  payment_reference: string | null;
+  payment_proof_url: string | null;
 };
 
 type OrderItemRow = {
@@ -36,8 +38,8 @@ type OrderItemRow = {
   order_id: string;
   item_name: string;
   unit_price_cents: number;
-  line_total_cents?: number | null;
-  size_ml?: number | null;
+  line_total_cents: number | null;
+  size_ml: number | null;
 };
 
 type OrderItemIngredientRow = {
@@ -47,7 +49,7 @@ type OrderItemIngredientRow = {
   amount: number;
   unit: string;
   is_extra: boolean | null;
-  ingredient_name?: string;
+  ingredient_name: string;
 };
 
 const STATUS_LABEL: Record<StatusValue, string> = {
@@ -72,8 +74,8 @@ const PAYMENT_TONE: Record<string, string> = {
   pending_verification: "bg-yellow-100 text-yellow-800 border-yellow-200",
 };
 
-const Peso = ({ cents }: { cents?: number | null }) => (
-  <span>?{((cents || 0) / 100).toFixed(2)}</span>
+const Peso = ({ cents }: { cents: number | null }) => (
+  <span>{formatCents(cents || 0)}</span>
 );
 
 const Badge = ({ status }: { status: StatusValue }) => (
@@ -96,7 +98,7 @@ const timeAgo = (iso: string) => {
   return `${days}d ago`;
 };
 
-const sizeLabel = (sizeMl?: number | null) => {
+const sizeLabel = (sizeMl: number | null) => {
   if (!sizeMl) return null;
   const oz = Math.round((sizeMl / 29.5735) * 10) / 10;
   return `${oz} oz`;
@@ -111,12 +113,14 @@ function OrderItemCard({
 }: {
   item: OrderItemRow;
   lines: OrderItemIngredientRow[];
-  defaultExpanded?: boolean;
+  defaultExpanded: boolean;
   onPrintLabel: (id: string) => void;
 }) {
   const [expanded, setExpanded] = useState(defaultExpanded);
   const base = lines.filter((l) => !l.is_extra);
   const extras = lines.filter((l) => !!l.is_extra);
+  const baseGrouped = groupIngredientLines(base);
+  const extrasGrouped = groupIngredientLines(extras);
 
   return (
     <li className="rounded-lg border border-gray-200 bg-white overflow-hidden">
@@ -148,28 +152,30 @@ function OrderItemCard({
         >
           <span className="font-medium">
             {base.length > 0 ? `${base.length} base` : ""}
-            {extras.length > 0 ? ` + ${extras.length} add-on${extras.length > 1 ? "s" : ""}` : ""}
+            {extras.length > 0
+              ? ` + ${extras.length} add-on${extras.length > 1 ? "s" : ""}`
+              : ""}
           </span>
           <span className="ml-auto">
-            {expanded ? "▼" : "▶"}
+            {expanded ? "v" : ">"}
           </span>
         </button>
       )}
       {expanded && lines.length > 0 && (
         <div className="p-2 pt-0 space-y-1 bg-gray-50/50">
-          {base.length > 0 && (
+          {baseGrouped.length > 0 && (
             <div className="text-[11px] text-gray-700">
               <span className="font-semibold text-gray-800">Base:</span>{" "}
               <span className="opacity-80">
-                {base.map((l) => l.ingredient_name).join(", ")}
+                {formatGroupedIngredientLines(baseGrouped, { maxChars: 90 })}
               </span>
             </div>
           )}
-          {extras.length > 0 && (
+          {extrasGrouped.length > 0 && (
             <div className="text-[11px] text-emerald-700">
               <span className="font-semibold text-emerald-800">Add-ons:</span>{" "}
               <span className="opacity-80">
-                {extras.map((l) => `${l.ingredient_name} (${l.amount}${l.unit})`).join(", ")}
+                {formatGroupedIngredientLines(extrasGrouped, { maxChars: 90 })}
               </span>
             </div>
           )}
@@ -198,12 +204,43 @@ export default function OrdersAdminPage() {
   const [paySavingId, setPaySavingId] = useState<string | null>(null);
   const [paidMethod, setPaidMethod] = useState<Record<string, string>>({});
   const [paidRef, setPaidRef] = useState<Record<string, string>>({});
+  const [proofLoadingId, setProofLoadingId] = useState<string | null>(null);
+  const [proofUrlByOrder, setProofUrlByOrder] = useState<Record<string, string>>(
+    {}
+  );
   const searchTimer = useRef<number | null>(null);
 
   const debouncedSetSearch = useCallback((v: string) => {
     if (searchTimer.current) window.clearTimeout(searchTimer.current);
     searchTimer.current = window.setTimeout(() => setSearch(v), 200);
   }, []);
+
+  const openPaymentProof = useCallback(
+    async (orderId: string, path?: string | null) => {
+      if (!path) return;
+      if (path.startsWith("http")) {
+        window.open(path, "_blank", "noopener,noreferrer");
+        return;
+      }
+      const existing = proofUrlByOrder[orderId];
+      if (existing) {
+        window.open(existing, "_blank", "noopener,noreferrer");
+        return;
+      }
+      try {
+        setProofLoadingId(orderId);
+        const { data, error } = await supabase.storage
+          .from("payment-proofs")
+          .createSignedUrl(path, 60);
+        if (error || !data?.signedUrl) throw error;
+        setProofUrlByOrder((prev) => ({ ...prev, [orderId]: data.signedUrl }));
+        window.open(data.signedUrl, "_blank", "noopener,noreferrer");
+      } finally {
+        setProofLoadingId(null);
+      }
+    },
+    [proofUrlByOrder]
+  );
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -322,7 +359,8 @@ export default function OrdersAdminPage() {
       if (typeof o.total_cents === "number") return o.total_cents;
       const items = itemsMap[o.id] || [];
       return items.reduce(
-        (s, it) => s + (it.line_total_cents ?? it.unit_price_cents ?? 0),
+        (s, it) =>
+          s + (it.line_total_cents ?? it.unit_price_cents ?? 0),
         0
       );
     },
@@ -594,7 +632,7 @@ export default function OrdersAdminPage() {
                         })}
                       </div>
                       <div className="text-xs text-gray-500">
-                        {o.id.slice(0, 8)} � {timeAgo(o.created_at)}
+                        {o.id.slice(0, 8)} - {timeAgo(o.created_at)}
                       </div>
                     </td>
                     <td className="px-5 py-4">
@@ -610,7 +648,7 @@ export default function OrdersAdminPage() {
                           </div>
                         </>
                       ) : (
-                        "�"
+                        "-"
                       )}
                     </td>
                     <td className="px-5 py-4">
@@ -618,7 +656,7 @@ export default function OrdersAdminPage() {
                         {o.guest_name || "Guest"}
                       </div>
                       <div className="text-xs text-gray-500">
-                        {o.guest_phone || "�"}
+                        {o.guest_phone || "-"}
                       </div>
                     </td>
                     <td className="px-5 py-4">
@@ -708,21 +746,20 @@ export default function OrdersAdminPage() {
                         )}
 
                         {o.payment_proof_url ? (
-                          <a
-                            href={o.payment_proof_url}
-                            target="_blank"
-                            rel="noreferrer"
+                          <button
+                            onClick={() => openPaymentProof(o.id, o.payment_proof_url)}
                             className="text-xs text-[#D26E3D] underline"
+                            disabled={proofLoadingId === o.id}
                           >
-                            View proof
-                          </a>
+                            {proofLoadingId === o.id ? "Loading..." : "View proof"}
+                          </button>
                         ) : null}
                         <button
                           onClick={() => markPaid(o.id)}
                           disabled={paySavingId === o.id}
                           className="rounded-lg bg-[#D26E3D] px-3 py-1.5 text-xs font-semibold text-white hover:opacity-90 disabled:opacity-50"
                         >
-                          {paySavingId === o.id ? "Saving�" : "Mark as Paid"}
+                          {paySavingId === o.id ? "Saving..." : "Mark as Paid"}
                         </button>
                       </div>
                     </td>
@@ -808,7 +845,7 @@ function Tab({
   label: string;
   count: number;
   onClick: () => void;
-  tone?: string;
+  tone: string;
 }) {
   return (
     <button

@@ -11,6 +11,8 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Search, X } from "lucide-react";
+import { withRetry } from "@/utils/retry";
+import { getCache, setCache } from "@/utils/cache";
 
 type DrinkLineRow = {
   id: string;
@@ -61,79 +63,118 @@ export default function MenuPage() {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [selected, setSelected] = useState<DrinkRecord | null>(null);
 
+  const CACHE_KEY = "menu:data:v1";
+  const CACHE_TTL_MS = 5 * 60 * 1000;
+
   useEffect(() => {
     (async () => {
       setLoading(true);
       setErr(null);
       try {
-        const { data: dd, error: de } = await supabase
-          .from("drinks")
-          .select(
-            "id,name,description,base_size_ml,price_php,is_active,image_url"
-          )
-          .eq("is_active", true)
-          .order("name", { ascending: true });
-        if (de) throw de;
-
-        const drinkRows = (dd || []) as Array<{
-          id: string;
-          name: string;
-          description: string | null;
-          base_size_ml: number | null;
-          price_php: number | null;
-          is_active: boolean;
-          image_url?: string | null;
-        }>;
-
-        const normalized = drinkRows.map((d) => ({
-          ...d,
-          price_cents: Math.round((d.price_php ?? 0) * 100),
-        }));
-
-        const drinkIds = normalized.map((d) => d.id);
-
-        const { data: ll, error: le } = await supabase
-          .from("drink_lines")
-          .select("drink_id,ingredient_id,amount,unit,drinks!inner(id)")
-          .in(
-            "drink_id",
-            drinkIds.length
-              ? drinkIds
-              : ["00000000-0000-0000-0000-000000000000"]
+        const cached = getCache<{
+          normalized: DrinkRecord[];
+          ll: DrinkLineRow[];
+          ds: DrinkSizeRow[];
+          sl: DrinkSizeLineRow[];
+          ii: Ingredient[];
+          nn: IngredientNutrition[];
+        }>(CACHE_KEY);
+        if (cached) {
+          setDrinks(cached.normalized as any);
+          setLines((cached.ll || []) as any);
+          setDrinkSizes((cached.ds || []) as any);
+          setSizeLines((cached.sl || []) as any);
+          setIngDict(
+            Object.fromEntries((cached.ii || []).map((x) => [x.id, x]))
           );
-        if (le) throw le;
-
-        const { data: ds, error: dse } = await supabase
-          .from("drink_sizes")
-          .select("id,drink_id,size_label,display_name,size_ml,is_active,price_php")
-          .in(
-            "drink_id",
-            drinkIds.length
-              ? drinkIds
-              : ["00000000-0000-0000-0000-000000000000"]
+          setNutrDict(
+            Object.fromEntries(
+              (cached.nn || []).map((x) => [x.ingredient_id, x])
+            )
           );
-        if (dse) throw dse;
+          setLoading(false);
+        }
 
-        const drinkSizeIds = (ds || []).map((s) => s.id);
-        const { data: sl, error: se } = await supabase
-          .from("drink_size_lines")
-          .select("drink_size_id,ingredient_id,amount,unit")
-          .in(
-            "drink_size_id",
-            drinkSizeIds.length
-              ? drinkSizeIds
-              : ["00000000-0000-0000-0000-000000000000"]
-          );
-        if (se) throw se;
+        const {
+          normalized,
+          ll,
+          ds,
+          sl,
+          ii,
+          nn,
+        } = await withRetry(async () => {
+          const { data: dd, error: de } = await supabase
+            .from("drinks")
+            .select(
+              "id,name,description,base_size_ml,price_php,is_active,image_url"
+            )
+            .eq("is_active", true)
+            .order("name", { ascending: true });
+          if (de) throw de;
 
-        const [{ data: ii, error: ie }, { data: nn, error: ne }] =
-          await Promise.all([
-            supabase.from("ingredients").select("*"),
-            supabase.from("ingredient_nutrition_v100").select("*"),
-          ]);
-        if (ie) throw ie;
-        if (ne) throw ne;
+          const drinkRows = (dd || []) as Array<{
+            id: string;
+            name: string;
+            description: string | null;
+            base_size_ml: number | null;
+            price_php: number | null;
+            is_active: boolean;
+            image_url?: string | null;
+          }>;
 
+          const normalized = drinkRows.map((d) => ({
+            ...d,
+            price_cents: Math.round((d.price_php ?? 0) * 100),
+          }));
+
+          const drinkIds = normalized.map((d) => d.id);
+
+          const { data: ll, error: le } = await supabase
+            .from("drink_lines")
+            .select("drink_id,ingredient_id,amount,unit,drinks!inner(id)")
+            .in(
+              "drink_id",
+              drinkIds.length
+                ? drinkIds
+                : ["00000000-0000-0000-0000-000000000000"]
+            );
+          if (le) throw le;
+
+          const { data: ds, error: dse } = await supabase
+            .from("drink_sizes")
+            .select("id,drink_id,size_label,display_name,size_ml,is_active,price_php")
+            .in(
+              "drink_id",
+              drinkIds.length
+                ? drinkIds
+                : ["00000000-0000-0000-0000-000000000000"]
+            );
+          if (dse) throw dse;
+
+          const drinkSizeIds = (ds || []).map((s) => s.id);
+          const { data: sl, error: se } = await supabase
+            .from("drink_size_lines")
+            .select("drink_size_id,ingredient_id,amount,unit")
+            .in(
+              "drink_size_id",
+              drinkSizeIds.length
+                ? drinkSizeIds
+                : ["00000000-0000-0000-0000-000000000000"]
+            );
+          if (se) throw se;
+
+          const [{ data: ii, error: ie }, { data: nn, error: ne }] =
+            await Promise.all([
+              supabase.from("ingredients").select("*"),
+              supabase.from("ingredient_nutrition_v100").select("*"),
+            ]);
+          if (ie) throw ie;
+          if (ne) throw ne;
+
+          return { normalized, ll, ds, sl, ii, nn };
+        });
+
+        setCache(CACHE_KEY, { normalized, ll, ds, sl, ii, nn }, CACHE_TTL_MS);
         setDrinks(normalized as any);
         setLines((ll || []) as any);
         setDrinkSizes((ds || []) as any);
@@ -241,8 +282,8 @@ export default function MenuPage() {
 
   const categories = [
     { id: "all", label: "All Drinks" },
-    { id: "budget", label: "Under ₱150" },
-    { id: "premium", label: "₱150+" },
+    { id: "budget", label: "Under PHP 150" },
+    { id: "premium", label: "PHP 150+" },
   ];
 
   function handleAddToCart(drink: DrinkRecord) {

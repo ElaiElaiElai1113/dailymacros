@@ -27,6 +27,7 @@ import { ScaleIn } from "@/components/ui/animations";
 import { ImageDropzone } from "@/components/ui/ImageDropzone";
 import { triggerSuccessConfetti } from "@/components/ui/confetti";
 import type { PromoType } from "@/types";
+import { formatCents } from "@/utils/format";
 
 // ============================================================
 // TYPES
@@ -60,6 +61,21 @@ type PromoDraft = {
   valid_from?: string | null;
   valid_until?: string | null;
 };
+
+function formatPromoError(msg: string) {
+  const bundleSize = msg.match(/requires\s+(\d+)x\s+(\d+)oz/i);
+  if (bundleSize) {
+    const count = Number(bundleSize[1]);
+    const size = bundleSize[2];
+    return `Add ${count}x ${size} oz drink${count > 1 ? "s" : ""} to use this bundle.`;
+  }
+  const countOnly = msg.match(/requires\s+(\d+)\s+item/i);
+  if (countOnly) {
+    const count = Number(countOnly[1]);
+    return `Add ${count} item${count > 1 ? "s" : ""} to use this promo.`;
+  }
+  return msg;
+}
 
 // ============================================================
 // FIELD COMPONENT
@@ -906,12 +922,46 @@ export default function PromosAdminPage() {
 
         {testResult && (
           <div className="mt-4 rounded-lg border border-gray-200 bg-gray-50 p-4">
-            <div className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-2">
-              Result
+            <div
+              className={`text-xs font-semibold uppercase tracking-wide mb-2 ${
+                testResult.success ? "text-emerald-700" : "text-rose-700"
+              }`}
+            >
+              Result: {testResult.success ? "Eligible" : "Not eligible"}
             </div>
-            <pre className="text-xs text-gray-700 whitespace-pre-wrap">
-              {JSON.stringify(testResult, null, 2)}
-            </pre>
+            <div className="grid gap-1 text-sm text-gray-800">
+              {testResult.promo?.code && (
+                <div>
+                  <span className="font-semibold">Promo:</span>{" "}
+                  {testResult.promo.code}{" "}
+                  {testResult.promo.name ? `? ${testResult.promo.name}` : ""}
+                </div>
+              )}
+              {typeof testResult.discount_cents === "number" && (
+                <div>
+                  <span className="font-semibold">Discount:</span>{" "}
+                  {formatCents(testResult.discount_cents)}
+                </div>
+              )}
+              {typeof testResult.new_subtotal_cents === "number" && (
+                <div>
+                  <span className="font-semibold">New subtotal:</span>{" "}
+                  {formatCents(testResult.new_subtotal_cents)}
+                </div>
+              )}
+            </div>
+            {Array.isArray(testResult.errors) && testResult.errors.length > 0 && (
+              <div className="mt-2 rounded-md border border-rose-100 bg-rose-50 p-2">
+                <div className="text-xs font-semibold text-rose-700 uppercase tracking-wide mb-1">
+                  What to fix
+                </div>
+                <ul className="text-xs text-rose-700 list-disc pl-4">
+                  {testResult.errors.map((e: string, i: number) => (
+                    <li key={i}>{formatPromoError(e)}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
           </div>
         )}
       </section>

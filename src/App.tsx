@@ -19,7 +19,6 @@ import { ErrorBoundary } from "@/components/ErrorBoundary";
 
 const LandingPage = lazy(() => import("./pages/LandingPage"));
 const MenuPage = lazy(() => import("./pages/MenuPage"));
-const BuildYourOwnPage = lazy(() => import("./pages/BuildYourOwnPage"));
 const OrderFlowPage = lazy(() => import("./pages/OrderFlowPage"));
 const CartPage = lazy(() => import("./pages/CartPage"));
 const CheckoutPage = lazy(() => import("./pages/CheckoutPage"));
@@ -58,7 +57,9 @@ function Container({
 }) {
   return (
     <main
-      className={`flex-1 min-h-0 w-full max-w-7xl mx-auto p-4 overflow-y-auto ${className ?? ""}`}
+      id="main-content"
+      tabIndex={-1}
+      className={`flex-1 min-h-0 w-full max-w-7xl mx-auto p-4 ${className ?? ""}`}
     >
       {children}
     </main>
@@ -81,6 +82,12 @@ function SiteLayout() {
   return (
     <div className="min-h-screen min-w-0 flex flex-col bg-[#FFFDF8] print:bg-white">
       <ToastGlobalListener />
+      <a
+        href="#main-content"
+        className="sr-only focus:not-sr-only focus:absolute focus:top-3 focus:left-3 focus:z-50 rounded-lg bg-white px-3 py-2 text-sm shadow ring-2 ring-[#D26E3D]/40"
+      >
+        Skip to content
+      </a>
       {!isPrint && <Navbar />}
       {isPrint ? (
         <Outlet />
@@ -236,7 +243,7 @@ export default function App() {
           <Route path="/menu" element={<MenuPage />} />
           <Route path="/promos" element={<PromosPage />} />
           <Route path="/order" element={<OrderFlowPage />} />
-          <Route path="/build" element={<BuildYourOwnPage />} />
+          <Route path="/build" element={<Navigate to="/order" replace />} />
           <Route path="/cart" element={<CartPage />} />
           <Route path="/checkout" element={<CheckoutPage />} />
           <Route path="/orders" element={<OrdersPage />} />
@@ -323,7 +330,7 @@ export default function App() {
               <div className="mx-auto max-w-3xl py-16 text-center">
                 <h1 className="text-2xl font-bold mb-2">Page not found</h1>
                 <p className="text-gray-600">
-                  The page you’re looking for doesn’t exist.
+                  The page you're looking for doesn't exist.
                 </p>
                 <div className="mt-4">
                   <Link to="/" className="text-[#D26E3D] underline">

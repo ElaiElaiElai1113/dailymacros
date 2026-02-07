@@ -7,6 +7,8 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ShoppingBasket, UtensilsCrossed } from "lucide-react";
 import { PromoSelector } from "@/components/promo/PromoSelector";
+import { formatCents } from "@/utils/format";
+import { groupIngredientLines } from "@/utils/addons";
 
 type CartLine = {
   ingredient_id: string;
@@ -30,11 +32,7 @@ type CartItem = {
 };
 
 function Price({ cents, bold }: { cents: number; bold?: boolean }) {
-  return (
-    <span className={bold ? "font-semibold" : ""}>
-      PHP {(Number(cents || 0) / 100).toFixed(2)}
-    </span>
-  );
+  return <span className={bold ? "font-semibold" : ""}>{formatCents(cents)}</span>;
 }
 
 const getLineLabel = (l: CartLine, dict: Record<string, string>) =>
@@ -142,7 +140,7 @@ export default function CartPage() {
                     <div className="flex items-center justify-between text-green-600">
                       <span>Promo Discount</span>
                       <span className="font-semibold">
-                        -₱{(promoDiscount / 100).toFixed(2)}
+                        -{formatCents(promoDiscount)}
                       </span>
                     </div>
                   )}
@@ -190,6 +188,28 @@ function CartItemCard({
     () => (item.lines || []).filter((l) => l.role !== "base"),
     [item.lines]
   );
+  const baseGrouped = useMemo(
+    () =>
+      groupIngredientLines(
+        baseLines.map((l) => ({
+          ingredient_name: getLineLabel(l, nameDict),
+          amount: l.amount,
+          unit: l.unit,
+        }))
+      ),
+    [baseLines, nameDict]
+  );
+  const extrasGrouped = useMemo(
+    () =>
+      groupIngredientLines(
+        extraLines.map((l) => ({
+          ingredient_name: getLineLabel(l, nameDict),
+          amount: l.amount,
+          unit: l.unit,
+        }))
+      ),
+    [extraLines, nameDict]
+  );
 
   const hasBreakdown =
     typeof item.base_price_cents === "number" &&
@@ -233,7 +253,9 @@ function CartItemCard({
             <div className="mt-2 flex flex-wrap items-center justify-end gap-2">
               {item.drink_id && (
                 <Button asChild variant="outline" size="sm">
-                  <Link to={`/order?base=${item.drink_id}`}>Edit</Link>
+                  <Link to="/order" state={{ fromCartItem: item }}>
+                    Edit
+                  </Link>
                 </Button>
               )}
               <Button
@@ -261,15 +283,16 @@ function CartItemCard({
                   <div className="text-sm font-medium">
                     {item.base_drink_name ?? item.item_name}
                   </div>
-                  {baseLines.length > 0 && (
+                  {baseGrouped.length > 0 && (
                     <ul className="space-y-1 text-sm">
-                      {baseLines.map((l, i) => (
+                      {baseGrouped.map((l, i) => (
                         <li
                           key={`b-${i}`}
                           className="flex items-center justify-between gap-2"
                         >
                           <span className="truncate">
-                            {getLineLabel(l, nameDict)}
+                            {l.name}
+                            {l.count > 1 ? ` (x${l.count})` : ""}
                           </span>
                           <span className="text-muted-foreground">
                             {l.amount} {l.unit}
@@ -287,20 +310,21 @@ function CartItemCard({
               </Card>
             )}
 
-            {extraLines.length > 0 && (
+            {extrasGrouped.length > 0 && (
               <Card className="border-dashed">
                 <CardContent className="space-y-2">
                   <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                     Add-ons
                   </div>
                   <ul className="space-y-1 text-sm">
-                    {extraLines.map((l, i) => (
+                    {extrasGrouped.map((l, i) => (
                       <li
                         key={`e-${i}`}
                         className="flex items-center justify-between gap-2"
                       >
                         <span className="truncate">
-                          {getLineLabel(l, nameDict)}
+                          {l.name}
+                          {l.count > 1 ? ` (x${l.count})` : ""}
                         </span>
                         <span className="text-muted-foreground">
                           {l.amount} {l.unit}

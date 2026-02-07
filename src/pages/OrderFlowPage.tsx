@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useState } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useNavigate, useSearchParams, useLocation } from "react-router-dom";
 import { supabase } from "@/lib/supabaseClient";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence, MotionConfig } from "framer-motion";
 import {
   groupPricing,
   priceForExtrasPHP,
@@ -18,6 +18,10 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { toast } from "@/hooks/use-toast";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Check, ChevronRight, Sparkles, Plus, X, ShoppingCart } from "lucide-react";
+import { formatCents, formatPHP } from "@/utils/format";
+import { withRetry } from "@/utils/retry";
+import { getCache, setCache } from "@/utils/cache";
+import { trackEvent } from "@/utils/telemetry";
 
 import type {
   CartItem,
@@ -30,7 +34,7 @@ import type {
 
 type BYODrink = Drink & {
   price_cents: number;
-  image_url?: string | null;
+  image_url? : string | null;
 };
 
 type V100Row = {
@@ -48,7 +52,7 @@ type DrinkSizeRow = {
   display_name: string | null;
   size_ml: number;
   is_active: boolean;
-  price_php?: number | null;
+  price_php? : number | null;
 };
 
 type DrinkSizeLineRow = {
@@ -87,7 +91,7 @@ const steps = [
 // Animation variants
 const slideVariants = {
   enter: (direction: number) => ({
-    x: direction > 0 ? 50 : -50,
+    x: direction > 0 ?  50 : -50,
     opacity: 0,
   }),
   center: {
@@ -95,7 +99,7 @@ const slideVariants = {
     opacity: 1,
   },
   exit: (direction: number) => ({
-    x: direction < 0 ? 50 : -50,
+    x: direction < 0 ?  50 : -50,
     opacity: 0,
   }),
 };
@@ -131,6 +135,7 @@ export default function OrderFlowPage() {
   const { addItem } = useCart();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const location = useLocation();
 
   const [ingDict, setIngDict] = useState<Record<string, Ingredient>>({});
   const [nutrDict, setNutrDict] = useState<Record<string, IngredientNutrition>>(
@@ -149,89 +154,172 @@ export default function OrderFlowPage() {
   const [sizeMl, setSizeMl] = useState<number>(DEFAULT_SIZES[1].ml);
 
   const [loadingAll, setLoadingAll] = useState(true);
+  const [loadErr, setLoadErr] = useState<string | null>(null);
   const [loadingBase, setLoadingBase] = useState(false);
   const [step, setStep] = useState(1);
   const [added, setAdded] = useState(false);
   const [direction, setDirection] = useState(0);
   const hasBase = !!selectedBaseId;
+  const prefillAppliedRef = useRef(false);
+
+  const prefillItem = useMemo(() => {
+    const state = location.state as { fromCartItem?: CartItem } | null;
+    return state?.fromCartItem ?? null;
+  }, [location.state]);
+  const prefillBaseId = prefillItem?.drink_id ?? null;
+  const prefillSizeMl = prefillItem?.size_ml ?? null;
+
+  const CACHE_KEY = "orderflow:data:v1";
+  const CACHE_TTL_MS = 5 * 60 * 1000;
 
   useEffect(() => {
     (async () => {
       setLoadingAll(true);
-      const [{ data: ii }, { data: nn }, { data: dd }, { data: pp }] =
-        await Promise.all([
-          supabase.from("ingredients").select("*").eq("is_active", true),
-          supabase.from("ingredient_nutrition_v100").select("*"),
-          supabase
-            .from("drinks")
-            .select(
-              "id,name,description,price_php,base_size_ml,is_active,image_url"
+      setLoadErr(null);
+      try {
+        const cached = getCache<{
+          ii: Ingredient[];
+          nn: V100Row[];
+          dd: Array<Omit<Drink, "price_cents"> & { price_php: number | null; image_url?: string | null }>;
+          pp: IngredientPricing[];
+          ds: DrinkSizeRow[];
+          sl: DrinkSizeLineRow[];
+        }>(CACHE_KEY);
+        if (cached) {
+          const ingredients = (cached.ii ?? []) as Ingredient[];
+          setIngDict(Object.fromEntries(ingredients.map((x) => [x.id, x])));
+
+          const v100 = (cached.nn ?? []) as V100Row[];
+          setNutrDict(
+            Object.fromEntries(
+              v100.map((r) => [
+                r.ingredient_id,
+                {
+                  ingredient_id: r.ingredient_id,
+                  per_100g_energy_kcal: r.per_100g_energy_kcal ?? 0,
+                  per_100g_protein_g: r.per_100g_protein_g ?? 0,
+                  per_100g_fat_g: r.per_100g_fat_g ?? 0,
+                  per_100g_carbs_g: r.per_100g_carbs_g ?? 0,
+                } as IngredientNutrition,
+              ])
             )
-            .eq("is_active", true)
-            .order("name"),
-          supabase.from("ingredient_pricing_effective").select("*"),
-        ]);
+          );
 
-      const ingredients = (ii ?? []) as Ingredient[];
-      setIngDict(Object.fromEntries(ingredients.map((x) => [x.id, x])));
+          const pricing = (cached.pp ?? []) as IngredientPricing[];
+          setPricingDict(groupPricing(pricing));
 
-      const v100 = (nn ?? []) as V100Row[];
-      setNutrDict(
-        Object.fromEntries(
-          v100.map((r) => [
-            r.ingredient_id,
-            {
-              ingredient_id: r.ingredient_id,
-              per_100g_energy_kcal: r.per_100g_energy_kcal ?? 0,
-              per_100g_protein_g: r.per_100g_protein_g ?? 0,
-              per_100g_fat_g: r.per_100g_fat_g ?? 0,
-              per_100g_carbs_g: r.per_100g_carbs_g ?? 0,
-            } as IngredientNutrition,
-          ])
-        )
-      );
-
-      const pricing = (pp ?? []) as IngredientPricing[];
-      setPricingDict(groupPricing(pricing));
-
-      const drinkRows = (dd ?? []) as Array<
-        Omit<Drink, "price_cents"> & {
-          price_php: number | null;
-          image_url?: string | null;
+          const drinkRows = (cached.dd ?? []) as Array<
+            Omit<Drink, "price_cents"> & { price_php: number | null; image_url?: string | null }
+          >;
+          const normalized: BYODrink[] = drinkRows.map((d) => ({
+            ...d,
+            price_cents:
+              typeof d.price_php === "number" ? Math.round(d.price_php * 100) : 0,
+          }));
+          setBaseDrinks(normalized);
+          setDrinkSizes((cached.ds || []) as DrinkSizeRow[]);
+          setSizeLines((cached.sl || []) as DrinkSizeLineRow[]);
+          setLoadingAll(false);
         }
-      >;
-      const normalized: BYODrink[] = drinkRows.map((d) => ({
-        ...d,
-        price_cents:
-          typeof d.price_php === "number" ? Math.round(d.price_php * 100) : 0,
-      }));
-      setBaseDrinks(normalized);
 
-      const drinkIds = normalized.map((d) => d.id);
-      const { data: ds } = await supabase
-        .from("drink_sizes")
-        .select("id,drink_id,size_label,display_name,size_ml,is_active,price_php")
-        .in(
-          "drink_id",
-          drinkIds.length
-            ? drinkIds
-            : ["00000000-0000-0000-0000-000000000000"]
+        const { ii, nn, dd, pp, ds, sl } = await withRetry(async () => {
+          const [{ data: ii }, { data: nn }, { data: dd }, { data: pp }] =
+            await Promise.all([
+              supabase.from("ingredients").select("*").eq("is_active", true),
+              supabase.from("ingredient_nutrition_v100").select("*"),
+              supabase
+                .from("drinks")
+                .select(
+                  "id,name,description,price_php,base_size_ml,is_active,image_url"
+                )
+                .eq("is_active", true)
+                .order("name"),
+              supabase.from("ingredient_pricing_effective").select("*"),
+            ]);
+
+          const drinkRows = (dd ?? []) as Array<
+            Omit<Drink, "price_cents"> & {
+              price_php: number | null;
+              image_url?: string | null;
+            }
+          >;
+          const normalized: BYODrink[] = drinkRows.map((d) => ({
+            ...d,
+            price_cents:
+              typeof d.price_php === "number"
+                ? Math.round(d.price_php * 100)
+                : 0,
+          }));
+
+          const drinkIds = normalized.map((d) => d.id);
+          const { data: ds } = await supabase
+            .from("drink_sizes")
+            .select(
+              "id,drink_id,size_label,display_name,size_ml,is_active,price_php"
+            )
+            .in(
+              "drink_id",
+              drinkIds.length
+                ? drinkIds
+                : ["00000000-0000-0000-0000-000000000000"]
+            );
+
+          const drinkSizeIds = (ds || []).map((s) => s.id);
+          const { data: sl } = await supabase
+            .from("drink_size_lines")
+            .select("drink_size_id,ingredient_id,amount,unit")
+            .in(
+              "drink_size_id",
+              drinkSizeIds.length
+                ? drinkSizeIds
+                : ["00000000-0000-0000-0000-000000000000"]
+            );
+
+          return { ii, nn, dd, pp, ds, sl };
+        });
+
+        setCache(CACHE_KEY, { ii, nn, dd, pp, ds, sl }, CACHE_TTL_MS);
+        const ingredients = (ii ?? []) as Ingredient[];
+        setIngDict(Object.fromEntries(ingredients.map((x) => [x.id, x])));
+
+        const v100 = (nn ?? []) as V100Row[];
+        setNutrDict(
+          Object.fromEntries(
+            v100.map((r) => [
+              r.ingredient_id,
+              {
+                ingredient_id: r.ingredient_id,
+                per_100g_energy_kcal: r.per_100g_energy_kcal ?? 0,
+                per_100g_protein_g: r.per_100g_protein_g ?? 0,
+                per_100g_fat_g: r.per_100g_fat_g ?? 0,
+                per_100g_carbs_g: r.per_100g_carbs_g ?? 0,
+              } as IngredientNutrition,
+            ])
+          )
         );
-      setDrinkSizes((ds || []) as DrinkSizeRow[]);
 
-      const drinkSizeIds = (ds || []).map((s) => s.id);
-      const { data: sl } = await supabase
-        .from("drink_size_lines")
-        .select("drink_size_id,ingredient_id,amount,unit")
-        .in(
-          "drink_size_id",
-          drinkSizeIds.length
-            ? drinkSizeIds
-            : ["00000000-0000-0000-0000-000000000000"]
-        );
-      setSizeLines((sl || []) as DrinkSizeLineRow[]);
+        const pricing = (pp ?? []) as IngredientPricing[];
+        setPricingDict(groupPricing(pricing));
 
-      setLoadingAll(false);
+        const drinkRows = (dd ?? []) as Array<
+          Omit<Drink, "price_cents"> & {
+            price_php: number | null;
+            image_url?: string | null;
+          }
+        >;
+        const normalized: BYODrink[] = drinkRows.map((d) => ({
+          ...d,
+          price_cents:
+            typeof d.price_php === "number" ? Math.round(d.price_php * 100) : 0,
+        }));
+        setBaseDrinks(normalized);
+        setDrinkSizes((ds || []) as DrinkSizeRow[]);
+        setSizeLines((sl || []) as DrinkSizeLineRow[]);
+      } catch (e: any) {
+        setLoadErr(e?.message || "Failed to load menu data.");
+      } finally {
+        setLoadingAll(false);
+      }
     })();
   }, []);
 
@@ -242,6 +330,25 @@ export default function OrderFlowPage() {
       setStep(2);
     }
   }, [searchParams, baseDrinks]);
+
+  useEffect(() => {
+    if (!prefillItem || prefillAppliedRef.current) return;
+    if (prefillBaseId && baseDrinks.some((d) => d.id === prefillBaseId)) {
+      setSelectedBaseId(prefillBaseId);
+      const extras = (prefillItem.lines || [])
+        .filter((l) => (l as any).is_extra || l.role === "extra")
+        .map((l) => ({
+          ingredient_id: l.ingredient_id,
+          amount: Number(l.amount),
+          unit: l.unit,
+          name: l.name,
+          role: "extra" as const,
+        }));
+      setExtraLines(extras);
+      setStep(2);
+      prefillAppliedRef.current = true;
+    }
+  }, [prefillItem, prefillBaseId, baseDrinks]);
 
   useEffect(() => {
     if (!selectedBaseId) {
@@ -260,7 +367,7 @@ export default function OrderFlowPage() {
           ingredient_id: string;
           amount: number;
           unit: string;
-        }>) ?? [];
+        }>) ??  [];
 
       setBaseLines(
         rows.map((r) => ({
@@ -318,9 +425,9 @@ export default function OrderFlowPage() {
         ml: s.size_ml,
         label: s.display_name || s.size_label || mlToOzLabel(s.size_ml),
         price_cents:
-          typeof s.price_php === "number" ? Math.round(s.price_php * 100) : null,
+          typeof s.price_php === "number" ?  Math.round(s.price_php * 100) : null,
       }));
-    return sizes.length ? sizes : DEFAULT_SIZES;
+    return sizes.length ?  sizes : DEFAULT_SIZES;
   }, [drinkSizes, selectedBaseId]);
 
   const sizePriceByDrink = useMemo(() => {
@@ -355,23 +462,24 @@ export default function OrderFlowPage() {
 
   useEffect(() => {
     if (!selectedBase) return;
-    const baseSize = selectedBase.base_size_ml ?? sizeOptions[0]?.ml ?? DEFAULT_SIZES[1].ml;
+    const baseSize =
+      prefillSizeMl ?? selectedBase.base_size_ml ?? sizeOptions[0]?.ml ?? DEFAULT_SIZES[1].ml;
     const optionMls = sizeOptions.map((s) => s.ml);
     setSizeMl(optionMls.includes(baseSize) ? baseSize : optionMls[0]);
-  }, [selectedBase?.id, selectedBase?.base_size_ml, sizeOptions]);
+  }, [selectedBase?.id, selectedBase?.base_size_ml, sizeOptions, prefillSizeMl]);
 
   const sizeLinesForSelection =
     selectedBaseId && sizeLinesByDrink[selectedBaseId]
-      ? sizeLinesByDrink[selectedBaseId][String(sizeMl)] || []
+      ?  sizeLinesByDrink[selectedBaseId][String(sizeMl)] || []
       : [];
 
   const scaledBaseLines = useMemo(
-    () => scaleLines(baseLines, selectedBase?.base_size_ml ?? null, sizeMl),
+    () => scaleLines(baseLines, selectedBase?.base_size_ml ??  null, sizeMl),
     [baseLines, selectedBase?.base_size_ml, sizeMl]
   );
 
   const effectiveBaseLines =
-    sizeLinesForSelection.length > 0 ? sizeLinesForSelection : scaledBaseLines;
+    sizeLinesForSelection.length > 0 ?  sizeLinesForSelection : scaledBaseLines;
 
   const combinedLines = useMemo(
     () => [...effectiveBaseLines, ...extraLines],
@@ -391,11 +499,11 @@ export default function OrderFlowPage() {
   const addons_price_cents = Math.round(addons_price_php * 100);
   const sizePriceCents =
     selectedBaseId && sizePriceByDrink[selectedBaseId]
-      ? sizePriceByDrink[selectedBaseId][String(sizeMl)]
+      ?  sizePriceByDrink[selectedBaseId][String(sizeMl)]
       : undefined;
   const base_price_cents =
     typeof sizePriceCents === "number"
-      ? sizePriceCents
+      ?  sizePriceCents
       : selectedBase?.price_cents || 0;
   const total_price_cents = base_price_cents + addons_price_cents;
 
@@ -416,7 +524,7 @@ export default function OrderFlowPage() {
       base_price_cents,
       addons_price_cents,
       base_drink_name: selectedBase.name,
-      image_url: selectedBase.image_url ?? null,
+      image_url: selectedBase.image_url ??  null,
       lines: [...effectiveBaseLines, ...extraLines],
     };
   }
@@ -426,6 +534,11 @@ export default function OrderFlowPage() {
     if (!item) return;
     addItem(item);
     setAdded(true);
+    trackEvent("add_to_cart", {
+      drink_id: item.drink_id,
+      size_ml: item.size_ml,
+      total_cents: item.unit_price_cents,
+    });
     toast({
       title: "Added to cart",
       description: item.base_drink_name,
@@ -468,8 +581,9 @@ export default function OrderFlowPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(210,110,61,0.12),_transparent_55%),radial-gradient(circle_at_bottom,_rgba(89,145,144,0.12),_transparent_45%)]">
-      <div className="mx-auto max-w-7xl px-4 py-8 pb-24 lg:pb-8">
+    <MotionConfig reducedMotion="user">
+      <div className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(210,110,61,0.12),_transparent_55%),radial-gradient(circle_at_bottom,_rgba(89,145,144,0.12),_transparent_45%)]">
+        <div className="mx-auto max-w-7xl px-4 py-8 pb-24 lg:pb-8">
         {/* Animated Header */}
         <motion.header
           className="mb-6 space-y-2"
@@ -492,6 +606,12 @@ export default function OrderFlowPage() {
             Choose a base, customize add-ons, then review before checkout.
           </p>
         </motion.header>
+        {loadErr && (
+          <Alert variant="destructive" className="mb-4">
+            <AlertTitle>We could not load the menu</AlertTitle>
+            <AlertDescription>{loadErr}</AlertDescription>
+          </Alert>
+        )}
 
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1.2fr_0.8fr]">
           <div className="space-y-6">
@@ -520,21 +640,21 @@ export default function OrderFlowPage() {
                         <motion.div
                           className={`flex h-12 w-12 items-center justify-center rounded-full border-2 text-sm font-semibold transition-all cursor-default relative ${
                             isActive
-                              ? "border-[#D26E3D] bg-[#D26E3D] text-white scale-110 shadow-lg shadow-[#D26E3D]/30"
+                              ?  "border-[#D26E3D] bg-[#D26E3D] text-white scale-110 shadow-lg shadow-[#D26E3D]/30"
                               : isCompleted
-                              ? "border-emerald-500 bg-emerald-500 text-white scale-105"
+                              ?  "border-emerald-500 bg-emerald-500 text-white scale-105"
                               : hasBase || s.id === 1
-                              ? "border-gray-300 bg-white text-gray-500"
+                              ?  "border-gray-300 bg-white text-gray-500"
                               : "border-gray-200 bg-gray-100 text-gray-400"
                           }`}
-                          whileHover={isClickable ? { scale: 1.15 } : {}}
-                          animate={isActive ? {
+                          whileHover={isClickable ?  { scale: 1.15 } : {}}
+                          animate={isActive ?  {
                             boxShadow: [
                               "0 0 0 0 rgba(210, 110, 61, 0.4)",
                               "0 0 0 10px rgba(210, 110, 61, 0)",
                             ],
                           } : {}}
-                          transition={{ duration: 1.5, repeat: isActive ? Infinity : 0 }}
+                          transition={{ duration: 1.5, repeat: isActive ?  Infinity : 0 }}
                         >
                           {isCompleted ? (
                             <motion.div
@@ -551,13 +671,13 @@ export default function OrderFlowPage() {
                         <motion.span
                           className={`mt-2 text-xs font-medium transition-colors ${
                             isActive
-                              ? "text-[#D26E3D] font-semibold"
+                              ?  "text-[#D26E3D] font-semibold"
                               : isCompleted
-                              ? "text-emerald-600"
+                              ?  "text-emerald-600"
                               : "text-gray-500"
                           }`}
-                          animate={isActive ? { scale: [1, 1.05, 1] } : {}}
-                          transition={{ duration: 2, repeat: isActive ? Infinity : 0 }}
+                          animate={isActive ?  { scale: [1, 1.05, 1] } : {}}
+                          transition={{ duration: 2, repeat: isActive ?  Infinity : 0 }}
                         >
                           {s.label}
                         </motion.span>
@@ -565,10 +685,10 @@ export default function OrderFlowPage() {
                       {idx < steps.length - 1 && (
                         <motion.div
                           className={`h-0.5 flex-1 transition-colors mx-2 ${
-                            isCompleted ? "bg-emerald-500" : "bg-gray-200"
+                            isCompleted ?  "bg-emerald-500" : "bg-gray-200"
                           }`}
                           initial={{ scaleX: 0 }}
-                          animate={{ scaleX: isCompleted ? 1 : 0 }}
+                          animate={{ scaleX: isCompleted ?  1 : 0 }}
                           transition={{ delay: idx * 0.1 + 0.2, duration: 0.5 }}
                           style={{ originX: 0 }}
                         />
@@ -602,12 +722,7 @@ export default function OrderFlowPage() {
                     <Card>
                       <CardHeader className="flex-row items-center justify-between">
                         <CardTitle className="text-base flex items-center gap-2">
-                          <motion.div
-                            animate={{ rotate: [0, 10, -10, 0] }}
-                            transition={{ duration: 2, repeat: Infinity }}
-                          >
-                            🥤
-                          </motion.div>
+                          
                           Choose your base drink
                         </CardTitle>
                         {loadingBase && (
@@ -660,7 +775,7 @@ export default function OrderFlowPage() {
                                   }}
                                   className={`group overflow-hidden rounded-2xl border bg-white text-left shadow-sm transition-all relative ${
                                     active
-                                      ? "border-[#D26E3D] ring-2 ring-[#D26E3D]/30 shadow-lg"
+                                      ?  "border-[#D26E3D] ring-2 ring-[#D26E3D]/30 shadow-lg"
                                       : "hover:border-[#D26E3D]/40 hover:shadow-md"
                                   }`}
                                   initial={{ opacity: 0, scale: 0.9 }}
@@ -705,7 +820,7 @@ export default function OrderFlowPage() {
                                       className="text-xs font-medium text-emerald-700"
                                       whileHover={{ scale: 1.05 }}
                                     >
-                                      ₱{(d.price_cents / 100).toFixed(2)}
+                                      {formatCents(d.price_cents)}
                                     </motion.div>
                                   </div>
                                 </motion.button>
@@ -757,12 +872,7 @@ export default function OrderFlowPage() {
                         <Card>
                           <CardHeader className="flex-row items-center justify-between">
                             <CardTitle className="text-base flex items-center gap-2">
-                              <motion.div
-                                animate={{ rotate: [0, -10, 10, 0] }}
-                                transition={{ duration: 2, repeat: Infinity }}
-                              >
-                                📏
-                              </motion.div>
+                              
                               Choose size
                             </CardTitle>
                             <Badge variant="secondary">
@@ -774,7 +884,7 @@ export default function OrderFlowPage() {
                               {sizeOptions.map((s) => (
                                 <Button
                                   key={s.ml}
-                                  variant={sizeMl === s.ml ? "default" : "outline"}
+                                  variant={sizeMl === s.ml ?  "default" : "outline"}
                                   size="sm"
                                   onClick={() => setSizeMl(s.ml)}
                                   className="flex items-center gap-2"
@@ -782,7 +892,7 @@ export default function OrderFlowPage() {
                                   <span>{s.label}</span>
                                   {typeof s.price_cents === "number" && (
                                     <span className="text-[11px] opacity-80">
-                                      ₱{(s.price_cents / 100).toFixed(2)}
+                                      {formatCents(s.price_cents)}
                                     </span>
                                   )}
                                 </Button>
@@ -790,9 +900,9 @@ export default function OrderFlowPage() {
                             </div>
                             <p className="mt-2 text-xs text-muted-foreground">
                               {sizeLinesForSelection.length > 0
-                                ? "Uses the saved recipe for this size."
+                                ?  "Uses the saved recipe for this size."
                                 : selectedBase?.base_size_ml
-                                  ? `Scales from base size ${mlToOzLabel(selectedBase.base_size_ml)}.`
+                                  ?  `Scales from base size ${mlToOzLabel(selectedBase.base_size_ml)}.`
                                   : "Scales from default base size."}
                             </p>
                           </CardContent>
@@ -811,7 +921,7 @@ export default function OrderFlowPage() {
                                 animate={{ rotate: [0, 15, -15, 0] }}
                                 transition={{ duration: 2, repeat: Infinity }}
                               >
-                                ⚡
+                                
                               </motion.div>
                               Customize add-ons
                             </CardTitle>
@@ -832,7 +942,7 @@ export default function OrderFlowPage() {
                           <CardContent>
                             <IngredientSelector
                               onAdd={handleAddAddon}
-                              getPricePHP={(ing, amount, unit) =>
+                              getPrice={(ing, amount, unit) =>
                                 priceForLinePHP(
                                   { ingredient_id: ing.id, amount, unit },
                                   pricingDict
@@ -859,7 +969,7 @@ export default function OrderFlowPage() {
                                 animate={{ y: [0, -5, 0] }}
                                 transition={{ duration: 2, repeat: Infinity }}
                               >
-                                ✨
+                                
                               </motion.div>
                               Selected add-ons
                             </CardTitle>
@@ -921,7 +1031,7 @@ export default function OrderFlowPage() {
                                             initial={{ scale: 1.2, color: "#059669" }}
                                             animate={{ scale: 1, color: "#047857" }}
                                           >
-                                            ₱{php.toFixed(2)}
+                                            {formatPHP(php)}
                                           </motion.span>
                                           <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
                                             <Button
@@ -987,12 +1097,7 @@ export default function OrderFlowPage() {
                     <Card>
                       <CardHeader>
                         <CardTitle className="text-base flex items-center gap-2">
-                          <motion.div
-                            animate={{ scale: [1, 1.1, 1] }}
-                            transition={{ duration: 2, repeat: Infinity }}
-                          >
-                            🛒
-                          </motion.div>
+                          
                           Review your order
                         </CardTitle>
                       </CardHeader>
@@ -1015,7 +1120,7 @@ export default function OrderFlowPage() {
                                 {selectedBase.name}
                               </div>
                               <Badge variant="secondary" className="font-semibold">
-                                ₱{(base_price_cents / 100).toFixed(2)}
+                                {formatCents(base_price_cents)}
                               </Badge>
                             </motion.div>
                             {extraLines.length > 0 && (
@@ -1060,7 +1165,7 @@ export default function OrderFlowPage() {
                                 animate={{ scale: 1 }}
                                 transition={{ type: "spring" as const, stiffness: 300 }}
                               >
-                                ₱{(total_price_cents / 100).toFixed(2)}
+                                {formatCents(total_price_cents)}
                               </motion.span>
                             </motion.div>
                             <motion.div
@@ -1072,7 +1177,7 @@ export default function OrderFlowPage() {
                               <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
                                 <Button onClick={addToCart} disabled={added} className="gap-2">
                                   <ShoppingCart className="h-4 w-4" />
-                                  {added ? "Added to cart" : "Add to Cart"}
+                                  {added ?  "Added to cart" : "Add to Cart"}
                                 </Button>
                               </motion.div>
                               <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
@@ -1114,7 +1219,7 @@ export default function OrderFlowPage() {
                     transition={{ type: "spring" as const, stiffness: 300 }}
                   >
                     <Badge variant="secondary" className="font-semibold">
-                      ₱{(total_price_cents / 100).toFixed(2)}
+                      {formatCents(total_price_cents)}
                     </Badge>
                   </motion.div>
                 </CardHeader>
@@ -1126,7 +1231,7 @@ export default function OrderFlowPage() {
                     transition={{ delay: 0.1 }}
                   >
                     <span>Base</span>
-                    <span>₱{(base_price_cents / 100).toFixed(2)}</span>
+                    <span>{formatCents(base_price_cents)}</span>
                   </motion.div>
                   <motion.div
                     className="flex items-center justify-between"
@@ -1140,7 +1245,7 @@ export default function OrderFlowPage() {
                       initial={{ scale: 1.1 }}
                       animate={{ scale: 1 }}
                     >
-                      ₱{addons_price_php.toFixed(2)}
+                      {formatPHP(addons_price_php)}
                     </motion.span>
                   </motion.div>
                   <motion.div
@@ -1157,7 +1262,7 @@ export default function OrderFlowPage() {
                       animate={{ scale: 1 }}
                       transition={{ type: "spring" as const, stiffness: 300 }}
                     >
-                      ₱{(total_price_cents / 100).toFixed(2)}
+                      {formatCents(total_price_cents)}
                     </motion.span>
                   </motion.div>
                   <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
@@ -1225,7 +1330,7 @@ export default function OrderFlowPage() {
             >
               <div className="text-xs text-muted-foreground">Total</div>
               <div className="text-base font-semibold">
-                ₱{(total_price_cents / 100).toFixed(2)}
+                {formatCents(total_price_cents)}
               </div>
             </motion.div>
             <div className="flex items-center gap-2">
@@ -1242,13 +1347,14 @@ export default function OrderFlowPage() {
                   onClick={goNext}
                   disabled={!hasBase && step < 3}
                 >
-                  {step === 3 ? "Checkout" : "Next"}
+                  {step === 3 ?  "Checkout" : "Next"}
                 </Button>
               </motion.div>
             </div>
           </div>
         </motion.div>
+        </div>
       </div>
-    </div>
+    </MotionConfig>
   );
 }

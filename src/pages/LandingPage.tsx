@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { supabase } from "@/lib/supabaseClient";
-import { motion, useScroll, useTransform } from "framer-motion";
+import { motion, useScroll, useTransform, MotionConfig } from "framer-motion";
 import {
   Sparkles,
   Heart,
@@ -16,6 +16,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { formatPHP } from "@/utils/format";
 
 type Drink = {
   id: string;
@@ -123,7 +124,8 @@ export default function LandingPage() {
   );
 
   return (
-    <div className="min-h-screen bg-[#FFFDF8] overflow-hidden">
+    <MotionConfig reducedMotion="user">
+      <div className="min-h-screen bg-[#FFFDF8] overflow-hidden">
       {/* Hero Section */}
       <section className="relative min-h-screen overflow-hidden">
         {/* Background Decorative Elements */}
@@ -414,7 +416,7 @@ export default function LandingPage() {
                         transition={{ duration: 2, repeat: Infinity }}
                       >
                         <Badge variant="glow" className="px-4 py-2 text-sm font-semibold">
-                          ⭐ Featured
+                           Featured
                         </Badge>
                       </motion.div>
                       <motion.span
@@ -454,7 +456,7 @@ export default function LandingPage() {
                               animate={{ y: [0, -10, 0] }}
                               transition={{ duration: 2, repeat: Infinity }}
                             >
-                              🥤
+                              Signature
                             </motion.div>
                             <p className="text-sm text-gray-600">Signature Blend</p>
                           </div>
@@ -486,7 +488,7 @@ export default function LandingPage() {
                         whileHover={{ scale: 1.1 }}
                       >
                         <Badge className="px-3 py-1 text-base font-semibold">
-                          ₱{featured ? featured.price_php.toFixed(0) : "200"}
+                          {featured ? formatPHP(featured.price_php ?? 0) : formatPHP(200)}
                         </Badge>
                       </motion.div>
                     </motion.div>
@@ -837,8 +839,8 @@ export default function LandingPage() {
               whileInView={{ x: 0, opacity: 1 }}
               viewport={{ once: true }}
             >
-              <span>© {new Date().getFullYear()} DailyMacros</span>
-              <span className="hidden md:inline">•</span>
+              <span>(c) {new Date().getFullYear()} DailyMacros</span>
+              <span className="hidden md:inline">-</span>
               <span className="hidden md:inline">Designed for nutrition, built for performance.</span>
             </motion.div>
             <motion.div
@@ -865,7 +867,8 @@ export default function LandingPage() {
           </div>
         </div>
       </motion.footer>
-    </div>
+      </div>
+    </MotionConfig>
   );
 }
 
@@ -903,7 +906,7 @@ function MiniDrinkCard({ drink }: { drink: Drink }) {
                     animate={{ y: [0, -5, 0] }}
                     transition={{ duration: 2, repeat: Infinity }}
                   >
-                    🥤
+                    Signature
                   </motion.div>
                   <p className="text-xs text-gray-600">Custom Blend</p>
                 </div>
@@ -927,7 +930,7 @@ function MiniDrinkCard({ drink }: { drink: Drink }) {
               transition={{ type: "spring" as const, stiffness: 400 }}
             >
               <Badge className="px-3 py-1 text-base font-semibold">
-                ₱{drink.price_php.toFixed(0)}
+                {formatPHP(drink.price_php ?? 0)}
               </Badge>
             </motion.div>
           </div>

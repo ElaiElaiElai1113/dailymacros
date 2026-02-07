@@ -18,6 +18,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { toast } from "@/hooks/use-toast";
 import { Skeleton } from "@/components/ui/skeleton";
+import { formatCents, formatPHP } from "@/utils/format";
 
 import type {
   CartItem,
@@ -326,7 +327,7 @@ export default function BuildYourOwnPage() {
                               {d.description || "Signature blend"}
                             </p>
                             <div className="text-xs font-medium text-emerald-700">
-                              PHP {(d.price_cents / 100).toFixed(2)}
+                              {formatCents(d.price_cents)}
                             </div>
                           </div>
                         </button>
@@ -393,7 +394,7 @@ export default function BuildYourOwnPage() {
                           </div>
                           <div className="flex items-center gap-3 shrink-0">
                             <span className="text-emerald-700">
-                              PHP {php.toFixed(2)}
+                              {formatPHP(php)}
                             </span>
                             <Button
                               variant="ghost"
@@ -411,7 +412,7 @@ export default function BuildYourOwnPage() {
 
                 <div className="mt-4 flex flex-wrap items-center gap-2">
                   <Button onClick={addToCart} disabled={!selectedBase}>
-                    Add to Cart - PHP {(total_price_cents / 100).toFixed(2)}
+                    Add to Cart - {formatCents(total_price_cents)}
                   </Button>
 
                   <ExplainMath
@@ -448,13 +449,13 @@ export default function BuildYourOwnPage() {
                     <div className="rounded-xl border bg-muted/30 p-2">
                       <div className="text-xs text-muted-foreground">Base</div>
                       <div className="font-semibold">
-                        PHP {((base_price_cents || 0) / 100).toFixed(2)}
+                        {formatCents(base_price_cents || 0)}
                       </div>
                     </div>
                     <div className="rounded-xl border bg-muted/30 p-2">
                       <div className="text-xs text-muted-foreground">Add-ons</div>
                       <div className="font-semibold">
-                        PHP {addons_price_php.toFixed(2)}
+                        {formatPHP(addons_price_php)}
                       </div>
                     </div>
                   </div>
