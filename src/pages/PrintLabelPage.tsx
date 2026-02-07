@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { supabase } from "@/lib/supabaseClient";
 import logo from "@/assets/dailymacroslogo.png";
+import fruitBg from "@/assets/fruitbg.png";
 
 type IngredientLine = {
   ingredient_id: string;
@@ -10,6 +11,7 @@ type IngredientLine = {
   amount: number;
   unit: string;
   grams: number | null;
+  is_addon: boolean;
 };
 type ItemMacros = {
   order_item_id: string;
@@ -36,22 +38,40 @@ export default function PrintLabelPage() {
       try {
         if (!orderItemId) throw new Error("Missing order item id in URL.");
 
-        // join orders for pickup_time
-        const { data: rows, error } = await supabase
+        // Get macros from view
+        const { data: macrosRow, error: macrosError } = await supabase
           .from("order_item_macros_v")
           .select("*, orders!inner(pickup_time)")
           .eq("order_item_id", orderItemId)
           .limit(1);
 
-        if (error) throw error;
+        if (macrosError) throw macrosError;
+        if (!macrosRow?.[0]) throw new Error("Label data not found for this item.");
 
-        const row = rows?.[0] as any;
-        if (!row) throw new Error("Label data not found for this item.");
+        // Get ingredients with is_addon status
+        const { data: ingredientLines, error: ingredientsError } = await supabase
+          .from("order_item_ingredients")
+          .select("ingredient_id, amount, unit, ingredients(name, is_addon)")
+          .eq("order_item_id", orderItemId);
+
+        if (ingredientsError) throw ingredientsError;
+
+        // Filter to only show addons (is_addon = true)
+        const addonIngredients = (ingredientLines || [])
+          .filter((l: any) => l.ingredients?.is_addon === true)
+          .map((l: any) => ({
+            ingredient_id: l.ingredient_id,
+            name: l.ingredients?.name || "Unknown",
+            amount: l.amount,
+            unit: l.unit,
+            grams: null,
+            is_addon: true,
+          }));
 
         setData({
-          ...row,
-          pickup_time: row.orders?.pickup_time ?? null,
-          ingredients: row.ingredients || [],
+          ...macrosRow[0],
+          pickup_time: macrosRow[0].orders?.pickup_time ?? null,
+          ingredients: addonIngredients,
         });
 
         // auto-print after first paint
@@ -73,42 +93,51 @@ export default function PrintLabelPage() {
   const P = Math.round(data.total_protein_g || 0);
   const C = Math.round(data.total_carbs_g || 0);
   const F = Math.round(data.total_fat_g || 0);
+
   return (
-    <div className="label">
-      <div className="nf-title">Nutritional Facts</div>
-      <div className="kcal-row">
-        <div className="kcal">{kcal}</div>
-        <div className="kcal-unit">kcal</div>
-      </div>
+    <div className="label-container">
+      {/* Fruit background pattern */}
+      <div className="fruit-bg" />
 
-      <div className="rule" />
+      <div className="label">
+        <div className="nf-title">Nutritional Facts</div>
 
-      <div className="macro-list">
-        <div className="macro-row">
-          <span>{C}g Carbs</span>
+        <div className="kcal-row">
+          <span className="kcal">{kcal}</span>
+          <span className="kcal-unit">kcal</span>
         </div>
-        <div className="macro-row">
-          <span>{P}g Protein</span>
+
+        <div className="macros">
+          <div className="macro-item">
+            <span className="macro-icon">🌾</span>
+            <span className="macro-text">{C}g Carbs</span>
+          </div>
+          <div className="macro-item">
+            <span className="macro-icon">💪</span>
+            <span className="macro-text">{P}g Protein</span>
+          </div>
+          <div className="macro-item">
+            <span className="macro-icon">💧</span>
+            <span className="macro-text">{F}g Fat</span>
+          </div>
         </div>
-        <div className="macro-row">
-          <span>{F}g Fat</span>
+
+        <div className="serving">per 16 oz serving</div>
+
+        <div className="item-name">{data.item_name.toUpperCase()}</div>
+
+        <div className="addons">
+          add ons:{" "}
+          {data.ingredients?.length
+            ? data.ingredients.map((l) => l.name).join(", ")
+            : "none"}
         </div>
-      </div>
 
-      <div className="rule" />
+        <div className="tagline">Balanced nutrition for everyday energy.</div>
 
-      <div className="serving">per 16 oz serving</div>
-      <div className="item-name">{data.item_name.toUpperCase()}</div>
-      <div className="addons">
-        add ons:{" "}
-        {data.ingredients?.length
-          ? data.ingredients.map((l) => l.name).join(", ")
-          : "none"}
-      </div>
-      <div className="tagline">Balanced nutrition for everyday energy.</div>
-
-      <div className="logo-wrap">
-        <img src={logo} alt="daily macros" />
+        <div className="logo-wrap">
+          <img src={logo} alt="daily macros" />
+        </div>
       </div>
 
       <div className="noprint actions">
@@ -116,39 +145,163 @@ export default function PrintLabelPage() {
       </div>
 
       <style>{`
-        @page { size: 5cm 14cm; margin: 6mm; }
-        html, body { background: #fff; }
-        body { margin: 0; }
-        .label {
+        @page { size: 5cm 5cm; margin: 0; }
+        html, body { background: #FFF8E7; margin: 0; }
+
+        .label-container {
+          position: relative;
           width: 5cm;
-          min-height: 14cm;
-          font: 12px/1.2 "Helvetica Neue", Helvetica, Arial, sans-serif;
-          color: #111;
-          padding: 6mm 5mm;
-          box-sizing: border-box;
+          min-height: 5cm;
+          overflow: hidden;
         }
-        .nf-title { font-weight: 700; font-size: 16px; text-align: center; }
+
+        /* Fruit background pattern */
+        .fruit-bg {
+          position: absolute;
+          top: 0;
+          left: 0;
+          width: 100%;
+          height: 100%;
+          background-image: url(${fruitBg});
+          background-size: cover;
+          background-position: center;
+          background-repeat: no-repeat;
+          opacity: 0.3;
+          pointer-events: none;
+          z-index: 0;
+        }
+
+        .label {
+          position: relative;
+          z-index: 1;
+          width: 100%;
+          min-height: 5cm;
+          font-family: "Inter", "Helvetica Neue", Helvetica, Arial, sans-serif;
+          color: #111;
+          padding: 5mm 3mm;
+          box-sizing: border-box;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+        }
+
+        .nf-title {
+          font-weight: 700;
+          font-size: 11px;
+          text-align: center;
+          letter-spacing: 0.5px;
+          margin-bottom: 2px;
+        }
+
         .kcal-row {
           display: flex;
           justify-content: center;
           align-items: baseline;
-          gap: 6px;
-          margin-top: 6px;
+          gap: 2px;
+          margin-bottom: 4px;
         }
-        .kcal { font-size: 34px; font-weight: 800; }
-        .kcal-unit { font-size: 18px; font-weight: 700; }
-        .rule { height: 3px; background: #222; margin: 10px 0; border-radius: 2px; }
-        .macro-list { display: grid; gap: 6px; justify-items: center; font-size: 13px; }
-        .macro-row { display: flex; align-items: center; gap: 6px; font-weight: 600; }
-        .serving { text-align: center; font-size: 12px; margin-top: 2px; }
-        .item-name { text-align: center; font-weight: 800; font-size: 13px; margin-top: 6px; letter-spacing: 0.3px; }
-        .addons { text-align: center; font-size: 11px; margin-top: 4px; }
-        .tagline { text-align: center; font-size: 11px; font-style: italic; margin-top: 12px; }
-        .logo-wrap { display: flex; justify-content: center; margin-top: 20px; }
-        .logo-wrap img { width: 36px; height: auto; }
-        .actions { margin-top: 10px; text-align: center; }
-        .actions button { border: 1px solid #ccc; border-radius: 6px; padding: 4px 8px; background: #fff; }
-        @media print { .noprint { display: none } }
+
+        .kcal {
+          font-size: 20px;
+          font-weight: 800;
+          line-height: 1;
+        }
+
+        .kcal-unit {
+          font-size: 10px;
+          font-weight: 700;
+        }
+
+        .macros {
+          display: flex;
+          flex-direction: column;
+          gap: 2px;
+          width: 100%;
+          margin-bottom: 4px;
+        }
+
+        .macro-item {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 4px;
+          font-size: 9px;
+          font-weight: 500;
+        }
+
+        .macro-icon {
+          font-size: 10px;
+        }
+
+        .macro-text {
+          font-size: 9px;
+        }
+
+        .serving {
+          text-align: center;
+          font-size: 8px;
+          margin-top: 2px;
+          margin-bottom: 2px;
+        }
+
+        .item-name {
+          text-align: center;
+          font-weight: 800;
+          font-size: 10px;
+          margin-top: 2px;
+          letter-spacing: 0.3px;
+          line-height: 1.3;
+        }
+
+        .addons {
+          text-align: center;
+          font-size: 7px;
+          margin-top: 2px;
+          max-width: 100%;
+          word-wrap: break-word;
+        }
+
+        .tagline {
+          text-align: center;
+          font-size: 7px;
+          font-style: italic;
+          margin-top: 4px;
+          opacity: 0.8;
+        }
+
+        .logo-wrap {
+          display: flex;
+          justify-content: center;
+          margin-top: auto;
+          padding-top: 4px;
+        }
+
+        .logo-wrap img {
+          width: 20px;
+          height: auto;
+        }
+
+        .actions {
+          position: fixed;
+          bottom: 20px;
+          left: 50%;
+          transform: translateX(-50%);
+          z-index: 100;
+        }
+
+        .actions button {
+          border: 1px solid #ccc;
+          border-radius: 6px;
+          padding: 8px 16px;
+          background: #fff;
+          cursor: pointer;
+          font-size: 14px;
+        }
+
+        @media print {
+          .noprint { display: none; }
+          body { margin: 0; }
+        }
       `}</style>
     </div>
   );
