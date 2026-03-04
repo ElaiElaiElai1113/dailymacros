@@ -62,6 +62,9 @@ type DrinkSizeLineRow = {
   unit: string;
 };
 
+// Default drink sizes used when no saved recipes exist in the database
+// Note: These sizes use the same recipe (base recipe scaled by volume)
+// For accurate nutrition and pricing, add saved recipes to drink_sizes table
 const DEFAULT_SIZES = [
   { label: "12 oz", ml: 355, price_cents: null },
   { label: "16 oz", ml: 473, price_cents: null },
@@ -72,6 +75,9 @@ function mlToOzLabel(sizeMl: number) {
   return `${oz} oz`;
 }
 
+// Scales recipe ingredients proportionally from reference size to target size
+// Note: This is a fallback when no saved recipe exists in database
+// Scaling assumes linear proportionality which may not be accurate for all ingredients
 function scaleLines(
   lines: CartLine[],
   referenceMl: number | null,
@@ -468,6 +474,11 @@ export default function OrderFlowPage() {
     setSizeMl(optionMls.includes(baseSize) ? baseSize : optionMls[0]);
   }, [selectedBase?.id, selectedBase?.base_size_ml, sizeOptions, prefillSizeMl]);
 
+  // Recipe selection logic:
+  // 1. If saved recipe exists in database (drink_sizes/drink_size_lines), use it
+  // 2. Otherwise, falls back to scaledBaseLines (base recipe scaled by volume)
+  // Important: If 16 oz has a saved recipe but 12 oz doesn't, 12 oz will use fallback scaling
+  // TODO: Add 16 oz recipes to drink_sizes table when available for accurate nutrition/pricing
   const sizeLinesForSelection =
     selectedBaseId && sizeLinesByDrink[selectedBaseId]
       ?  sizeLinesByDrink[selectedBaseId][String(sizeMl)] || []
@@ -606,6 +617,19 @@ export default function OrderFlowPage() {
             Choose a base, customize add-ons, then review before checkout.
           </p>
         </motion.header>
+
+        {/* Screen reader announcements */}
+        <div
+          aria-live="polite"
+          aria-atomic="true"
+          className="sr-only"
+          role="status"
+        >
+          {extraLines.length > 0 && (
+            <span>{extraLines.length} add-on{extraLines.length !== 1 ? 's' : ''} selected</span>
+          )}
+        </div>
+
         {loadErr && (
           <Alert variant="destructive" className="mb-4">
             <AlertTitle>We could not load the menu</AlertTitle>
@@ -955,6 +979,7 @@ export default function OrderFlowPage() {
                               selectedIngredientIds={extraLines.map(
                                 (l) => l.ingredient_id
                               )}
+                              layoutIdPrefix="ingredient"
                             />
                           </CardContent>
                         </Card>
@@ -973,9 +998,16 @@ export default function OrderFlowPage() {
                                 animate={{ y: [0, -5, 0] }}
                                 transition={{ duration: 2, repeat: Infinity }}
                               >
-                                
+
                               </motion.div>
                               Selected add-ons
+                              <span
+                                className="ml-2 text-xs font-normal text-muted-foreground"
+                                aria-live="polite"
+                                aria-atomic="true"
+                              >
+                                ({extraLines.length} selected)
+                              </span>
                             </CardTitle>
                             {extraLines.length > 0 && (
                               <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
@@ -983,6 +1015,7 @@ export default function OrderFlowPage() {
                                   variant="outline"
                                   size="sm"
                                   onClick={() => setExtraLines([])}
+                                  aria-label={`Clear all ${extraLines.length} add-ons`}
                                 >
                                   Clear all
                                 </Button>
@@ -1009,18 +1042,26 @@ export default function OrderFlowPage() {
                                 className="divide-y divide-muted/60 text-sm"
                                 initial={{ opacity: 0 }}
                                 animate={{ opacity: 1 }}
+                                role="list"
+                                aria-label={`List of ${extraLines.length} selected add-ons`}
                               >
-                                <AnimatePresence>
+                                <AnimatePresence mode="popLayout">
                                   {extraLines.map((l, i) => {
                                     const php = linePricePHP(l);
                                     return (
                                       <motion.li
-                                        key={i}
+                                        key={l.ingredient_id}
+                                        layoutId={`ingredient-${l.ingredient_id}`}
                                         className="flex items-center justify-between py-2"
                                         initial={{ x: -20, opacity: 0 }}
                                         animate={{ x: 0, opacity: 1 }}
                                         exit={{ x: 20, opacity: 0 }}
-                                        transition={{ delay: i * 0.05 }}
+                                        transition={{
+                                          layout: { duration: 0.3, ease: "easeInOut" },
+                                          delay: i * 0.05,
+                                        }}
+                                        role="listitem"
+                                        aria-label={`${l.name}, ${l.amount} ${l.unit}, ${formatPHP(php)}`}
                                       >
                                         <div className="min-w-0">
                                           <span className="font-medium">{l.name}</span>{" "}
@@ -1042,6 +1083,7 @@ export default function OrderFlowPage() {
                                               variant="ghost"
                                               size="sm"
                                               onClick={() => removeAddon(i)}
+                                              aria-label={`Remove ${l.name} from add-ons`}
                                             >
                                               <X className="h-4 w-4" />
                                             </Button>

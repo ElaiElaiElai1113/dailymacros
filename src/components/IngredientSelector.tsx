@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { motion } from "framer-motion";
 import { supabase } from "@/lib/supabaseClient";
 import type { Ingredient } from "@/types";
 import { Input } from "@/components/ui/input";
@@ -14,6 +15,7 @@ type Props = {
     unit: string
   ) => number | null | undefined;
   selectedIngredientIds?: string[];
+  layoutIdPrefix?: string;
 };
 
 const HIGHLIGHT_CLASSES = [
@@ -26,6 +28,7 @@ export default function IngredientSelector({
   onAdd,
   getPricePHP,
   selectedIngredientIds = [],
+  layoutIdPrefix = "ingredient",
 }: Props) {
   const [ings, setIngs] = useState<Ingredient[]>([]);
   const [loading, setLoading] = useState(true);
@@ -73,14 +76,16 @@ export default function IngredientSelector({
 
   return (
     <div>
-      <div className="mb-3 grid grid-cols-1 gap-2 sm:grid-cols-12">
+      <div className="mb-3 grid grid-cols-1 gap-2 sm:grid-cols-12" role="search">
         <div className="relative sm:col-span-7">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
           <Input
             className="pl-9"
             placeholder="Search add-ons (chia, honey, cocoa)"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
+            aria-label="Search add-ons"
+            aria-controls="ingredient-grid"
           />
         </div>
         <Input
@@ -90,11 +95,13 @@ export default function IngredientSelector({
           className="sm:col-span-2"
           value={amount}
           onChange={(e) => onChangeAmount(e.target.value)}
+          aria-label="Ingredient amount"
         />
         <select
           className="sm:col-span-3 flex h-10 w-full rounded-xl border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
           value={unit}
           onChange={(e) => setUnit(e.target.value)}
+          aria-label="Ingredient unit"
         >
           <option value="tablespoon">tablespoon</option>
           <option value="scoop">scoop</option>
@@ -124,7 +131,7 @@ export default function IngredientSelector({
           No add-ons match your search.
         </div>
       ) : (
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4">
+        <div id="ingredient-grid" className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4" role="list" aria-label={`Available add-ons ${filtered.length > 0 ? `- ${filtered.length} items` : ''}`}>
           {filtered.map((ing, idx) => {
             const pricePHP =
               typeof getPricePHP === "function"
@@ -146,16 +153,33 @@ export default function IngredientSelector({
               : "hover:shadow-sm hover:border-primary/40";
 
             return (
-              <button
+              <motion.button
                 key={ing.id}
+                layoutId={`${layoutIdPrefix}-${ing.id}`}
                 onClick={() => !disabled && onAdd(ing, amount, unit)}
                 disabled={disabled}
                 className={`${baseClasses} ${stateClasses}`}
+                transition={{
+                  layout: {
+                    duration: 0.3,
+                    ease: "easeInOut",
+                  },
+                }}
                 title={
                   pricePHP !== undefined && pricePHP !== null
                     ? `PHP ${pricePHP.toFixed(2)}`
                     : undefined
                 }
+                role="listitem"
+                aria-label={
+                  isSelected
+                    ? `${ing.name}, ${ing.category} - Already added. Click again to add another ${amount} ${unit}`
+                    : disabled
+                    ? `${ing.name}, ${ing.category} - Enter an amount to add`
+                    : `${ing.name}, ${ing.category} - Click to add ${amount || 0} ${unit} for ${pricePHP !== undefined && pricePHP !== null ? `PHP ${pricePHP.toFixed(2)}` : 'no price'}`
+                }
+                aria-pressed={isSelected}
+                aria-disabled={disabled}
               >
                 {isSelected && (
                   <Badge className="absolute right-2 top-2 text-[10px]">
@@ -182,7 +206,7 @@ export default function IngredientSelector({
                     </span>
                   )}
                 </div>
-              </button>
+              </motion.button>
             );
           })}
         </div>

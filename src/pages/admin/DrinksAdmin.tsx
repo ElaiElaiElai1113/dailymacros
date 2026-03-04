@@ -1029,79 +1029,6 @@ export default function DrinksAdminPage() {
     setRows((prev) => prev.map((x) => (x.id === drinkId ? { ...x, ...patch } : x)));
   };
 
-  async function createDefaultSizes() {
-    if (rows.length === 0) {
-      toast({
-        variant: "destructive",
-        title: "No drinks found",
-        description: "Create drinks first before generating sizes.",
-      });
-      return;
-    }
-
-    const existing = new Set(
-      drinkSizes.map((s) => `${s.drink_id}:${s.size_ml}`)
-    );
-
-    const inserts: Array<{
-      drink_id: string;
-      size_label: string;
-      display_name: string;
-      size_ml: number;
-      is_active: boolean;
-      price_php: number | null;
-    }> = [];
-
-    rows.forEach((drink) => {
-      const has12 = existing.has(`${drink.id}:355`);
-      const has16 = existing.has(`${drink.id}:473`);
-      if (!has12) {
-        inserts.push({
-          drink_id: drink.id,
-          size_label: "12oz",
-          display_name: "12 oz",
-          size_ml: 355,
-          is_active: true,
-          price_php: null,
-        });
-      }
-      if (!has16) {
-        inserts.push({
-          drink_id: drink.id,
-          size_label: "16oz",
-          display_name: "16 oz",
-          size_ml: 473,
-          is_active: true,
-          price_php: null,
-        });
-      }
-    });
-
-    if (inserts.length === 0) {
-      toast({
-        title: "All sizes already exist",
-        description: "No new size rows were created.",
-      });
-      return;
-    }
-
-    const { error } = await supabase.from("drink_sizes").insert(inserts);
-    if (error) {
-      toast({
-        variant: "destructive",
-        title: "Failed to create sizes",
-        description: error.message,
-      });
-      return;
-    }
-
-    toast({
-      title: "Sizes generated",
-      description: `${inserts.length} size rows created.`,
-    });
-    await loadDrinkSizes();
-  }
-
   return (
     <div className="space-y-8">
       {/* Header */}
@@ -1112,23 +1039,14 @@ export default function DrinksAdminPage() {
             Manage your drink menu, recipes, and sizes
           </p>
         </div>
-        <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row sm:items-center">
-          <button
-            type="button"
-            onClick={createDefaultSizes}
-            className="rounded-lg border border-gray-200 px-4 py-2.5 text-sm font-semibold text-gray-700 hover:border-[#D26E3D] hover:text-[#D26E3D] hover:bg-[#D26E3D]/5 transition-colors"
-          >
-            Generate 12oz/16oz sizes
-          </button>
-          <div className="relative w-full sm:w-80">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
-            <input
-              className="w-full rounded-lg border border-gray-200 pl-10 pr-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-[#D26E3D]/30 focus:border-[#D26E3D] transition-all"
-              placeholder="Search drinks…"
-              value={q}
-              onChange={(e) => setQ(e.target.value)}
-            />
-          </div>
+        <div className="relative w-full sm:w-80">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
+          <input
+            className="w-full rounded-lg border border-gray-200 pl-10 pr-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-[#D26E3D]/30 focus:border-[#D26E3D] transition-all"
+            placeholder="Search drinks…"
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+          />
         </div>
       </div>
 

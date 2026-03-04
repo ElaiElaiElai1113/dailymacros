@@ -11,6 +11,13 @@ import {
 import type { Ingredient, IngredientNutrition, LineIngredient } from "@/types";
 import { breakdownFor } from "@/utils/nutrition";
 import { supabase } from "@/lib/supabaseClient";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetDescription,
+} from "@/components/ui/sheet";
 
 type Props = {
   lines: LineIngredient[];
@@ -113,20 +120,20 @@ export default function ExplainMath({
         Explain my math
       </button>
 
-      {open && (
-        <div className="fixed inset-0 bg-black/30 z-50 flex items-center justify-center p-4">
-          <div className="bg-white w-full max-w-3xl rounded-xl border shadow-lg">
-            <div className="p-4 border-b flex items-center justify-between">
-              <div className="font-semibold">Nutrition breakdown</div>
-              <button
-                onClick={() => setOpen(false)}
-                className="text-sm text-gray-600 hover:text-black"
-              >
-                Close
-              </button>
-            </div>
+      <Sheet open={open} onOpenChange={setOpen}>
+        <SheetContent
+          side="bottom"
+          className="h-[85vh] max-h-[90vh] sm:h-[70vh] sm:max-h-[80vh] sm:max-w-2xl sm:mx-auto sm:rounded-t-3xl overflow-y-auto"
+        >
+          <div className="mx-auto mt-3 h-1.5 w-12 rounded-full bg-muted sm:hidden" />
+          <SheetHeader className="mt-2 sm:mt-4">
+            <SheetTitle>Nutrition breakdown</SheetTitle>
+            <SheetDescription>
+              See how the nutrition values are calculated for each ingredient.
+            </SheetDescription>
+          </SheetHeader>
 
-            <div className="p-4 overflow-auto max-h-[70vh]">
+          <div className="mt-4 overflow-auto max-h-[calc(90vh-8rem)] sm:max-h-[calc(80vh-8rem)]">
               <table className="w-full text-sm">
                 <thead className="text-left text-gray-600">
                   <tr className="border-b">
@@ -481,15 +488,14 @@ export default function ExplainMath({
                 </tfoot>
               </table>
 
-              <p className="text-xs text-gray-500 mt-3">
+              <p className="text-xs text-muted-foreground mt-4">
                 Notes: grams are computed from your input using density (ml→g)
                 or grams-per-scoop if provided. Per-100g values are scaled by
                 grams/100.
               </p>
             </div>
-          </div>
-        </div>
-      )}
-    </>
-  );
+          </SheetContent>
+        </Sheet>
+      </>
+    );
 }
