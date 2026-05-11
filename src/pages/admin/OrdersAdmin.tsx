@@ -4,7 +4,7 @@ import { Link } from "react-router-dom";
 import { supabase } from "@/lib/supabaseClient";
 import { toast } from "@/hooks/use-toast";
 import { logAudit } from "@/utils/audit";
-import { Search } from "lucide-react";
+import { MapPin, Search, Truck } from "lucide-react";
 import { formatCents } from "@/utils/format";
 import { formatGroupedIngredientLines, groupIngredientLines } from "@/utils/addons";
 
@@ -27,6 +27,10 @@ type OrderRow = {
   customer_id: string | null;
   total_cents?: number | null;
   subtotal_cents: number | null;
+  promo_discount_cents?: number | null;
+  delivery_option?: string | null;
+  delivery_address?: string | null;
+  delivery_fee_cents?: number | null;
   payment_method: string | null;
   payment_status: string | null;
   payment_reference: string | null;
@@ -72,6 +76,20 @@ const PAYMENT_TONE: Record<string, string> = {
   paid: "bg-green-100 text-green-800 border-green-200",
   unpaid: "bg-gray-100 text-gray-700 border-gray-200",
   pending_verification: "bg-yellow-100 text-yellow-800 border-yellow-200",
+};
+
+const DELIVERY_LABEL: Record<string, string> = {
+  pickup: "Pickup",
+  free_delivery: "Free delivery",
+  paid_delivery_car: "Delivery car",
+  maxim_delivery: "Maxim",
+};
+
+const DELIVERY_TONE: Record<string, string> = {
+  pickup: "bg-gray-100 text-gray-700 border-gray-200",
+  free_delivery: "bg-emerald-100 text-emerald-800 border-emerald-200",
+  paid_delivery_car: "bg-orange-100 text-orange-800 border-orange-200",
+  maxim_delivery: "bg-blue-100 text-blue-800 border-blue-200",
 };
 
 const Peso = ({ cents }: { cents: number | null }) => (
@@ -249,7 +267,7 @@ export default function OrdersAdminPage() {
       const { data: oo, error: eo } = await supabase
         .from("orders")
         .select(
-          "id,created_at,pickup_time,status,guest_name,guest_phone,customer_id,subtotal_cents,payment_method,payment_status,payment_reference,payment_proof_url"
+          "id,created_at,pickup_time,status,guest_name,guest_phone,customer_id,subtotal_cents,promo_discount_cents,delivery_option,delivery_address,delivery_fee_cents,payment_method,payment_status,payment_reference,payment_proof_url"
         )
         .order("created_at", { ascending: false })
         .limit(250);
@@ -355,13 +373,21 @@ export default function OrdersAdminPage() {
 
   const itemsTotal = useCallback(
     (o: OrderRow) => {
-      if (typeof o.subtotal_cents === "number") return o.subtotal_cents;
+      if (typeof o.subtotal_cents === "number") {
+        return (
+          Math.max(0, o.subtotal_cents - (o.promo_discount_cents || 0)) +
+          (o.delivery_fee_cents || 0)
+        );
+      }
       if (typeof o.total_cents === "number") return o.total_cents;
       const items = itemsMap[o.id] || [];
-      return items.reduce(
-        (s, it) =>
-          s + (it.line_total_cents ?? it.unit_price_cents ?? 0),
+      const itemsSubtotal = items.reduce(
+        (s, it) => s + (it.line_total_cents ?? it.unit_price_cents ?? 0),
         0
+      );
+      return (
+        Math.max(0, itemsSubtotal - (o.promo_discount_cents || 0)) +
+        (o.delivery_fee_cents || 0)
       );
     },
     [itemsMap]
@@ -579,6 +605,7 @@ export default function OrdersAdminPage() {
                 <th className="px-5 py-4 text-left min-w-[140px]">Order</th>
                 <th className="px-5 py-4 text-left min-w-[130px]">Pickup</th>
                 <th className="px-5 py-4 text-left min-w-[140px]">Customer</th>
+                <th className="px-5 py-4 text-left min-w-[210px]">Delivery</th>
                 <th className="px-5 py-4 text-left min-w-[280px]">Items</th>
                 <th className="px-5 py-4 text-left min-w-[80px]">Total</th>
                 <th className="px-5 py-4 text-left min-w-[140px]">Status</th>
@@ -591,14 +618,14 @@ export default function OrdersAdminPage() {
               <RowSkeleton />
             ) : error ? (
               <tr>
-                <td colSpan={8} className="px-5 py-6 text-rose-700">
+                <td colSpan={9} className="px-5 py-6 text-rose-700">
                   {error}
                 </td>
               </tr>
             ) : filtered.length === 0 ? (
               <tr>
                 <td
-                  colSpan={8}
+                  colSpan={9}
                   className="px-5 py-12 text-center text-gray-500"
                 >
                   No orders found.
@@ -658,6 +685,9 @@ export default function OrdersAdminPage() {
                       <div className="text-xs text-gray-500">
                         {o.guest_phone || "-"}
                       </div>
+                    </td>
+                    <td className="px-5 py-4">
+                      <DeliveryCell order={o} />
                     </td>
                     <td className="px-5 py-4">
                       <ul className="space-y-1.5 max-w-[380px]">
@@ -874,9 +904,42 @@ function Tab({
 function RowSkeleton() {
   return (
     <tr className="animate-pulse">
-      <td className="px-3 py-4" colSpan={8}>
+      <td className="px-3 py-4" colSpan={9}>
         <div className="h-4 w-full rounded bg-gray-100" />
       </td>
     </tr>
+  );
+}
+
+function DeliveryCell({ order }: { order: OrderRow }) {
+  const option = order.delivery_option || "pickup";
+  const isPickup = option === "pickup";
+  const tone = DELIVERY_TONE[option] || DELIVERY_TONE.pickup;
+
+  return (
+    <div className="max-w-[240px] space-y-2">
+      <div className={`inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-xs font-medium ${tone}`}>
+        {isPickup ? (
+          <MapPin className="h-3 w-3" />
+        ) : (
+          <Truck className="h-3 w-3" />
+        )}
+        {DELIVERY_LABEL[option] || option}
+      </div>
+      {order.delivery_fee_cents ? (
+        <div className="text-xs font-semibold text-gray-700">
+          Fee: <Peso cents={order.delivery_fee_cents} />
+        </div>
+      ) : null}
+      {order.delivery_address ? (
+        <div className="text-xs leading-relaxed text-gray-500">
+          {order.delivery_address}
+        </div>
+      ) : (
+        <div className="text-xs text-gray-400">
+          809 Atis Street, Juna Subdivision
+        </div>
+      )}
+    </div>
   );
 }

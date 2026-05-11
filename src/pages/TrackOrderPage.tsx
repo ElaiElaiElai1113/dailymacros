@@ -4,6 +4,7 @@ import { supabase } from "@/lib/supabaseClient";
 import { formatCents } from "@/utils/format";
 import { formatGroupedIngredientLines, groupIngredientLines } from "@/utils/addons";
 import { withRetry } from "@/utils/retry";
+import { MapPin, Truck } from "lucide-react";
 
 /* ----------------------------- Types ----------------------------- */
 const STATUS_OPTIONS = [
@@ -23,6 +24,11 @@ type OrderRow = {
   guest_name: string | null;
   guest_phone: string | null;
   tracking_code: string;
+  promo_code_applied?: string | null;
+  promo_discount_cents?: number | null;
+  delivery_option?: string | null;
+  delivery_address?: string | null;
+  delivery_fee_cents?: number | null;
 };
 
 type OrderItemRow = {
@@ -81,6 +87,13 @@ const STATUS_ICONS: Record<StatusValue, React.ReactNode> = {
   ready: "R",
   picked_up: "Done",
   cancelled: "X",
+};
+
+const DELIVERY_LABEL: Record<string, string> = {
+  pickup: "Pickup",
+  free_delivery: "Free delivery",
+  paid_delivery_car: "Delivery car",
+  maxim_delivery: "Maxim delivery",
 };
 
 const Peso = ({ cents }: { cents?: number | null }) => (
@@ -176,6 +189,11 @@ export default function TrackOrderPage() {
       ),
     [items]
   );
+  const deliveryFee = order?.delivery_fee_cents || 0;
+  const promoDiscount = order?.promo_discount_cents || 0;
+  const orderTotal = Math.max(0, subtotal - promoDiscount) + deliveryFee;
+  const deliveryOption = order?.delivery_option || "pickup";
+  const isDelivery = deliveryOption !== "pickup";
 
   const totals = useMemo(() => {
     const acc = {
@@ -237,7 +255,8 @@ export default function TrackOrderPage() {
               <span className="font-mono">{order.tracking_code}</span>
             </div>
             <div className="mt-1 text-sm text-gray-600">
-              Pickup time: <b>{timeShort(order.pickup_time)}</b>
+              {isDelivery ? "Delivery" : "Pickup"} time:{" "}
+              <b>{timeShort(order.pickup_time)}</b>
             </div>
           </div>
           <Badge status={order.status} />
@@ -247,6 +266,27 @@ export default function TrackOrderPage() {
       {/* Stepper */}
       <Card>
         <Steps current={order.status} />
+      </Card>
+
+      <Card>
+        <div className="mb-2 flex items-center gap-2 font-semibold">
+          {isDelivery ? (
+            <Truck className="h-4 w-4 text-[#D26E3D]" />
+          ) : (
+            <MapPin className="h-4 w-4 text-[#D26E3D]" />
+          )}
+          {DELIVERY_LABEL[deliveryOption] || deliveryOption}
+        </div>
+        <div className="text-sm text-gray-600">
+          {isDelivery
+            ? order.delivery_address || "Delivery address unavailable"
+            : "809 Atis Street, Juna Subdivision"}
+        </div>
+        {deliveryFee > 0 ? (
+          <div className="mt-2 text-sm font-semibold">
+            Delivery fee: <Peso cents={deliveryFee} />
+          </div>
+        ) : null}
       </Card>
 
       {/* Items + per-item macros */}
@@ -339,6 +379,31 @@ export default function TrackOrderPage() {
             <Peso cents={subtotal} />
           </div>
         </div>
+        {promoDiscount > 0 ? (
+          <div className="mt-2 flex items-center justify-between text-sm text-emerald-700">
+            <div className="font-medium">
+              Promo
+              {order.promo_code_applied ? ` (${order.promo_code_applied})` : ""}
+            </div>
+            <div className="font-semibold">
+              -<Peso cents={promoDiscount} />
+            </div>
+          </div>
+        ) : null}
+        {deliveryFee > 0 ? (
+          <div className="mt-2 flex items-center justify-between text-sm">
+            <div className="font-medium">Delivery fee</div>
+            <div className="font-semibold">
+              <Peso cents={deliveryFee} />
+            </div>
+          </div>
+        ) : null}
+        <div className="mt-3 flex items-center justify-between border-t pt-3 text-base">
+          <div className="font-semibold">Total</div>
+          <div className="font-bold text-[#D26E3D]">
+            <Peso cents={orderTotal} />
+          </div>
+        </div>
       </Card>
 
       {/* Totals strip */}
@@ -375,7 +440,7 @@ export default function TrackOrderPage() {
 
       {/* Footer */}
       <Card className="text-sm text-gray-600">
-        Show this page to staff when picking up your order. If you lose this
+        Show this page to staff when receiving your order. If you lose this
         link, ask staff to look up your order by name and pickup time.
       </Card>
     </PageShell>

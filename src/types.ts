@@ -94,6 +94,11 @@ export type Order = {
   id: string;
   pickup_time: string;
   status: "pending" | "in_progress" | "ready" | "picked_up" | "cancelled";
+  promo_code_applied?: string | null;
+  promo_discount_cents?: number | null;
+  delivery_option?: "pickup" | "free_delivery" | "paid_delivery_car" | "maxim_delivery" | null;
+  delivery_address?: string | null;
+  delivery_fee_cents?: number | null;
 };
 
 // ==================== PROMO TYPES ====================

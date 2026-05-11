@@ -1,7 +1,7 @@
 import { useCart } from "@/context/CartContext";
 import PickupTimePicker from "@/components/PickupTimePicker";
 import { supabase } from "@/lib/supabaseClient";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ComponentType } from "react";
 import QRCode from "react-qr-code";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,7 +10,18 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Badge } from "@/components/ui/badge";
-import { Hash, Phone, User, Tag } from "lucide-react";
+import { cn } from "@/lib/utils";
+import {
+  Bike,
+  Car,
+  Hash,
+  MapPin,
+  Phone,
+  Store,
+  Tag,
+  Truck,
+  User,
+} from "lucide-react";
 import { formatCents } from "@/utils/format";
 import { trackEvent } from "@/utils/telemetry";
 
@@ -19,14 +30,66 @@ function Price({ cents }: { cents: number }) {
 }
 
 type PaymentMethod = "cash" | "gcash" | "bank";
+type DeliveryOptionId =
+  | "pickup"
+  | "free_delivery"
+  | "paid_delivery_car"
+  | "maxim_delivery";
 
 type FieldErrors = {
   pickup: boolean;
   name: boolean;
   phone: boolean;
+  deliveryAddress: boolean;
   paymentRef: boolean;
   paymentProof: boolean;
 };
+
+const DELIVERY_OPTIONS: {
+  id: DeliveryOptionId;
+  title: string;
+  description: string;
+  feeCents: number;
+  feeLabel: string;
+  Icon: ComponentType<{ className?: string }>;
+}[] = [
+  {
+    id: "pickup",
+    title: "Pickup",
+    description: "809 Atis Street, Juna Subdivision",
+    feeCents: 0,
+    feeLabel: "No delivery fee",
+    Icon: Store,
+  },
+  {
+    id: "free_delivery",
+    title: "Free delivery",
+    description: "Juna Subd, MCM to Lanang, and Ecoland only",
+    feeCents: 0,
+    feeLabel: "Free",
+    Icon: Truck,
+  },
+  {
+    id: "paid_delivery_car",
+    title: "Delivery car",
+    description: "All other areas via our delivery car",
+    feeCents: 10000,
+    feeLabel: "+₱100",
+    Icon: Car,
+  },
+  {
+    id: "maxim_delivery",
+    title: "Maxim delivery",
+    description: "Delivery via Maxim rider",
+    feeCents: 0,
+    feeLabel: "Rider fee",
+    Icon: Bike,
+  },
+];
+
+const DELIVERY_OPTION_BY_ID = Object.fromEntries(
+  DELIVERY_OPTIONS.map((option) => [option.id, option])
+) as Record<DeliveryOptionId, (typeof DELIVERY_OPTIONS)[number]>;
 
 export default function CheckoutPage() {
   const {
@@ -43,6 +106,9 @@ export default function CheckoutPage() {
   const [pickup, setPickup] = useState(() =>
     new Date(Date.now() + 60 * 60 * 1000).toISOString().slice(0, 16)
   );
+  const [deliveryOption, setDeliveryOption] =
+    useState<DeliveryOptionId>("pickup");
+  const [deliveryAddress, setDeliveryAddress] = useState("");
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [honeypot, setHoneypot] = useState("");
@@ -57,6 +123,7 @@ export default function CheckoutPage() {
     pickup: false,
     name: false,
     phone: false,
+    deliveryAddress: false,
     paymentRef: false,
     paymentProof: false,
   });
@@ -67,9 +134,13 @@ export default function CheckoutPage() {
   } | null>(null);
 
   const cartEmpty = items.length === 0;
+  const selectedDeliveryOption = DELIVERY_OPTION_BY_ID[deliveryOption];
+  const isDelivery = deliveryOption !== "pickup";
+  const deliveryFee = selectedDeliveryOption.feeCents;
 
   const subtotal = useMemo(() => getSubtotal(), [items, getSubtotal]);
-  const total = useMemo(() => getTotal(), [items, getTotal, promoDiscount]);
+  const cartTotal = useMemo(() => getTotal(), [items, getTotal, promoDiscount]);
+  const total = cartTotal + deliveryFee;
 
   function getMinPickup() {
     return new Date(Date.now() + 5 * 60 * 1000).toISOString().slice(0, 16);
@@ -99,6 +170,7 @@ export default function CheckoutPage() {
       pickup: false,
       name: false,
       phone: false,
+      deliveryAddress: false,
       paymentRef: false,
       paymentProof: false,
     };
@@ -116,12 +188,15 @@ export default function CheckoutPage() {
     }
 
     if (!validatePickup(pickup)) {
-      newErrors.push("Pickup time must be at least 5 minutes from now.");
+      newErrors.push(
+        `${isDelivery ? "Delivery" : "Pickup"} time must be at least 5 minutes from now.`
+      );
       newFieldErrors.pickup = true;
     }
 
     const trimmedName = name.trim();
     const trimmedPhone = phone.trim();
+    const trimmedDeliveryAddress = deliveryAddress.trim();
 
     if (!trimmedName || trimmedName.length < 2) {
       newErrors.push("Please enter your full name.");
@@ -134,6 +209,11 @@ export default function CheckoutPage() {
     } else if (!phoneLooksOk(trimmedPhone)) {
       newErrors.push("Enter a valid phone number (10-13 digits).");
       newFieldErrors.phone = true;
+    }
+
+    if (isDelivery && trimmedDeliveryAddress.length < 8) {
+      newErrors.push("Please enter a complete delivery address.");
+      newFieldErrors.deliveryAddress = true;
     }
 
     if (paymentMethod === "gcash" || paymentMethod === "bank") {
@@ -160,6 +240,7 @@ export default function CheckoutPage() {
       pickup: false,
       name: false,
       phone: false,
+      deliveryAddress: false,
       paymentRef: false,
       paymentProof: false,
     });
@@ -203,6 +284,9 @@ export default function CheckoutPage() {
           p_payment_status: payment_status,
           p_payment_reference: paymentRef.trim() || null,
           p_payment_proof_url: payment_proof_url,
+          p_delivery_option: deliveryOption,
+          p_delivery_address: isDelivery ? trimmedDeliveryAddress : null,
+          p_delivery_fee_cents: deliveryFee,
           p_cart_items: cartItemsPayload,
           p_promo_code: appliedPromo?.code || null,
           p_selected_variant_id: appliedPromoVariantId || null,
@@ -223,6 +307,7 @@ export default function CheckoutPage() {
         order_id: orderResult.order_id,
         total_cents: orderResult.total_cents,
         promo_code: appliedPromo?.code || null,
+        delivery_option: deliveryOption,
       });
       setPlaced({ id: orderResult.order_id, tracking_code: orderResult.tracking_code });
     } catch (err: any) {
@@ -245,7 +330,7 @@ export default function CheckoutPage() {
           </CardHeader>
           <CardContent className="space-y-4">
             <p className="text-sm text-muted-foreground">
-              We will start preparing your drink near your pickup time.
+              We will start preparing your order near your selected time.
             </p>
             <div className="flex justify-center">
               <QRCode value={trackUrl} size={180} />
@@ -291,9 +376,97 @@ export default function CheckoutPage() {
 
       <div className="grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
         <div className="space-y-4">
+          <Card
+            className={fieldErrors.deliveryAddress ? "border-destructive/60" : ""}
+          >
+            <CardHeader>
+              <CardTitle className="text-base">Order type & delivery</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <RadioGroup
+                value={deliveryOption}
+                onValueChange={(value) =>
+                  setDeliveryOption(value as DeliveryOptionId)
+                }
+                className="grid gap-3 md:grid-cols-2"
+              >
+                {DELIVERY_OPTIONS.map(({ id, title, description, feeLabel, Icon }) => {
+                  const selected = deliveryOption === id;
+                  return (
+                    <Label
+                      key={id}
+                      htmlFor={id}
+                      className={cn(
+                        "flex min-h-[116px] cursor-pointer items-start gap-3 rounded-xl border bg-white p-4 transition hover:border-[#D26E3D]/50 hover:bg-[#D26E3D]/5",
+                        selected &&
+                          "border-[#D26E3D] bg-[#D26E3D]/10 shadow-sm ring-1 ring-[#D26E3D]/20"
+                      )}
+                    >
+                      <RadioGroupItem
+                        id={id}
+                        value={id}
+                        className="mt-1 shrink-0"
+                      />
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-start justify-between gap-3">
+                          <span className="flex items-center gap-2 font-semibold text-gray-900">
+                            <Icon className="h-4 w-4 shrink-0 text-[#D26E3D]" />
+                            {title}
+                          </span>
+                          <span className="shrink-0 rounded-full bg-white px-2 py-0.5 text-xs font-semibold text-[#D26E3D] ring-1 ring-[#D26E3D]/20">
+                            {feeLabel}
+                          </span>
+                        </div>
+                        <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
+                          {description}
+                        </p>
+                      </div>
+                    </Label>
+                  );
+                })}
+              </RadioGroup>
+
+              {isDelivery && (
+                <div className="space-y-2">
+                  <Label htmlFor="deliveryAddress">Delivery address</Label>
+                  <div className="relative">
+                    <MapPin className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                    <textarea
+                      id="deliveryAddress"
+                      value={deliveryAddress}
+                      onChange={(e) => setDeliveryAddress(e.target.value)}
+                      placeholder="House/building, street, barangay, city"
+                      maxLength={240}
+                      aria-invalid={fieldErrors.deliveryAddress}
+                      aria-describedby={
+                        fieldErrors.deliveryAddress
+                          ? "delivery-address-error"
+                          : undefined
+                      }
+                      className={cn(
+                        "min-h-24 w-full rounded-xl border border-input bg-background px-3 py-2 pl-9 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40",
+                        fieldErrors.deliveryAddress && "border-destructive/60"
+                      )}
+                    />
+                  </div>
+                  {fieldErrors.deliveryAddress && (
+                    <p
+                      id="delivery-address-error"
+                      className="text-xs text-destructive"
+                    >
+                      Please enter a complete delivery address.
+                    </p>
+                  )}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
           <Card className={fieldErrors.pickup ? "border-destructive/60" : ""}>
             <CardHeader>
-              <CardTitle className="text-base">Pickup time</CardTitle>
+              <CardTitle className="text-base">
+                {isDelivery ? "Delivery time" : "Pickup time"}
+              </CardTitle>
             </CardHeader>
             <CardContent>
               <PickupTimePicker
@@ -306,7 +479,8 @@ export default function CheckoutPage() {
               </p>
               {fieldErrors.pickup && (
                 <p className="mt-2 text-xs text-destructive">
-                  Pickup time must be at least 5 minutes from now.
+                  {isDelivery ? "Delivery" : "Pickup"} time must be at least 5
+                  minutes from now.
                 </p>
               )}
             </CardContent>
@@ -382,7 +556,9 @@ export default function CheckoutPage() {
               >
                 <div className="flex items-center gap-2">
                   <RadioGroupItem value="cash" id="cash" />
-                  <Label htmlFor="cash">Cash on pickup</Label>
+                  <Label htmlFor="cash">
+                    {isDelivery ? "Cash on delivery" : "Cash on pickup"}
+                  </Label>
                 </div>
                 <div className="flex items-center gap-2">
                   <RadioGroupItem value="gcash" id="gcash" />
@@ -554,6 +730,21 @@ export default function CheckoutPage() {
                   <div className="font-semibold">
                     -{formatCents(promoDiscount)}
                   </div>
+                </div>
+              )}
+
+              {deliveryFee > 0 && (
+                <div className="flex items-center justify-between text-sm">
+                  <div className="font-medium">Delivery fee</div>
+                  <div className="font-semibold">
+                    <Price cents={deliveryFee} />
+                  </div>
+                </div>
+              )}
+
+              {deliveryOption === "maxim_delivery" && (
+                <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                  Maxim rider fee is handled separately from this order total.
                 </div>
               )}
 
